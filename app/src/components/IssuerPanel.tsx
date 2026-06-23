@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Transaction } from '@bsv/sdk'
+import { Transaction, P2PKH, Hash, Utils } from '@bsv/sdk'
 import { MandalaToken, MandalaAdmin } from '@bsv/templates'
 import { toast } from 'sonner'
 import { useWallet } from '../context/WalletContext'
@@ -44,14 +44,17 @@ export default function IssuerPanel() {
     try {
       const admin = new MandalaAdmin(wallet as any)
 
-      // Phase 1: create a plain 1-sat UTXO; the wallet owns it via standard output.
-      // We omit a custom lockingScript so the wallet creates a normal wallet-owned output.
+      // Phase 1: create a 1-sat UTXO locked to a wallet-derived P2PKH key.
+      // The outpoint of this output becomes the assetId; it is never spent.
+      const genesisKeyId = 'genesis-' + Date.now()
+      const { publicKey: genesisPub } = await wallet.getPublicKey({ protocolID: FT_PROTOCOL, keyID: genesisKeyId, counterparty: 'self' })
+      const genesisLock = new P2PKH().lock(Hash.hash160(Utils.toArray(genesisPub, 'hex')))
       const phase1 = await wallet.createAction({
         description: `Genesis for ${label.trim()}`,
         outputs: [{
           satoshis: 1,
-          lockingScript: '51', // OP_1 trivial placeholder — wallet will replace with P2PKH
-          outputDescription: 'asset genesis marker',
+          lockingScript: genesisLock.toHex(),
+          outputDescription: 'asset genesis',
           basket: BASKET
         }],
         options: { randomizeOutputs: false }

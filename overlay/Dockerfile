@@ -1,9 +1,6 @@
 FROM node:20-bullseye
 WORKDIR /app
 COPY package.json ./
-# Copy patches dir before npm install so the postinstall patch-package step finds it.
-# Pins the OP_N decode fix for @bsv/templates@1.6.0 — remove when upstream publishes a fixed version.
-COPY patches ./patches
 RUN npm install
 # Patch @bsv/overlay migration that uses MySQL-only syntax so it works with SQLite.
 # The migration moves data from outputs→transactions; on a fresh DB (no prior rows) both
