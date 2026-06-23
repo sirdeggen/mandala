@@ -1,7 +1,10 @@
+import { MandalaActionDetails } from './encoding'
+
 export interface RegisteredAsset {
   assetId: string
   label: string
   authOutpoint: string
+  authDetails: MandalaActionDetails
 }
 
 const key = (identityKey: string) => `mandala:assets:${identityKey}`
@@ -26,4 +29,16 @@ export function updateAuthOutpoint (identityKey: string, assetId: string, authOu
   const asset = getAsset(identityKey, assetId, s)
   if (asset == null) throw new Error(`unknown asset ${assetId}`)
   saveAsset(identityKey, { ...asset, authOutpoint }, s)
+}
+
+export function updateAuth (
+  identityKey: string,
+  assetId: string,
+  authOutpoint: string,
+  authDetails: MandalaActionDetails,
+  s?: Storage
+): void {
+  const asset = getAsset(identityKey, assetId, s)
+  if (asset == null) throw new Error(`unknown asset ${assetId}`)
+  saveAsset(identityKey, { ...asset, authOutpoint, authDetails }, s)
 }

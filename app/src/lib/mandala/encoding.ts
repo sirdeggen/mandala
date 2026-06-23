@@ -18,6 +18,7 @@ export interface MandalaActionDetails {
   assetId?: string
   amount?: number
   priorOutpoint?: string
+  [k: string]: unknown
 }
 
 export interface MandalaLinkagePayload {
