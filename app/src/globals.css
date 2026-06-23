@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: oklch(100% 0 0);
+  --color-foreground: oklch(9% 0.024 286);
+  --color-card: oklch(100% 0 0);
+  --color-card-foreground: oklch(9% 0.024 286);
+  --color-popover: oklch(100% 0 0);
+  --color-popover-foreground: oklch(9% 0.024 286);
+  --color-primary: oklch(11% 0.024 286);
+  --color-primary-foreground: oklch(98% 0 0);
+  --color-secondary: oklch(96% 0 0);
+  --color-secondary-foreground: oklch(11% 0.024 286);
+  --color-muted: oklch(96% 0 0);
+  --color-muted-foreground: oklch(45% 0.012 286);
+  --color-accent: oklch(96% 0 0);
+  --color-accent-foreground: oklch(11% 0.024 286);
+  --color-destructive: oklch(58% 0.22 27);
+  --color-destructive-foreground: oklch(98% 0 0);
+  --color-border: oklch(89% 0 0);
+  --color-input: oklch(89% 0 0);
+  --color-ring: oklch(11% 0.024 286);
+  --radius: 0.5rem;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  margin: 0;
+  min-height: 100vh;
+}
+
+/* Custom animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-in {
+  animation: fade-in 0.3s ease-out, slide-up 0.3s ease-out;
+}
+
+/* Smooth transitions for all interactive elements */
+button, input, select, textarea {
+  transition: all 0.15s ease-in-out;
+}
