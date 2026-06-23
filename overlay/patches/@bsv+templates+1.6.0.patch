@@ -1,0 +1,28 @@
+diff --git a/node_modules/@bsv/templates/dist/cjs/src/MandalaToken.js b/node_modules/@bsv/templates/dist/cjs/src/MandalaToken.js
+index 99f3c01..33fff93 100644
+--- a/node_modules/@bsv/templates/dist/cjs/src/MandalaToken.js
++++ b/node_modules/@bsv/templates/dist/cjs/src/MandalaToken.js
+@@ -71,7 +71,8 @@ class MandalaToken {
+             throw new Error('not a MandalaToken script: bad P2PKH tail');
+         }
+         const assetId = (0, mandala_encoding_js_1.decodeAssetId)(vt(c[1].data));
+-        const amount = (0, mandala_encoding_js_1.decodeScriptNum)((_b = c[2].data) !== null && _b !== void 0 ? _b : []);
++        const _amt_chunk = c[2];
++        const amount = _amt_chunk.op === 0 ? 0 : (_amt_chunk.op === 0x4f ? -1 : ((_amt_chunk.op >= 0x51 && _amt_chunk.op <= 0x60) ? _amt_chunk.op - 0x50 : (0, mandala_encoding_js_1.decodeScriptNum)(_amt_chunk.data !== null && _amt_chunk.data !== void 0 ? _amt_chunk.data : [])));
+         if (!Number.isInteger(amount) || amount < 1)
+             throw new Error('not a MandalaToken script: bad amount');
+         const pubKeyHash = vt(c[7].data);
+diff --git a/node_modules/@bsv/templates/dist/esm/src/MandalaToken.js b/node_modules/@bsv/templates/dist/esm/src/MandalaToken.js
+index 2e48ecf..b936c0e 100644
+--- a/node_modules/@bsv/templates/dist/esm/src/MandalaToken.js
++++ b/node_modules/@bsv/templates/dist/esm/src/MandalaToken.js
+@@ -69,7 +69,8 @@ export class MandalaToken {
+             throw new Error('not a MandalaToken script: bad P2PKH tail');
+         }
+         const assetId = decodeAssetId(vt(c[1].data));
+-        const amount = decodeScriptNum(c[2].data ?? []);
++        const _amt_chunk = c[2];
++        const amount = _amt_chunk.op === 0 ? 0 : (_amt_chunk.op === 0x4f ? -1 : ((_amt_chunk.op >= 0x51 && _amt_chunk.op <= 0x60) ? _amt_chunk.op - 0x50 : decodeScriptNum(_amt_chunk.data ?? [])));
+         if (!Number.isInteger(amount) || amount < 1)
+             throw new Error('not a MandalaToken script: bad amount');
+         const pubKeyHash = vt(c[7].data);

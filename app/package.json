@@ -6,8 +6,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "postinstall": "patch-package"
   },
+  "_patchNote": "patch-package postinstall pins the OP_N decode fix for @bsv/templates@1.6.0. Remove once upstream publishes a fixed version and bump the dep.",
   "dependencies": {
     "@bsv/identity-react": "^1.1.10",
     "@bsv/message-box-client": "^1.4.5",
@@ -29,6 +31,7 @@
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "patch-package": "^8.0.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.17",
     "typescript": "~5.9.3",
