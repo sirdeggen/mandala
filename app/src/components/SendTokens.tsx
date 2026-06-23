@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Transaction, Beef, LockingScript, PublicKey } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
@@ -29,8 +29,6 @@ export default function SendTokens() {
   const [balances, setBalances] = useState<TokenBalance[]>([])
   const [isLoadingBalances, setIsLoadingBalances] = useState(true)
 
-  const listResultRef = useRef<{ outputs: any[], BEEF: any } | null>(null)
-
   useEffect(() => {
     void loadBalances()
   }, [wallet])
@@ -45,7 +43,6 @@ export default function SendTokens() {
         limit: 1000,
         includeCustomInstructions: true
       })
-      listResultRef.current = res as any
 
       const totals = new Map<string, number>()
       for (const o of res.outputs) {
@@ -92,6 +89,7 @@ export default function SendTokens() {
 
     // Pick FT inputs of this asset until gathered >= sendAmount
     const beef = new Beef()
+    beef.mergeBeef(res.BEEF as number[])
     const inputs: Array<{ outpoint: string, unlockingScriptLength: number, inputDescription: string }> = []
     const spendInfo: Array<{ keyID: string, counterparty: string }> = []
     let gathered = 0
@@ -104,7 +102,6 @@ export default function SendTokens() {
       } catch { continue }
       if (decoded.assetId !== selectedAssetId) continue
       const ci = JSON.parse((o.customInstructions as string) ?? '{}')
-      beef.mergeBeef(res.BEEF as number[])
       inputs.push({ outpoint: o.outpoint as string, unlockingScriptLength: 108, inputDescription: 'spend FT' })
       spendInfo.push({ keyID: ci.keyID, counterparty: ci.counterparty })
       gathered += decoded.amount
