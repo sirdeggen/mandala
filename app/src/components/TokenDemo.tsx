@@ -3,7 +3,7 @@ import { useWallet } from '../context/WalletContext'
 import IssuerPanel from './IssuerPanel'
 import TokenWallet from './TokenWallet'
 import SendTokens from './SendTokens'
-import { ReceiveTokens } from './ReceiveTokens'
+import ReceiveTokens from './ReceiveTokens'
 
 export default function TokenDemo() {
   const { isInitialized, error, isIssuer, identityKey } = useWallet()

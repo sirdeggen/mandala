@@ -18,7 +18,7 @@ interface PendingToken {
   transaction: AtomicBEEF
 }
 
-export function ReceiveTokens() {
+export default function ReceiveTokens() {
   const { wallet, messageBoxClient } = useWallet()
   const [pendingTokens, setPendingTokens] = useState<PendingToken[]>([])
   const [isLoading, setIsLoading] = useState(true)
