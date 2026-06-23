@@ -3,7 +3,7 @@ import { Transaction, Beef, LockingScript, P2PKH, Hash, Utils } from '@bsv/sdk'
 import { MandalaToken, MandalaAdmin } from '@bsv/templates'
 import { toast } from 'sonner'
 import { useWallet } from '../context/WalletContext'
-import { ADMIN_PROTOCOL, FT_PROTOCOL, BASKET } from '../lib/mandala/constants'
+import { ADMIN_PROTOCOL, FT_PROTOCOL, BASKET, MESSAGEBOX } from '../lib/mandala/constants'
 import { encodeLinkagePayload, MandalaActionDetails } from '../lib/mandala/encoding'
 import { submitToOverlay } from '../lib/mandala/overlay'
 import { outpoint, revealLinkage } from '../lib/mandala/tokens'
@@ -21,7 +21,7 @@ import { Input } from './ui/input'
 import { Label } from './ui/label'
 
 export default function IssuerPanel() {
-  const { wallet, identityKey } = useWallet()
+  const { wallet, messageBoxClient, identityKey } = useWallet()
   const [label, setLabel] = useState('')
   const [assets, setAssets] = useState<RegisteredAsset[]>([])
   const [issueAsset, setIssueAsset] = useState('')
@@ -440,6 +440,21 @@ export default function IssuerPanel() {
         admin: [{ index: 1, actionDetails: recoverDetails }]
       })
       await submitToOverlay(signed.tx as number[], offChainValues)
+
+      if (messageBoxClient != null) {
+        await messageBoxClient.sendMessage({
+          recipient,
+          messageBox: MESSAGEBOX,
+          body: {
+            assetId: recoverAsset,
+            amount,
+            transaction: signed.tx,
+            keyID,
+            protocolID: FT_PROTOCOL,
+            sender: identityKey
+          }
+        })
+      }
 
       const nextAuthOutpoint = outpoint(Transaction.fromBEEF(signed.tx as number[]).id('hex'), 1)
       updateAuth(identityKey, recoverAsset, nextAuthOutpoint, recoverDetails)
