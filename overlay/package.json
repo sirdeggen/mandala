@@ -10,7 +10,7 @@
   "dependencies": {
     "@bsv/overlay": "^2.1.0",
     "@bsv/overlay-express": "^2.4.0",
-    "@bsv/overlay-topics": "^1.2.0",
+    "@bsv/overlay-topics": "^1.2.1",
     "@bsv/sdk": "^2.1.6",
     "@bsv/templates": "^1.6.1",
     "dotenv": "^17.4.2",
