@@ -4,6 +4,7 @@ import { useWallet } from '../context/WalletContext'
 import { BASKET } from '../lib/mandala/constants'
 import { decodeBalances, TokenBalance } from '../lib/mandala/tokens'
 import { listAdminAssets } from '../lib/mandala/assets'
+import { resolveAssetMetadata } from '../lib/mandala/metadata'
 import { Button } from './ui/button'
 import { cn } from '@/lib/utils'
 
@@ -35,11 +36,19 @@ export default function TokenWallet() {
     setLoading(true)
     try {
       const res = await wallet.listOutputs({ basket: BASKET, include: 'locking scripts', limit: 1000 })
-      setBalances(decodeBalances(res.outputs.map(o => ({ lockingScript: o.lockingScript as string }))))
+      const decoded = decodeBalances(res.outputs.map(o => ({ lockingScript: o.lockingScript as string })))
+      setBalances(decoded)
       // Labels come from the issuer's admin outputs (only present in the issuer's
-      // own wallet); holders fall back to a truncated assetId.
+      // own wallet); holders fall back to a resolver query then truncated assetId.
       const admin = await listAdminAssets(wallet as any)
-      setLabels(Object.fromEntries(admin.map(a => [a.assetId, a.label])))
+      const labelMap: Record<string, string> = Object.fromEntries(admin.map(a => [a.assetId, a.label]))
+      for (const b of decoded) {
+        if (labelMap[b.assetId] == null) {
+          const meta = await resolveAssetMetadata(b.assetId)
+          if (meta != null) labelMap[b.assetId] = meta.label
+        }
+      }
+      setLabels(labelMap)
     } finally { setLoading(false) }
   }, [wallet])
 

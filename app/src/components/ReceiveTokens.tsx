@@ -7,6 +7,7 @@ import { useWallet } from '../context/WalletContext'
 import { Download, Check, X, RefreshCw, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MESSAGEBOX, BASKET } from '../lib/mandala/constants'
+import { resolveAssetMetadata } from '../lib/mandala/metadata'
 
 interface PendingToken {
   id: string
@@ -22,6 +23,7 @@ interface PendingToken {
 export default function ReceiveTokens() {
   const { wallet, messageBoxClient } = useWallet()
   const [pendingTokens, setPendingTokens] = useState<PendingToken[]>([])
+  const [labels, setLabels] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [acceptingTokenId, setAcceptingTokenId] = useState<string | null>(null)
   const [rejectingTokenId, setRejectingTokenId] = useState<string | null>(null)
@@ -29,6 +31,17 @@ export default function ReceiveTokens() {
   useEffect(() => {
     loadPendingTokens()
   }, [messageBoxClient])
+
+  useEffect(() => {
+    void (async () => {
+      const next: Record<string, string> = {}
+      for (const p of pendingTokens) {
+        const meta = await resolveAssetMetadata(p.assetId)
+        if (meta != null) next[p.assetId] = meta.label
+      }
+      setLabels(next)
+    })()
+  }, [pendingTokens])
 
   const loadPendingTokens = async () => {
     setIsLoading(true)
@@ -88,7 +101,8 @@ export default function ReceiveTokens() {
             customInstructions: JSON.stringify({
               protocolID: pendingToken.protocolID,
               keyID: pendingToken.keyID,
-              counterparty: pendingToken.sender
+              counterparty: pendingToken.sender,
+              label: labels[pendingToken.assetId]
             }),
             tags: ['mandala', 'received', pendingToken.assetId]
           }
@@ -229,7 +243,8 @@ export default function ReceiveTokens() {
                       <p className="tabular text-[28px] font-semibold leading-none tracking-[-0.02em] text-success">
                         +{Number(pending.amount).toLocaleString()}
                       </p>
-                      <p className="tabular mt-2 truncate text-[12px] text-subtle-foreground">{pending.assetId}</p>
+                      <p className="mt-2 text-[15px] font-semibold">{labels[pending.assetId] ?? `${pending.assetId.slice(0, 20)}…`}</p>
+                      <p className="tabular truncate text-[12px] text-subtle-foreground">{pending.assetId}</p>
                       <p className="mt-1 text-[13px] text-muted-foreground">
                         From <span className="tabular text-foreground">{pending.sender.slice(0, 16)}…</span>
                       </p>

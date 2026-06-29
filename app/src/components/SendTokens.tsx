@@ -15,6 +15,7 @@ import { BASKET, FT_PROTOCOL, MESSAGEBOX } from '../lib/mandala/constants'
 import { walletMandalaUnlock } from '../lib/mandala/unlock'
 import { revealLinkage } from '../lib/mandala/tokens'
 import { listAdminAssets } from '../lib/mandala/assets'
+import { resolveAssetMetadata } from '../lib/mandala/metadata'
 import { submitToOverlay } from '../lib/mandala/overlay'
 import { encodeLinkagePayload } from '../lib/mandala/encoding'
 
@@ -59,9 +60,16 @@ export default function SendTokens() {
       }
       setBalances([...totals.entries()].map(([assetId, amount]) => ({ assetId, amount })))
       // Labels come from the issuer's admin outputs (present only in the issuer's
-      // own wallet); holders fall back to a truncated assetId.
+      // own wallet); holders fall back to a resolver query then truncated assetId.
       const admin = await listAdminAssets(wallet as any)
-      setLabels(Object.fromEntries(admin.map(a => [a.assetId, a.label])))
+      const labelMap: Record<string, string> = Object.fromEntries(admin.map(a => [a.assetId, a.label]))
+      for (const b of [...totals.keys()]) {
+        if (labelMap[b] == null) {
+          const meta = await resolveAssetMetadata(b)
+          if (meta != null) labelMap[b] = meta.label
+        }
+      }
+      setLabels(labelMap)
     } catch (e) {
       console.error('Error loading balances:', e)
     } finally {
