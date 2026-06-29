@@ -9,7 +9,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <WalletProvider>
       <App />
-      <Toaster richColors position="top-right" />
+      <Toaster richColors theme="system" position="top-right" />
     </WalletProvider>
   </React.StrictMode>
 )

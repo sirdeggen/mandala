@@ -3,27 +3,27 @@ import { Transaction, Beef, LockingScript, P2PKH, Hash, Utils } from '@bsv/sdk'
 import { MandalaToken, MandalaAdmin } from '@bsv/templates'
 import { toast } from 'sonner'
 import { useWallet } from '../context/WalletContext'
-import { ADMIN_PROTOCOL, FT_PROTOCOL, BASKET, MESSAGEBOX } from '../lib/mandala/constants'
+import { FT_PROTOCOL, BASKET, MESSAGEBOX } from '../lib/mandala/constants'
 import { encodeLinkagePayload, MandalaActionDetails } from '../lib/mandala/encoding'
 import { submitToOverlay } from '../lib/mandala/overlay'
 import { outpoint, revealLinkage } from '../lib/mandala/tokens'
 import { walletMandalaUnlock } from '../lib/mandala/unlock'
 import {
-  saveAsset,
-  getAsset,
-  updateAuth,
-  listAssets,
-  RegisteredAsset
-} from '../lib/mandala/assetStore'
+  AdminAsset,
+  listAdminAssets,
+  adminCustomInstructions
+} from '../lib/mandala/assets'
+import { PlusCircle, Sparkles, Flame, ShieldAlert } from 'lucide-react'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
+import { Select } from './ui/select'
 
 export default function IssuerPanel() {
   const { wallet, messageBoxClient, identityKey } = useWallet()
   const [label, setLabel] = useState('')
-  const [assets, setAssets] = useState<RegisteredAsset[]>([])
+  const [assets, setAssets] = useState<AdminAsset[]>([])
   const [issueAsset, setIssueAsset] = useState('')
   const [issueAmount, setIssueAmount] = useState('')
   const [redeemAsset, setRedeemAsset] = useState('')
@@ -33,10 +33,10 @@ export default function IssuerPanel() {
   const [recoverRecipient, setRecoverRecipient] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const reload = useCallback(() => {
-    if (identityKey != null) setAssets(listAssets(identityKey))
-  }, [identityKey])
-  useEffect(() => { reload() }, [reload])
+  const reload = useCallback(async () => {
+    if (wallet != null) setAssets(await listAdminAssets(wallet as any))
+  }, [wallet])
+  useEffect(() => { void reload() }, [reload])
 
   // ---------------------------------------------------------------------------
   // Register: 2-phase approach
@@ -48,8 +48,6 @@ export default function IssuerPanel() {
     if (wallet == null || identityKey == null || label.trim() === '') return
     setBusy(true)
     try {
-      const admin = new MandalaAdmin(wallet as any)
-
       // Phase 1: create a 1-sat UTXO locked to a wallet-derived P2PKH key.
       // The outpoint of this output becomes the assetId; it is never spent.
       const genesisKeyId = 'genesis-' + Date.now()
@@ -66,14 +64,12 @@ export default function IssuerPanel() {
         options: { randomizeOutputs: false }
       })
 
-      if (phase1.tx == null) throw new Error('phase1: no tx returned')
-      const genesisTx = Transaction.fromBEEF(phase1.tx as number[])
-      const assetId = outpoint(genesisTx.id('hex'), 0)
+      if (phase1.txid == null) throw new Error('phase1: no txid returned')
+      const assetId = outpoint(phase1.txid, 0)
 
       // Phase 2: register tx — produces ONE admin-auth output, no inputs to sign.
       const regDetails: MandalaActionDetails = { kind: 'register', assetId }
-      const { boundKey } = await admin.deriveBoundKey(ADMIN_PROTOCOL, regDetails)
-      const adminLock = admin.lock(boundKey)
+      const adminLock = await MandalaAdmin.lock({ wallet: wallet as any, data: regDetails })
 
       const reg = await wallet.createAction({
         description: `Register ${label.trim()}`,
@@ -81,12 +77,15 @@ export default function IssuerPanel() {
           satoshis: 1,
           lockingScript: adminLock.toHex(),
           outputDescription: 'admin auth',
-          basket: BASKET
+          basket: BASKET,
+          // Bookkeeping rides on the admin UTXO itself — the wallet basket is the
+          // source of truth for the auth chain (no localStorage, no on-chain marker).
+          customInstructions: adminCustomInstructions(assetId, label.trim(), regDetails)
         }],
         options: { randomizeOutputs: false }
       })
 
-      if (reg.tx == null) throw new Error('register: no tx returned')
+      if (reg.tx == null || reg.txid == null) throw new Error('register: no tx returned')
 
       const offChainValues = encodeLinkagePayload({
         inputs: [],
@@ -95,19 +94,9 @@ export default function IssuerPanel() {
       })
       await submitToOverlay(reg.tx as number[], offChainValues)
 
-      const regTxid = Transaction.fromBEEF(reg.tx as number[]).id('hex')
-      const authOutpoint = outpoint(regTxid, 0)
-
-      saveAsset(identityKey, {
-        assetId,
-        label: label.trim(),
-        authOutpoint,
-        authDetails: regDetails
-      })
-
       toast.success(`Registered ${label.trim()} (${assetId})`)
       setLabel('')
-      reload()
+      void reload()
     } catch (e) {
       toast.error(`Register failed: ${String(e)}`)
     } finally {
@@ -120,14 +109,16 @@ export default function IssuerPanel() {
   // ---------------------------------------------------------------------------
   const issue = useCallback(async () => {
     if (wallet == null || identityKey == null) return
-    const asset = getAsset(identityKey, issueAsset)
+    const asset = assets.find(a => a.assetId === issueAsset)
     const amount = Number(issueAmount)
     if (asset == null || !Number.isInteger(amount) || amount < 1) return
     setBusy(true)
     try {
-      const admin = new MandalaAdmin(wallet as any)
       const keyID = 'mint-' + Date.now()
-      const counterparty = 'self'
+      // Self-mint: use our own identity key (hex) as counterparty, not the literal
+      // 'self' — the revealed linkage echoes counterparty verbatim and the overlay
+      // parses it as a public key. Derivation is identical ('self' normalizes to this).
+      const counterparty = identityKey
 
       // Build FT locking script.
       const ftLock = await new MandalaToken(wallet as any).lockBRC29(
@@ -142,8 +133,7 @@ export default function IssuerPanel() {
         amount,
         priorOutpoint
       }
-      const { boundKey } = await admin.deriveBoundKey(ADMIN_PROTOCOL, issueDetails)
-      const nextAuthLock = admin.lock(boundKey)
+      const nextAuthLock = await MandalaAdmin.lock({ wallet: wallet as any, data: issueDetails })
 
       // Fetch BEEF for the prior auth outpoint.
       const listResult = await wallet.listOutputs({
@@ -161,7 +151,7 @@ export default function IssuerPanel() {
         inputBEEF: listResult.BEEF as number[],
         inputs: [{
           outpoint: priorOutpoint,
-          unlockingScriptLength: 74,
+          unlockingScriptLength: 108,
           inputDescription: 'spend prior admin auth'
         }],
         outputs: [
@@ -176,7 +166,8 @@ export default function IssuerPanel() {
             satoshis: 1,
             lockingScript: nextAuthLock.toHex(),
             outputDescription: 'next admin auth',
-            basket: BASKET
+            basket: BASKET,
+            customInstructions: adminCustomInstructions(asset.assetId, asset.label, issueDetails)
           }
         ],
         options: { randomizeOutputs: false }
@@ -186,7 +177,7 @@ export default function IssuerPanel() {
 
       // Sign the prior auth input with the stored authDetails (symmetric with how it was locked).
       const txToSign = Transaction.fromBEEF(created.signableTransaction.tx as number[])
-      txToSign.inputs[0].unlockingScriptTemplate = admin.unlock(ADMIN_PROTOCOL, asset.authDetails)
+      txToSign.inputs[0].unlockingScriptTemplate = MandalaAdmin.unlock({ wallet: wallet as any, data: asset.authDetails })
       await txToSign.sign()
 
       const spends: Record<string, { unlockingScript: string }> = {
@@ -198,7 +189,7 @@ export default function IssuerPanel() {
         spends
       })
 
-      if (signed.tx == null) throw new Error('signAction: no tx returned')
+      if (signed.tx == null || signed.txid == null) throw new Error('signAction: no tx returned')
 
       // Reveal linkage for the FT output and submit to overlay.
       const linkage = await revealLinkage(wallet as any, keyID, counterparty)
@@ -209,19 +200,15 @@ export default function IssuerPanel() {
       })
       await submitToOverlay(signed.tx as number[], offChainValues)
 
-      // Persist updated auth chain state.
-      const nextAuthOutpoint = outpoint(Transaction.fromBEEF(signed.tx as number[]).id('hex'), 1)
-      updateAuth(identityKey, asset.assetId, nextAuthOutpoint, issueDetails)
-
       toast.success(`Issued ${amount} ${asset.label}`)
       setIssueAmount('')
-      reload()
+      void reload()
     } catch (e) {
       toast.error(`Issue failed: ${String(e)}`)
     } finally {
       setBusy(false)
     }
-  }, [wallet, identityKey, issueAsset, issueAmount, reload])
+  }, [wallet, identityKey, assets, issueAsset, issueAmount, reload])
 
   // ---------------------------------------------------------------------------
   // Redeem: burn FT tokens by spending FT inputs + prior auth outpoint.
@@ -229,29 +216,34 @@ export default function IssuerPanel() {
   // ---------------------------------------------------------------------------
   const redeem = useCallback(async () => {
     if (wallet == null || identityKey == null) return
-    const asset = getAsset(identityKey, redeemAsset)
+    const asset = assets.find(a => a.assetId === redeemAsset)
     const amount = Number(redeemAmount)
     if (asset == null || !Number.isInteger(amount) || amount < 1) return
     setBusy(true)
     try {
-      const admin = new MandalaAdmin(wallet as any)
-
       // Gather FT inputs of this asset totaling >= amount (same selection as transfer).
-      const res = await wallet.listOutputs({
+      // 'locking scripts' attaches lockingScript + customInstructions for selection;
+      // 'entire transactions' attaches the BEEF for inputBEEF. Outpoints line up.
+      const scriptRes = await wallet.listOutputs({
         basket: BASKET,
-        include: 'entire transactions',
+        include: 'locking scripts',
         limit: 1000,
         includeCustomInstructions: true
       })
+      const beefRes = await wallet.listOutputs({
+        basket: BASKET,
+        include: 'entire transactions',
+        limit: 1000
+      })
 
       const beef = new Beef()
-      beef.mergeBeef(res.BEEF as number[])
+      beef.mergeBeef(beefRes.BEEF as number[])
 
       const ftInputs: Array<{ outpoint: string, unlockingScriptLength: number, inputDescription: string }> = []
       const ftSpend: Array<{ keyID: string, counterparty: string }> = []
       let gathered = 0
 
-      for (const o of res.outputs) {
+      for (const o of scriptRes.outputs) {
         if (gathered >= amount) break
         let d
         try { d = MandalaToken.decode(LockingScript.fromHex(o.lockingScript as string)) } catch { continue }
@@ -272,13 +264,12 @@ export default function IssuerPanel() {
         amount,
         priorOutpoint: asset.authOutpoint
       }
-      const { boundKey } = await admin.deriveBoundKey(ADMIN_PROTOCOL, redeemDetails)
-      const nextAuthLock = admin.lock(boundKey)
+      const nextAuthLock = await MandalaAdmin.lock({ wallet: wallet as any, data: redeemDetails })
 
       // Also include the prior auth outpoint as an input.
       const inputs = [
         ...ftInputs,
-        { outpoint: asset.authOutpoint, unlockingScriptLength: 74, inputDescription: 'spend prior auth' }
+        { outpoint: asset.authOutpoint, unlockingScriptLength: 108, inputDescription: 'spend prior auth' }
       ]
 
       const outputs: any[] = [
@@ -286,20 +277,21 @@ export default function IssuerPanel() {
           satoshis: 1,
           lockingScript: nextAuthLock.toHex(),
           outputDescription: 'redeem auth',
-          basket: BASKET
+          basket: BASKET,
+          customInstructions: adminCustomInstructions(redeemAsset, asset.label, redeemDetails)
         }
       ]
 
       let keyIDChange = ''
       if (change > 0) {
         keyIDChange = 'rchg-' + Date.now()
-        const ftChange = await new MandalaToken(wallet as any).lockBRC29(redeemAsset, change, FT_PROTOCOL, keyIDChange, 'self')
+        const ftChange = await new MandalaToken(wallet as any).lockBRC29(redeemAsset, change, FT_PROTOCOL, keyIDChange, identityKey)
         outputs.push({
           satoshis: 1,
           lockingScript: ftChange.toHex(),
           outputDescription: 'FT change',
           basket: BASKET,
-          customInstructions: JSON.stringify({ protocolID: FT_PROTOCOL, keyID: keyIDChange, counterparty: 'self' })
+          customInstructions: JSON.stringify({ protocolID: FT_PROTOCOL, keyID: keyIDChange, counterparty: identityKey })
         })
       }
 
@@ -318,7 +310,7 @@ export default function IssuerPanel() {
       for (let i = 0; i < ftSpend.length; i++) {
         txToSign.inputs[i].unlockingScriptTemplate = walletMandalaUnlock(wallet as any, ftSpend[i].keyID, ftSpend[i].counterparty)
       }
-      txToSign.inputs[ftSpend.length].unlockingScriptTemplate = admin.unlock(ADMIN_PROTOCOL, asset.authDetails)
+      txToSign.inputs[ftSpend.length].unlockingScriptTemplate = MandalaAdmin.unlock({ wallet: wallet as any, data: asset.authDetails })
       await txToSign.sign()
 
       const spends: Record<string, { unlockingScript: string }> = {}
@@ -331,12 +323,12 @@ export default function IssuerPanel() {
         spends
       })
 
-      if (signed.tx == null) throw new Error('signAction: no tx returned')
+      if (signed.tx == null || signed.txid == null) throw new Error('signAction: no tx returned')
 
       // Admin auth is index 0; FT change (if any) is index 1.
       const outLinks: Array<{ index: number, linkage: any }> = []
       if (change > 0) {
-        outLinks.push({ index: 1, linkage: await revealLinkage(wallet as any, keyIDChange, 'self') })
+        outLinks.push({ index: 1, linkage: await revealLinkage(wallet as any, keyIDChange, identityKey) })
       }
       const offChainValues = encodeLinkagePayload({
         inputs: [],
@@ -345,18 +337,15 @@ export default function IssuerPanel() {
       })
       await submitToOverlay(signed.tx as number[], offChainValues)
 
-      const nextAuthOutpoint = outpoint(Transaction.fromBEEF(signed.tx as number[]).id('hex'), 0)
-      updateAuth(identityKey, redeemAsset, nextAuthOutpoint, redeemDetails)
-
       toast.success(`Redeemed (burned) ${amount} ${asset.label}`)
       setRedeemAmount('')
-      reload()
+      void reload()
     } catch (e) {
       toast.error(`Redeem failed: ${String(e)}`)
     } finally {
       setBusy(false)
     }
-  }, [wallet, identityKey, redeemAsset, redeemAmount, reload])
+  }, [wallet, identityKey, assets, redeemAsset, redeemAmount, reload])
 
   // ---------------------------------------------------------------------------
   // Recover: seize/re-issue tokens to a specified recipient identity key.
@@ -364,12 +353,11 @@ export default function IssuerPanel() {
   // ---------------------------------------------------------------------------
   const recover = useCallback(async () => {
     if (wallet == null || identityKey == null) return
-    const asset = getAsset(identityKey, recoverAsset)
+    const asset = assets.find(a => a.assetId === recoverAsset)
     const amount = Number(recoverAmount)
     if (asset == null || !Number.isInteger(amount) || amount < 1 || recoverRecipient.trim() === '') return
     setBusy(true)
     try {
-      const admin = new MandalaAdmin(wallet as any)
       const keyID = 'recover-' + Date.now()
       const recipient = recoverRecipient.trim()
 
@@ -383,8 +371,7 @@ export default function IssuerPanel() {
         amount,
         priorOutpoint: asset.authOutpoint
       }
-      const { boundKey } = await admin.deriveBoundKey(ADMIN_PROTOCOL, recoverDetails)
-      const nextAuthLock = admin.lock(boundKey)
+      const nextAuthLock = await MandalaAdmin.lock({ wallet: wallet as any, data: recoverDetails })
 
       // Fetch BEEF for the prior auth outpoint.
       const listResult = await wallet.listOutputs({
@@ -399,7 +386,7 @@ export default function IssuerPanel() {
         inputBEEF: listResult.BEEF as number[],
         inputs: [{
           outpoint: asset.authOutpoint,
-          unlockingScriptLength: 74,
+          unlockingScriptLength: 108,
           inputDescription: 'spend prior auth'
         }],
         outputs: [
@@ -412,7 +399,8 @@ export default function IssuerPanel() {
             satoshis: 1,
             lockingScript: nextAuthLock.toHex(),
             outputDescription: 'recover auth',
-            basket: BASKET
+            basket: BASKET,
+            customInstructions: adminCustomInstructions(recoverAsset, asset.label, recoverDetails)
           }
         ],
         options: { randomizeOutputs: false }
@@ -422,7 +410,7 @@ export default function IssuerPanel() {
 
       // Sign the prior auth input.
       const txToSign = Transaction.fromBEEF(created.signableTransaction.tx as number[])
-      txToSign.inputs[0].unlockingScriptTemplate = admin.unlock(ADMIN_PROTOCOL, asset.authDetails)
+      txToSign.inputs[0].unlockingScriptTemplate = MandalaAdmin.unlock({ wallet: wallet as any, data: asset.authDetails })
       await txToSign.sign()
 
       const signed = await wallet.signAction({
@@ -430,7 +418,7 @@ export default function IssuerPanel() {
         spends: { '0': { unlockingScript: txToSign.inputs[0].unlockingScript!.toHex() } }
       })
 
-      if (signed.tx == null) throw new Error('signAction: no tx returned')
+      if (signed.tx == null || signed.txid == null) throw new Error('signAction: no tx returned')
 
       // FT linkage for index 0 (recipient); admin at index 1.
       const linkage = await revealLinkage(wallet as any, keyID, recipient)
@@ -456,134 +444,113 @@ export default function IssuerPanel() {
         })
       }
 
-      const nextAuthOutpoint = outpoint(Transaction.fromBEEF(signed.tx as number[]).id('hex'), 1)
-      updateAuth(identityKey, recoverAsset, nextAuthOutpoint, recoverDetails)
-
       toast.success(`Recovered ${amount} ${asset.label} to ${recipient.slice(0, 12)}…`)
       setRecoverAmount('')
       setRecoverRecipient('')
-      reload()
+      void reload()
     } catch (e) {
       toast.error(`Recover failed: ${String(e)}`)
     } finally {
       setBusy(false)
     }
-  }, [wallet, identityKey, recoverAsset, recoverAmount, recoverRecipient, reload])
+  }, [wallet, identityKey, assets, recoverAsset, recoverAmount, recoverRecipient, reload])
+
+  const assetOptions = (
+    <>
+      <option value="">Select…</option>
+      {assets.map(a => (
+        <option key={a.assetId} value={a.assetId}>{a.label}</option>
+      ))}
+    </>
+  )
 
   return (
-    <div className="space-y-6">
-      <Card className="p-4 space-y-3">
-        <h2 className="text-lg font-semibold">Register asset</h2>
+    <div className="space-y-5">
+      {/* Register */}
+      <Card className="p-5">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-[11px] bg-accent text-accent-foreground">
+            <PlusCircle className="h-[19px] w-[19px]" />
+          </div>
+          <div>
+            <h2 className="text-[17px] font-semibold tracking-[-0.01em]">Register asset</h2>
+            <p className="text-[13px] text-muted-foreground">Create a new token class</p>
+          </div>
+        </div>
         <Label htmlFor="reg-label">Label</Label>
-        <Input
-          id="reg-label"
-          value={label}
-          onChange={e => setLabel(e.target.value)}
-          placeholder="e.g. Gold Coin"
-        />
-        <Button
-          onClick={() => void registerAsset()}
-          disabled={busy || label.trim() === ''}
-        >
-          Register
+        <Input id="reg-label" value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. Gold Coin" />
+        <Button onClick={() => void registerAsset()} disabled={busy || label.trim() === ''} className="mt-4 w-full">
+          <PlusCircle className="h-[18px] w-[18px]" /> Register
         </Button>
       </Card>
 
-      <Card className="p-4 space-y-3">
-        <h2 className="text-lg font-semibold">Issue tokens</h2>
+      {/* Issue */}
+      <Card className="p-5">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-[11px] bg-accent text-accent-foreground">
+            <Sparkles className="h-[19px] w-[19px]" />
+          </div>
+          <div>
+            <h2 className="text-[17px] font-semibold tracking-[-0.01em]">Issue tokens</h2>
+            <p className="text-[13px] text-muted-foreground">Mint new units of an asset</p>
+          </div>
+        </div>
         <Label htmlFor="issue-asset">Asset</Label>
-        <select
-          id="issue-asset"
-          className="border rounded p-2 w-full"
-          value={issueAsset}
-          onChange={e => setIssueAsset(e.target.value)}
-        >
-          <option value="">Select…</option>
-          {assets.map(a => (
-            <option key={a.assetId} value={a.assetId}>{a.label}</option>
-          ))}
-        </select>
-        <Label htmlFor="issue-amount">Amount</Label>
-        <Input
-          id="issue-amount"
-          type="number"
-          min="1"
-          value={issueAmount}
-          onChange={e => setIssueAmount(e.target.value)}
-        />
-        <Button
-          onClick={() => void issue()}
-          disabled={busy || issueAsset === '' || issueAmount === ''}
-        >
-          Issue
+        <Select id="issue-asset" value={issueAsset} onChange={e => setIssueAsset(e.target.value)}>{assetOptions}</Select>
+        <div className="mt-3">
+          <Label htmlFor="issue-amount">Amount</Label>
+          <Input id="issue-amount" type="number" min="1" className="tabular" value={issueAmount} onChange={e => setIssueAmount(e.target.value)} />
+        </div>
+        <Button onClick={() => void issue()} disabled={busy || issueAsset === '' || issueAmount === ''} className="mt-4 w-full">
+          <Sparkles className="h-[18px] w-[18px]" /> Issue
         </Button>
       </Card>
 
-      <Card className="p-4 space-y-3">
-        <h2 className="text-lg font-semibold">Redeem tokens (burn)</h2>
+      {/* Redeem / burn */}
+      <Card className="p-5">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-[11px] bg-destructive/12 text-destructive">
+            <Flame className="h-[19px] w-[19px]" />
+          </div>
+          <div>
+            <h2 className="text-[17px] font-semibold tracking-[-0.01em]">Redeem tokens</h2>
+            <p className="text-[13px] text-muted-foreground">Permanently burn units</p>
+          </div>
+        </div>
         <Label htmlFor="redeem-asset">Asset</Label>
-        <select
-          id="redeem-asset"
-          className="border rounded p-2 w-full"
-          value={redeemAsset}
-          onChange={e => setRedeemAsset(e.target.value)}
-        >
-          <option value="">Select…</option>
-          {assets.map(a => (
-            <option key={a.assetId} value={a.assetId}>{a.label}</option>
-          ))}
-        </select>
-        <Label htmlFor="redeem-amount">Amount</Label>
-        <Input
-          id="redeem-amount"
-          type="number"
-          min="1"
-          value={redeemAmount}
-          onChange={e => setRedeemAmount(e.target.value)}
-        />
-        <Button
-          onClick={() => void redeem()}
-          disabled={busy || redeemAsset === '' || redeemAmount === ''}
-        >
-          Redeem
+        <Select id="redeem-asset" value={redeemAsset} onChange={e => setRedeemAsset(e.target.value)}>{assetOptions}</Select>
+        <div className="mt-3">
+          <Label htmlFor="redeem-amount">Amount</Label>
+          <Input id="redeem-amount" type="number" min="1" className="tabular" value={redeemAmount} onChange={e => setRedeemAmount(e.target.value)} />
+        </div>
+        <Button onClick={() => void redeem()} disabled={busy || redeemAsset === '' || redeemAmount === ''} variant="destructive" className="mt-4 w-full">
+          <Flame className="h-[18px] w-[18px]" /> Redeem (burn)
         </Button>
       </Card>
 
-      <Card className="p-4 space-y-3">
-        <h2 className="text-lg font-semibold">Recover tokens (seize/re-issue)</h2>
+      {/* Recover / seize */}
+      <Card className="p-5">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-[11px] bg-warning/15 text-warning">
+            <ShieldAlert className="h-[19px] w-[19px]" />
+          </div>
+          <div>
+            <h2 className="text-[17px] font-semibold tracking-[-0.01em]">Recover tokens</h2>
+            <p className="text-[13px] text-muted-foreground">Seize and re-issue to a recipient</p>
+          </div>
+        </div>
         <Label htmlFor="recover-asset">Asset</Label>
-        <select
-          id="recover-asset"
-          className="border rounded p-2 w-full"
-          value={recoverAsset}
-          onChange={e => setRecoverAsset(e.target.value)}
-        >
-          <option value="">Select…</option>
-          {assets.map(a => (
-            <option key={a.assetId} value={a.assetId}>{a.label}</option>
-          ))}
-        </select>
-        <Label htmlFor="recover-amount">Amount</Label>
-        <Input
-          id="recover-amount"
-          type="number"
-          min="1"
-          value={recoverAmount}
-          onChange={e => setRecoverAmount(e.target.value)}
-        />
-        <Label htmlFor="recover-recipient">Recipient Identity Key</Label>
-        <Input
-          id="recover-recipient"
-          type="text"
-          placeholder="e.g. 02abc…"
-          value={recoverRecipient}
-          onChange={e => setRecoverRecipient(e.target.value)}
-        />
-        <Button
-          onClick={() => void recover()}
-          disabled={busy || recoverAsset === '' || recoverAmount === '' || recoverRecipient.trim() === ''}
-        >
-          Recover
+        <Select id="recover-asset" value={recoverAsset} onChange={e => setRecoverAsset(e.target.value)}>{assetOptions}</Select>
+        <div className="mt-3">
+          <Label htmlFor="recover-amount">Amount</Label>
+          <Input id="recover-amount" type="number" min="1" className="tabular" value={recoverAmount} onChange={e => setRecoverAmount(e.target.value)} />
+        </div>
+        <div className="mt-3">
+          <Label htmlFor="recover-recipient">Recipient identity key</Label>
+          <Input id="recover-recipient" type="text" className="tabular" placeholder="e.g. 02abc…" value={recoverRecipient} onChange={e => setRecoverRecipient(e.target.value)} />
+        </div>
+        <Button onClick={() => void recover()} disabled={busy || recoverAsset === '' || recoverAmount === '' || recoverRecipient.trim() === ''} variant="warning" className="mt-4 w-full">
+          <ShieldAlert className="h-[18px] w-[18px]" /> Recover
         </Button>
       </Card>
     </div>

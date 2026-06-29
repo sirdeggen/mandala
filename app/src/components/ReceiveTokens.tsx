@@ -5,6 +5,7 @@ import { Button } from './ui/button'
 import { toast } from 'sonner'
 import { useWallet } from '../context/WalletContext'
 import { Download, Check, X, RefreshCw, Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { MESSAGEBOX, BASKET } from '../lib/mandala/constants'
 
 interface PendingToken {
@@ -155,166 +156,110 @@ export default function ReceiveTokens() {
     loadPendingTokens()
   }
 
+  const header = (disabled?: boolean) => (
+    <CardHeader className="pb-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="grid h-11 w-11 place-items-center rounded-[13px] bg-success/15 text-success">
+            <Download className="h-[20px] w-[20px]" />
+          </div>
+          <div>
+            <CardTitle>Receive tokens</CardTitle>
+            <CardDescription>Accept or reject tokens sent to you</CardDescription>
+          </div>
+        </div>
+        <Button onClick={refreshPending} variant="secondary" size="sm" disabled={disabled} className="sm:w-auto">
+          <RefreshCw className={cn('h-4 w-4', disabled && 'animate-spin')} />
+          Refresh
+        </Button>
+      </div>
+    </CardHeader>
+  )
+
   if (isLoading) {
     return (
-      <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
-        <CardHeader className="space-y-3 pb-6">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg">
-                <Download className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <CardTitle className="text-2xl">Receive Tokens</CardTitle>
-                <CardDescription className="text-base">
-                  Accept or reject tokens sent to you by others
-                </CardDescription>
-              </div>
+      <Card>
+        {header(true)}
+        <CardContent className="space-y-3">
+          {[0, 1].map(i => (
+            <div key={i} className="rounded-[--radius-md] border border-separator p-4">
+              <div className="h-3 w-20 animate-pulse rounded-full bg-muted" />
+              <div className="mt-3 h-7 w-28 animate-pulse rounded-full bg-muted" />
+              <div className="mt-3 h-3 w-44 animate-pulse rounded-full bg-muted" />
             </div>
-            <Button
-              onClick={refreshPending}
-              variant="outline"
-              className="w-full sm:w-auto"
-              size="default"
-              disabled
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Refresh</span>
-              <span className="sm:hidden">Refresh Pending</span>
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-12">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <RefreshCw className="h-8 w-8 text-purple-600 animate-spin" />
-            </div>
-            <p className="text-gray-600">Loading pending tokens...</p>
-          </div>
+          ))}
         </CardContent>
       </Card>
     )
   }
 
   return (
-    <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
-      <CardHeader className="space-y-3 pb-6">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg">
-              <Download className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <CardTitle className="text-2xl">Receive Tokens</CardTitle>
-              <CardDescription className="text-base">
-                Accept or reject tokens sent to you by others
-              </CardDescription>
-            </div>
-          </div>
-          <Button
-            onClick={refreshPending}
-            variant="outline"
-            className="w-full sm:w-auto"
-            size="default"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Refresh</span>
-            <span className="sm:hidden">Refresh Pending</span>
-          </Button>
-        </div>
-      </CardHeader>
+    <Card>
+      {header(false)}
       <CardContent>
         {pendingTokens.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-gray-400 mb-2">
-              <svg
-                className="w-16 h-16 mx-auto"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 19v-8.93a2 2 0 01.89-1.664l7-4.666a2 2 0 012.22 0l7 4.666A2 2 0 0121 10.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-1.14.76a2 2 0 01-2.22 0l-1.14-.76"
-                />
-              </svg>
+          <div className="flex flex-col items-center gap-3 py-12 text-center">
+            <div className="grid h-14 w-14 place-items-center rounded-full bg-muted">
+              <Download className="h-7 w-7 text-subtle-foreground" />
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-1">No pending tokens</h3>
-            <p className="text-gray-600">
-              When someone sends you tokens, they will appear here for you to accept.
+            <h3 className="text-[15px] font-semibold">No pending tokens</h3>
+            <p className="max-w-xs text-[14px] leading-relaxed text-muted-foreground">
+              When someone sends you tokens, they’ll appear here for you to accept.
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {pendingTokens.map((pending) => (
-              <div
-                key={pending.id}
-                className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        Incoming
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        {new Date(pending.timestamp).toLocaleString()}
-                      </span>
+          <div className="space-y-3">
+            {pendingTokens.map((pending) => {
+              const busy = acceptingTokenId === pending.id || rejectingTokenId === pending.id
+              return (
+                <div
+                  key={pending.id}
+                  className="rounded-[--radius-md] border border-separator p-4 transition-colors hover:bg-muted/40"
+                >
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2.5 py-0.5 text-[11px] font-semibold text-success">
+                          Incoming
+                        </span>
+                        <span className="text-[12px] text-subtle-foreground">
+                          {new Date(pending.timestamp).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="tabular text-[28px] font-semibold leading-none tracking-[-0.02em] text-success">
+                        +{Number(pending.amount).toLocaleString()}
+                      </p>
+                      <p className="tabular mt-2 truncate text-[12px] text-subtle-foreground">{pending.assetId}</p>
+                      <p className="mt-1 text-[13px] text-muted-foreground">
+                        From <span className="tabular text-foreground">{pending.sender.slice(0, 16)}…</span>
+                      </p>
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      {pending.assetId}
-                    </h3>
-                    <p className="text-xl font-bold text-purple-600 mt-1">
-                      +{pending.amount.toLocaleString()}
-                    </p>
-                    <p className="text-sm text-gray-600 mt-2">
-                      From: <span className="font-mono">{pending.sender.slice(0, 20)}...</span>
-                    </p>
-                  </div>
-                  <div className="flex gap-2 ml-4">
-                    <Button
-                      onClick={() => handleAcceptToken(pending)}
-                      disabled={acceptingTokenId === pending.id || rejectingTokenId === pending.id}
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                      size="sm"
-                    >
-                      {acceptingTokenId === pending.id ? (
-                        <>
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          Accepting...
-                        </>
-                      ) : (
-                        <>
-                          <Check className="h-3 w-3 mr-1" />
-                          Accept
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      onClick={() => handleRejectToken(pending)}
-                      disabled={acceptingTokenId === pending.id || rejectingTokenId === pending.id}
-                      variant="outline"
-                      className="text-red-600 border-red-600 hover:bg-red-50"
-                      size="sm"
-                    >
-                      {rejectingTokenId === pending.id ? (
-                        <>
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          Rejecting...
-                        </>
-                      ) : (
-                        <>
-                          <X className="h-3 w-3 mr-1" />
-                          Reject
-                        </>
-                      )}
-                    </Button>
+                    <div className="flex shrink-0 gap-2">
+                      <Button
+                        onClick={() => handleAcceptToken(pending)}
+                        disabled={busy}
+                        variant="success"
+                        size="sm"
+                      >
+                        {acceptingTokenId === pending.id
+                          ? <><Loader2 className="h-4 w-4 animate-spin" />Accepting…</>
+                          : <><Check className="h-4 w-4" />Accept</>}
+                      </Button>
+                      <Button
+                        onClick={() => handleRejectToken(pending)}
+                        disabled={busy}
+                        variant="outline"
+                        size="sm"
+                      >
+                        {rejectingTokenId === pending.id
+                          ? <><Loader2 className="h-4 w-4 animate-spin" />Rejecting…</>
+                          : <><X className="h-4 w-4" />Reject</>}
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </CardContent>

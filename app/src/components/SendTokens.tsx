@@ -4,13 +4,17 @@ import { MandalaToken } from '@bsv/templates'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
 import { Label } from './ui/label'
+import { Input } from './ui/input'
+import { Select } from './ui/select'
 import { toast } from 'sonner'
 import { useIdentitySearch } from '@bsv/identity-react'
 import { useWallet } from '../context/WalletContext'
-import { Send, Loader2 } from 'lucide-react'
+import { Send, Loader2, Search } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { BASKET, FT_PROTOCOL, MESSAGEBOX } from '../lib/mandala/constants'
 import { walletMandalaUnlock } from '../lib/mandala/unlock'
 import { revealLinkage } from '../lib/mandala/tokens'
+import { listAdminAssets } from '../lib/mandala/assets'
 import { submitToOverlay } from '../lib/mandala/overlay'
 import { encodeLinkagePayload } from '../lib/mandala/encoding'
 
@@ -27,7 +31,10 @@ export default function SendTokens() {
   const [isSending, setIsSending] = useState(false)
   const [publicKeyInput, setPublicKeyInput] = useState('')
   const [balances, setBalances] = useState<TokenBalance[]>([])
+  const [labels, setLabels] = useState<Record<string, string>>({})
   const [isLoadingBalances, setIsLoadingBalances] = useState(true)
+
+  const labelFor = (assetId: string): string => labels[assetId] ?? `${assetId.slice(0, 20)}…`
 
   useEffect(() => {
     void loadBalances()
@@ -39,9 +46,8 @@ export default function SendTokens() {
     try {
       const res = await wallet.listOutputs({
         basket: BASKET,
-        include: 'entire transactions',
-        limit: 1000,
-        includeCustomInstructions: true
+        include: 'locking scripts',
+        limit: 1000
       })
 
       const totals = new Map<string, number>()
@@ -52,6 +58,10 @@ export default function SendTokens() {
         } catch { /* not a mandala FT */ }
       }
       setBalances([...totals.entries()].map(([assetId, amount]) => ({ assetId, amount })))
+      // Labels come from the issuer's admin outputs (present only in the issuer's
+      // own wallet); holders fall back to a truncated assetId.
+      const admin = await listAdminAssets(wallet as any)
+      setLabels(Object.fromEntries(admin.map(a => [a.assetId, a.label])))
     } catch (e) {
       console.error('Error loading balances:', e)
     } finally {
@@ -80,21 +90,30 @@ export default function SendTokens() {
   const transfer = async (selectedAssetId: string, sendAmount: number, recipientKey: string) => {
     if (wallet == null || messageBoxClient == null || identityKey == null) return
 
-    const res = await wallet.listOutputs({
+    // Two queries: 'locking scripts' attaches lockingScript (needed to decode the
+    // FT) + customInstructions (keyID/counterparty for unlock); 'entire transactions'
+    // attaches the BEEF for inputBEEF. The two modes are mutually exclusive on what
+    // they return, but the outpoints line up.
+    const scriptRes = await wallet.listOutputs({
       basket: BASKET,
-      include: 'entire transactions',
+      include: 'locking scripts',
       limit: 1000,
       includeCustomInstructions: true
+    })
+    const beefRes = await wallet.listOutputs({
+      basket: BASKET,
+      include: 'entire transactions',
+      limit: 1000
     })
 
     // Pick FT inputs of this asset until gathered >= sendAmount
     const beef = new Beef()
-    beef.mergeBeef(res.BEEF as number[])
+    beef.mergeBeef(beefRes.BEEF as number[])
     const inputs: Array<{ outpoint: string, unlockingScriptLength: number, inputDescription: string }> = []
     const spendInfo: Array<{ keyID: string, counterparty: string }> = []
     let gathered = 0
 
-    for (const o of res.outputs) {
+    for (const o of scriptRes.outputs) {
       if (gathered >= sendAmount) break
       let decoded
       try {
@@ -117,13 +136,15 @@ export default function SendTokens() {
     let keyIDChange = ''
     if (change > 0) {
       keyIDChange = 'change-' + Date.now()
-      const ftChange = await new MandalaToken(wallet as any).lockBRC29(selectedAssetId, change, FT_PROTOCOL, keyIDChange, 'self')
+      // Change back to self: use our identity key (hex), not the literal 'self' —
+      // the overlay parses linkage.counterparty as a public key (it echoes verbatim).
+      const ftChange = await new MandalaToken(wallet as any).lockBRC29(selectedAssetId, change, FT_PROTOCOL, keyIDChange, identityKey)
       outputs.push({
         satoshis: 1,
         lockingScript: ftChange.toHex(),
         outputDescription: 'FT change',
         basket: BASKET,
-        customInstructions: JSON.stringify({ protocolID: FT_PROTOCOL, keyID: keyIDChange, counterparty: 'self' })
+        customInstructions: JSON.stringify({ protocolID: FT_PROTOCOL, keyID: keyIDChange, counterparty: identityKey })
       })
     }
 
@@ -159,7 +180,7 @@ export default function SendTokens() {
     const linkOut = await revealLinkage(wallet as any, keyIDOut, recipientKey)
     const outLinks: Array<{ index: number, linkage: any }> = [{ index: 0, linkage: linkOut }]
     if (change > 0) {
-      outLinks.push({ index: 1, linkage: await revealLinkage(wallet as any, keyIDChange, 'self') })
+      outLinks.push({ index: 1, linkage: await revealLinkage(wallet as any, keyIDChange, identityKey) })
     }
     const offChainValues = encodeLinkagePayload({ inputs: [], outputs: outLinks })
     await submitToOverlay(signed.tx as number[], offChainValues)
@@ -232,215 +253,197 @@ export default function SendTokens() {
   const selectedBalance = balances.find(b => b.assetId === assetId)
 
   return (
-    <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm relative">
+    <Card className="relative overflow-hidden">
       {isSending && (
-        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 rounded-lg flex items-center justify-center">
-          <div className="text-center space-y-4">
-            <div className="relative">
-              <div className="absolute inset-0 bg-blue-500 rounded-full blur-xl opacity-30 animate-pulse"></div>
-              <Loader2 className="h-16 w-16 text-blue-600 animate-spin relative mx-auto" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-xl font-semibold text-gray-900">Sending Tokens...</h3>
-              <p className="text-sm text-gray-600">Please wait while we process your transfer</p>
+        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[--radius-lg] bg-card/80 backdrop-blur-md animate-in">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <Loader2 className="h-9 w-9 animate-spin text-primary" />
+            <div>
+              <h3 className="text-[17px] font-semibold">Sending tokens…</h3>
+              <p className="mt-0.5 text-[13px] text-muted-foreground">Processing your transfer</p>
             </div>
           </div>
         </div>
       )}
 
-      <CardHeader className="space-y-3 pb-6">
+      <CardHeader className="pb-5">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg">
-            <Send className="h-5 w-5 text-white" />
+          <div className="grid h-11 w-11 place-items-center rounded-[13px] bg-accent text-accent-foreground">
+            <Send className="h-[20px] w-[20px]" />
           </div>
           <div>
-            <CardTitle className="text-2xl">Send Tokens</CardTitle>
-            <CardDescription className="text-base">
-              Transfer tokens to another user by specifying their identity key
-            </CardDescription>
+            <CardTitle>Send tokens</CardTitle>
+            <CardDescription>Transfer to another user by their identity key</CardDescription>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-6">
-        <div className="space-y-5">
+      <CardContent className="space-y-5">
+        {/* Asset selector */}
+        <div>
+          <Label htmlFor="sendAsset">Token</Label>
+          {isLoadingBalances ? (
+            <div className="flex h-11 w-full items-center rounded-[--radius] border border-input-border bg-input px-3.5 text-[15px] text-subtle-foreground">
+              Loading tokens…
+            </div>
+          ) : balances.length > 0 ? (
+            <Select id="sendAsset" value={assetId} onChange={e => setAssetId(e.target.value)}>
+              <option value="">Select a token</option>
+              {balances.map(b => (
+                <option key={b.assetId} value={b.assetId}>
+                  {labelFor(b.assetId)} ({b.amount.toLocaleString()} available)
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <div className="flex h-11 w-full items-center rounded-[--radius] border border-input-border bg-input px-3.5 text-[15px] text-subtle-foreground">
+              No tokens available — receive some first.
+            </div>
+          )}
+          {assetId && selectedBalance && (
+            <p className="mt-1.5 text-[13px] text-muted-foreground">
+              Available <span className="tabular font-semibold text-foreground">{selectedBalance.amount.toLocaleString()}</span>
+            </p>
+          )}
+        </div>
 
-          {/* Asset selector */}
-          <div className="space-y-2">
-            <Label htmlFor="sendAsset">Token</Label>
-            {isLoadingBalances ? (
-              <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
-                Loading tokens...
-              </div>
-            ) : balances.length > 0 ? (
-              <select
-                id="sendAsset"
-                value={assetId}
-                onChange={e => setAssetId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="">Select a token</option>
-                {balances.map(b => (
-                  <option key={b.assetId} value={b.assetId}>
-                    {b.assetId.slice(0, 20)}… ({b.amount.toLocaleString()} available)
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
-                No tokens available. Receive tokens first.
-              </div>
-            )}
+        {/* Amount */}
+        <div>
+          <Label htmlFor="sendAmount" required>Amount</Label>
+          <div className="relative">
+            <Input
+              id="sendAmount"
+              type="number"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              placeholder="e.g. 100"
+              min="1"
+              className="tabular pr-16"
+            />
             {assetId && selectedBalance && (
-              <p className="text-xs text-gray-600">
-                Available: <span className="font-semibold text-purple-600">{selectedBalance.amount.toLocaleString()}</span>
-              </p>
+              <button
+                type="button"
+                onClick={() => setAmount(String(selectedBalance.amount))}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2.5 py-1 text-[12px] font-semibold text-primary transition-colors hover:bg-accent"
+              >
+                Max
+              </button>
             )}
           </div>
+        </div>
 
-          {/* Amount */}
-          <div>
-            <label htmlFor="sendAmount" className="block text-sm font-medium text-gray-700 mb-1">
-              Amount *
-            </label>
-            <div className="relative">
-              <input
-                id="sendAmount"
-                type="number"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                placeholder="e.g., 100"
-                min="1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 pr-16"
-              />
-              {assetId && selectedBalance && (
-                <button
-                  type="button"
-                  onClick={() => setAmount(String(selectedBalance.amount))}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 text-xs font-medium text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded transition-colors"
-                >
-                  Max
-                </button>
-              )}
+        {/* Recipient identity search */}
+        <div>
+          <Label htmlFor="recipient-search">Search for recipient</Label>
+          <Input
+            id="recipient-search"
+            type="text"
+            icon={<Search className="h-[18px] w-[18px]" />}
+            value={identitySearch.inputValue}
+            onChange={e => identitySearch.handleInputChange(e, e.target.value, 'input')}
+            placeholder="Search by name, email, etc."
+            disabled={!!publicKeyInput && !!recipient}
+          />
+          {identitySearch.isLoading && (
+            <div className="mt-2 flex items-center gap-2 text-[13px] text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" /> Searching…
             </div>
-          </div>
+          )}
 
-          {/* Recipient identity search */}
-          <div>
-            <label htmlFor="recipient-search" className="block text-sm font-medium text-gray-700 mb-2">
-              Search for Recipient
-            </label>
-            <div className="relative">
-              <input
-                id="recipient-search"
-                type="text"
-                value={identitySearch.inputValue}
-                onChange={e => identitySearch.handleInputChange(e, e.target.value, 'input')}
-                placeholder="Search by name, email, etc."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                disabled={!!publicKeyInput && !!recipient}
-              />
-              {identitySearch.isLoading && (
-                <div className="absolute right-3 top-2.5">
-                  <div className="animate-spin h-5 w-5 border-2 border-purple-500 border-t-transparent rounded-full"></div>
-                </div>
-              )}
-            </div>
-
-            {identitySearch.inputValue && identitySearch.identities.length > 0 && !identitySearch.selectedIdentity && (
-              <div className="mt-1 max-h-60 overflow-auto border border-gray-300 rounded-md bg-white shadow-lg">
-                {identitySearch.identities.map(identity => {
-                  if (typeof identity === 'string') return null
-                  return (
-                    <div
-                      key={identity.identityKey}
-                      onClick={() => {
-                        identitySearch.handleSelect(null as any, identity)
-                        setRecipient(identity.identityKey)
-                        setPublicKeyInput(identity.identityKey)
-                      }}
-                      className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                    >
-                      {identity.avatarURL ? (
-                        <img src={identity.avatarURL} alt={identity.name} className="w-10 h-10 rounded-full" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white text-sm font-semibold">
-                          {getInitials(identity.name || '', identity.identityKey)}
-                        </div>
-                      )}
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900">{identity.name || 'Unknown'}</div>
-                        <div className="text-xs text-gray-500 font-mono">{identity.identityKey.slice(0, 20)}...</div>
+          {identitySearch.inputValue && identitySearch.identities.length > 0 && !identitySearch.selectedIdentity && (
+            <div className="animate-pop mt-2 max-h-60 overflow-auto rounded-[--radius-md] bg-popover shadow-[var(--shadow-pop)]">
+              {identitySearch.identities.map(identity => {
+                if (typeof identity === 'string') return null
+                return (
+                  <div
+                    key={identity.identityKey}
+                    onClick={() => {
+                      identitySearch.handleSelect(null as any, identity)
+                      setRecipient(identity.identityKey)
+                      setPublicKeyInput(identity.identityKey)
+                    }}
+                    className="flex cursor-pointer items-center gap-3 border-b border-separator p-3 transition-colors last:border-b-0 hover:bg-muted"
+                  >
+                    {identity.avatarURL ? (
+                      <img src={identity.avatarURL} alt={identity.name} className="h-10 w-10 rounded-full" />
+                    ) : (
+                      <div className="grid h-10 w-10 place-items-center rounded-full bg-primary text-[13px] font-semibold text-primary-foreground">
+                        {getInitials(identity.name || '', identity.identityKey)}
                       </div>
-                      {identity.badgeLabel && (
-                        <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded">
-                          {identity.badgeLabel}
-                        </span>
-                      )}
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[15px] font-medium">{identity.name || 'Unknown'}</div>
+                      <div className="tabular truncate text-[12px] text-subtle-foreground">{identity.identityKey.slice(0, 24)}…</div>
                     </div>
-                  )
-                })}
-              </div>
-            )}
+                    {identity.badgeLabel && (
+                      <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-medium text-accent-foreground">
+                        {identity.badgeLabel}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
-            {identitySearch.inputValue && identitySearch.identities.length === 0 && !identitySearch.isLoading && (
-              <p className="text-xs text-gray-500 mt-1">No identities found</p>
-            )}
-          </div>
+          {identitySearch.inputValue && identitySearch.identities.length === 0 && !identitySearch.isLoading && (
+            <p className="mt-1.5 text-[13px] text-subtle-foreground">No identities found</p>
+          )}
+        </div>
 
-          {/* Direct public key entry */}
-          <div>
-            <label htmlFor="publicKey" className="block text-sm font-medium text-gray-700 mb-1">
-              {identitySearch.selectedIdentity ? 'Selected Recipient Identity Key' : 'Or Enter Recipient Public Key'}
-            </label>
-            <input
-              id="publicKey"
-              type="text"
-              value={publicKeyInput}
-              onChange={e => {
-                const val = e.target.value.trim()
-                setPublicKeyInput(val)
-                if (val) {
-                  try {
-                    PublicKey.fromString(val)
-                    setRecipient(val)
-                    identitySearch.handleSelect(null as any, null)
-                  } catch {
-                    setRecipient('')
-                  }
-                } else {
+        {/* Direct public key entry */}
+        <div>
+          <Label htmlFor="publicKey">
+            {identitySearch.selectedIdentity ? 'Selected recipient identity key' : 'Or enter recipient public key'}
+          </Label>
+          <Input
+            id="publicKey"
+            type="text"
+            value={publicKeyInput}
+            onChange={e => {
+              const val = e.target.value.trim()
+              setPublicKeyInput(val)
+              if (val) {
+                try {
+                  PublicKey.fromString(val)
+                  setRecipient(val)
+                  identitySearch.handleSelect(null as any, null)
+                } catch {
                   setRecipient('')
                 }
-              }}
-              disabled={!!identitySearch.selectedIdentity}
-              placeholder="Enter public key directly"
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                publicKeyInput && !recipient && !identitySearch.selectedIdentity
-                  ? 'border-red-300 bg-red-50'
-                  : 'border-gray-300'
-              } ${identitySearch.selectedIdentity ? 'bg-gray-50' : ''}`}
-            />
-            {publicKeyInput && !recipient && !identitySearch.selectedIdentity && (
-              <p className="text-xs text-red-600 mt-1">Invalid public key</p>
+              } else {
+                setRecipient('')
+              }
+            }}
+            disabled={!!identitySearch.selectedIdentity}
+            placeholder="Enter public key directly"
+            className={cn(
+              'tabular',
+              publicKeyInput && !recipient && !identitySearch.selectedIdentity && 'border-destructive focus:border-destructive focus:ring-destructive/25'
             )}
-          </div>
+          />
+          {publicKeyInput && !recipient && !identitySearch.selectedIdentity && (
+            <p className="mt-1.5 text-[13px] text-destructive">Invalid public key</p>
+          )}
         </div>
 
         <Button
           onClick={() => void handleSend()}
           disabled={isSending || wallet == null}
-          className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+          size="lg"
+          className="w-full"
         >
-          {isSending ? 'Sending...' : 'Send Tokens'}
+          <Send className="h-[18px] w-[18px]" />
+          {isSending ? 'Sending…' : 'Send tokens'}
         </Button>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="text-sm font-medium text-blue-900 mb-2">How it works</h4>
-          <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-            <li>Select the token and enter the amount to send</li>
-            <li>Search for or enter the recipient's identity key</li>
-            <li>The transaction is submitted to the overlay and notified via message box</li>
-            <li>The recipient can claim the tokens in the "Receive Tokens" tab</li>
+        <div className="rounded-[--radius-md] bg-muted/60 p-4">
+          <h4 className="mb-2 text-[13px] font-semibold text-foreground">How it works</h4>
+          <ol className="space-y-1.5 text-[13px] leading-relaxed text-muted-foreground">
+            <li>1. Select the token and enter the amount to send.</li>
+            <li>2. Search for or enter the recipient’s identity key.</li>
+            <li>3. The transaction is submitted to the overlay and notified via message box.</li>
+            <li>4. The recipient claims the tokens in the Receive tab.</li>
           </ol>
         </div>
       </CardContent>

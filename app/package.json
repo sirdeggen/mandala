@@ -9,10 +9,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@bsv/identity-react": "^1.1.10",
-    "@bsv/message-box-client": "^1.4.5",
+    "@bsv/identity-react": "^1.1.14",
+    "@bsv/message-box-client": "^2.2.0",
     "@bsv/sdk": "^2.1.6",
-    "@bsv/templates": "^1.6.1",
+    "@bsv/templates": "^1.7.0",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
     "class-variance-authority": "^0.7.1",
@@ -33,6 +33,6 @@
     "tailwindcss": "^4.1.17",
     "typescript": "~5.9.3",
     "vite": "^6.0.5",
-    "vitest": "^2.1.8"
+    "vitest": "^4.1.9"
   }
 }
