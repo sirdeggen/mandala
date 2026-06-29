@@ -91,6 +91,7 @@ export default function ReceiveTokens() {
       }
 
       // Internalize the token using basket insertion protocol
+      const resolvedLabel = labels[pendingToken.assetId] ?? (await resolveAssetMetadata(pendingToken.assetId))?.label
       await wallet.internalizeAction({
         tx: pendingToken.transaction,
         outputs: [{
@@ -102,7 +103,7 @@ export default function ReceiveTokens() {
               protocolID: pendingToken.protocolID,
               keyID: pendingToken.keyID,
               counterparty: pendingToken.sender,
-              label: labels[pendingToken.assetId]
+              label: resolvedLabel
             }),
             tags: ['mandala', 'received', pendingToken.assetId]
           }
