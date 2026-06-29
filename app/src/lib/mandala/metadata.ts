@@ -33,7 +33,8 @@ export async function resolveAssetMetadata (assetId: string): Promise<AssetMetad
     for (const out of answer.outputs) {
       const tx = Transaction.fromBEEF(out.beef)
       if (!(await tx.verify(new WhatsOnChain('main')))) continue
-      const meta = parseMetadataFromBeef(out.beef, vout)
+      const idx = typeof (out as any).outputIndex === 'number' ? (out as any).outputIndex : vout
+      const meta = parseMetadataFromBeef(out.beef, idx)
       if (meta != null) { result = meta; break }
     }
   } catch {
