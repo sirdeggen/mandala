@@ -14,6 +14,7 @@ export interface AdminAsset {
   label: string
   authOutpoint: string
   authDetails: MandalaActionDetails
+  metadata?: Record<string, unknown>
 }
 
 interface AdminCI {
@@ -21,12 +22,13 @@ interface AdminCI {
   assetId: string
   label: string
   authDetails: MandalaActionDetails
+  metadata?: Record<string, unknown>
 }
 
 export function adminCustomInstructions (
-  assetId: string, label: string, authDetails: MandalaActionDetails
+  assetId: string, label: string, authDetails: MandalaActionDetails, metadata?: Record<string, unknown>
 ): string {
-  return JSON.stringify({ type: ADMIN_CI_TYPE, assetId, label, authDetails } satisfies AdminCI)
+  return JSON.stringify({ type: ADMIN_CI_TYPE, assetId, label, authDetails, metadata } satisfies AdminCI)
 }
 
 export function parseAdminCI (ci: string | null | undefined): AdminCI | null {
@@ -46,7 +48,7 @@ export function adminAssetFromOutput (
 ): AdminAsset | null {
   const ci = parseAdminCI(o.customInstructions)
   if (ci == null) return null
-  return { assetId: ci.assetId, label: ci.label, authOutpoint: o.outpoint, authDetails: ci.authDetails }
+  return { assetId: ci.assetId, label: ci.label, authOutpoint: o.outpoint, authDetails: ci.authDetails, metadata: ci.metadata }
 }
 
 // List the issuer's live admin assets straight from the wallet basket.

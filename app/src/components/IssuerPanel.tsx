@@ -86,7 +86,7 @@ export default function IssuerPanel() {
           basket: BASKET,
           // Bookkeeping rides on the admin UTXO itself — the wallet basket is the
           // source of truth for the auth chain (no localStorage, no on-chain marker).
-          customInstructions: adminCustomInstructions(assetId, label.trim(), regDetails)
+          customInstructions: adminCustomInstructions(assetId, label.trim(), regDetails, metadata)
         }],
         options: { randomizeOutputs: false }
       })
@@ -173,7 +173,7 @@ export default function IssuerPanel() {
             lockingScript: nextAuthLock.toHex(),
             outputDescription: 'next admin auth',
             basket: BASKET,
-            customInstructions: adminCustomInstructions(asset.assetId, asset.label, issueDetails)
+            customInstructions: adminCustomInstructions(asset.assetId, asset.label, issueDetails, asset.metadata)
           }
         ],
         options: { randomizeOutputs: false }
@@ -284,7 +284,7 @@ export default function IssuerPanel() {
           lockingScript: nextAuthLock.toHex(),
           outputDescription: 'redeem auth',
           basket: BASKET,
-          customInstructions: adminCustomInstructions(redeemAsset, asset.label, redeemDetails)
+          customInstructions: adminCustomInstructions(redeemAsset, asset.label, redeemDetails, asset.metadata)
         }
       ]
 
@@ -406,7 +406,7 @@ export default function IssuerPanel() {
             lockingScript: nextAuthLock.toHex(),
             outputDescription: 'recover auth',
             basket: BASKET,
-            customInstructions: adminCustomInstructions(recoverAsset, asset.label, recoverDetails)
+            customInstructions: adminCustomInstructions(recoverAsset, asset.label, recoverDetails, asset.metadata)
           }
         ],
         options: { randomizeOutputs: false }
