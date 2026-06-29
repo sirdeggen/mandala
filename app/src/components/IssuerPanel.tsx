@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Transaction, Beef, LockingScript, P2PKH, Hash, Utils } from '@bsv/sdk'
+import { Transaction, Beef, LockingScript } from '@bsv/sdk'
 import { MandalaToken, MandalaAdmin } from '@bsv/templates'
 import { toast } from 'sonner'
 import { useWallet } from '../context/WalletContext'
@@ -48,11 +48,10 @@ export default function IssuerPanel() {
     if (wallet == null || identityKey == null || label.trim() === '') return
     setBusy(true)
     try {
-      // Phase 1: create a 1-sat UTXO locked to a wallet-derived P2PKH key.
-      // The outpoint of this output becomes the assetId; it is never spent.
-      const genesisKeyId = 'genesis-' + Date.now()
-      const { publicKey: genesisPub } = await wallet.getPublicKey({ protocolID: FT_PROTOCOL, keyID: genesisKeyId, counterparty: 'self' })
-      const genesisLock = new P2PKH().lock(Hash.hash160(Utils.toArray(genesisPub, 'hex')))
+      // Phase 1: genesis output carries the public metadata blob; its outpoint is the
+      // assetId. Locked with MandalaAdmin so the overlay can index + serve it. Never spent.
+      const metadata = { label: label.trim() }
+      const genesisLock = await MandalaAdmin.lock({ wallet: wallet as any, data: { kind: 'register' }, publicData: metadata })
       const phase1 = await wallet.createAction({
         description: `Genesis for ${label.trim()}`,
         outputs: [{
@@ -64,8 +63,15 @@ export default function IssuerPanel() {
         options: { randomizeOutputs: false }
       })
 
-      if (phase1.txid == null) throw new Error('phase1: no txid returned')
+      if (phase1.txid == null || phase1.tx == null) throw new Error('phase1: no tx returned')
       const assetId = outpoint(phase1.txid, 0)
+
+      // Submit the genesis tx so the overlay admits + indexes its metadata.
+      const genesisOffChain = encodeLinkagePayload({
+        inputs: [], outputs: [],
+        admin: [{ index: 0, actionDetails: { kind: 'register' } }]
+      })
+      await submitToOverlay(phase1.tx as number[], genesisOffChain)
 
       // Phase 2: register tx — produces ONE admin-auth output, no inputs to sign.
       const regDetails: MandalaActionDetails = { kind: 'register', assetId }
