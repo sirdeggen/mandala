@@ -63,6 +63,7 @@ export default function IssuerPanel() {
 
       const reg = await wallet.createAction({
         description: `Register ${label.trim()}`,
+        labels: ['mandala', 'register'],
         outputs: [{
           satoshis: 1,
           lockingScript: genesisLock.toHex(),
@@ -142,6 +143,7 @@ export default function IssuerPanel() {
       // Create the action: spend prior auth, produce FT + next auth.
       const created = await wallet.createAction({
         description: `Issue ${amount} ${asset.label}`,
+        labels: ['mandala', 'issue'],
         inputBEEF: listResult.BEEF as number[],
         inputs: [{
           outpoint: priorOutpoint,
@@ -291,6 +293,7 @@ export default function IssuerPanel() {
 
       const created = await wallet.createAction({
         description: `Redeem ${amount} ${asset.label}`,
+        labels: ['mandala', 'redeem'],
         inputBEEF: beef.toBinary(),
         inputs,
         outputs,
@@ -377,6 +380,7 @@ export default function IssuerPanel() {
 
       const created = await wallet.createAction({
         description: `Recover ${amount} ${asset.label}`,
+        labels: ['mandala', 'recover'],
         inputBEEF: listResult.BEEF as number[],
         inputs: [{
           outpoint: asset.authOutpoint,

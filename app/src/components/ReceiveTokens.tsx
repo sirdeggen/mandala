@@ -95,6 +95,7 @@ export default function ReceiveTokens() {
       const resolvedLabel = metas[pendingToken.assetId]?.label ?? (await resolveAssetMetadata(pendingToken.assetId))?.label
       await wallet.internalizeAction({
         tx: pendingToken.transaction,
+        labels: ['mandala', 'receive'],
         outputs: [{
           outputIndex: 0,
           protocol: 'basket insertion',

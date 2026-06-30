@@ -161,6 +161,7 @@ export default function SendTokens() {
 
     const created = await wallet.createAction({
       description: `Send ${sendAmount} of ${selectedAssetId}`,
+      labels: ['mandala', 'transfer'],
       inputBEEF: beef.toBinary(),
       inputs,
       outputs,
