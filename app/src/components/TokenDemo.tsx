@@ -2,7 +2,7 @@ import { useState } from 'react'
 import * as Tabs from '@radix-ui/react-tabs'
 import { Wallet, Send, Download, ShieldCheck, Copy, Check, Loader2, AlertTriangle } from 'lucide-react'
 import { useWallet } from '../context/WalletContext'
-import IssuerPanel from './IssuerPanel'
+import IssuerDashboard from './issuer/IssuerDashboard'
 import TokenWallet from './TokenWallet'
 import SendTokens from './SendTokens'
 import ReceiveTokens from './ReceiveTokens'
@@ -119,7 +119,7 @@ export default function TokenDemo() {
 
         {isIssuer && (
           <Tabs.Content value="issuer" className="animate-in focus-visible:outline-none">
-            <IssuerPanel />
+            <IssuerDashboard />
           </Tabs.Content>
         )}
         <Tabs.Content value="wallet" className="animate-in focus-visible:outline-none">
