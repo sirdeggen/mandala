@@ -19,6 +19,9 @@ import { resolveAssetMetadata } from '../lib/mandala/metadata'
 import { parseAmount, formatAmount, formatAmountPlain } from '../lib/mandala/amount'
 import { submitToOverlay } from '../lib/mandala/overlay'
 import { encodeLinkagePayload } from '../lib/mandala/encoding'
+import { loadHistory } from '../lib/mandala/history'
+import { deriveContacts, Contact } from '../lib/mandala/contacts'
+import { resolveAssetState } from '../lib/mandala/adminState'
 
 interface TokenBalance {
   assetId: string
@@ -35,13 +38,40 @@ export default function SendTokens() {
   const [balances, setBalances] = useState<TokenBalance[]>([])
   const [metas, setMetas] = useState<Record<string, { label: string, decimals: number, issuer?: string }>>({})
   const [isLoadingBalances, setIsLoadingBalances] = useState(true)
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [recentSends, setRecentSends] = useState<Array<{ assetId: string, amount: number, counterparty: string }>>([])
+  const [isPaused, setIsPaused] = useState(false)
 
   const labelFor = (assetId: string): string => metas[assetId]?.label ?? `${assetId.slice(0, 20)}…`
   const decimalsFor = (assetId: string): number => metas[assetId]?.decimals ?? 0
 
   useEffect(() => {
     void loadBalances()
+    void loadContacts()
   }, [wallet])
+
+  useEffect(() => {
+    if (!assetId) { setIsPaused(false); return }
+    void resolveAssetState(assetId).then(state => {
+      setIsPaused(state?.isPaused ?? false)
+    })
+  }, [assetId])
+
+  const loadContacts = async () => {
+    if (wallet == null) return
+    try {
+      const history = await loadHistory(wallet as any)
+      setContacts(deriveContacts(history))
+      // Derive recent sent entries for "Pay again"
+      const sent = history
+        .filter(r => r.direction === 'sent' && r.counterparty !== '')
+        .slice(0, 5)
+        .map(r => ({ assetId: r.assetId, amount: r.amount, counterparty: r.counterparty }))
+      setRecentSends(sent)
+    } catch (e) {
+      console.error('Error loading contacts:', e)
+    }
+  }
 
   const loadBalances = async () => {
     if (wallet == null) return
@@ -200,7 +230,13 @@ export default function SendTokens() {
     if (change > 0) {
       outLinks.push({ index: 1, linkage: await revealLinkage(wallet as any, keyIDChange, identityKey) })
     }
-    const offChainValues = encodeLinkagePayload({ inputs: [], outputs: outLinks })
+    // Reveal linkage for each spent FT input so the overlay can screen senders
+    // under access mode (A6 gate 3).
+    const inLinks: Array<{ index: number, linkage: any }> = []
+    for (let i = 0; i < spendInfo.length; i++) {
+      inLinks.push({ index: i, linkage: await revealLinkage(wallet as any, spendInfo[i].keyID, spendInfo[i].counterparty) })
+    }
+    const offChainValues = encodeLinkagePayload({ inputs: inLinks, outputs: outLinks })
     await submitToOverlay(signed.tx as number[], offChainValues)
 
     await messageBoxClient.sendMessage({
@@ -367,6 +403,59 @@ export default function SendTokens() {
           </button>
         )}
 
+        {/* Recent contacts */}
+        {contacts.length > 0 && (
+          <div>
+            <Label>Recent contacts</Label>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {contacts.slice(0, 8).map(c => (
+                <button
+                  key={c.identityKey}
+                  type="button"
+                  onClick={() => {
+                    setRecipient(c.identityKey)
+                    setPublicKeyInput(c.identityKey)
+                    identitySearch.handleSelect(null as any, null)
+                  }}
+                  className="flex items-center gap-1.5 rounded-full border border-input-border bg-input px-3 py-1 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
+                  title={c.identityKey}
+                >
+                  <span className="grid h-5 w-5 place-items-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                    {c.identityKey.slice(0, 2).toUpperCase()}
+                  </span>
+                  {c.identityKey.slice(0, 8)}…
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Pay again — recent outgoing sends with asset + recipient pre-filled */}
+        {recentSends.length > 0 && (
+          <div>
+            <Label>Pay again</Label>
+            <div className="mt-1.5 space-y-1.5">
+              {recentSends.map((s, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => {
+                    setAssetId(s.assetId)
+                    setAmount(formatAmountPlain(s.amount, decimalsFor(s.assetId)))
+                    setRecipient(s.counterparty)
+                    setPublicKeyInput(s.counterparty)
+                    identitySearch.handleSelect(null as any, null)
+                  }}
+                  className="flex w-full items-center justify-between rounded-[--radius] border border-input-border bg-input px-3.5 py-2 text-[13px] text-foreground transition-colors hover:bg-accent"
+                >
+                  <span className="font-medium">{formatAmount(s.amount, decimalsFor(s.assetId))} {labelFor(s.assetId)}</span>
+                  <span className="tabular text-subtle-foreground">{s.counterparty.slice(0, 12)}…</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Recipient identity search */}
         <div>
           <Label htmlFor="recipient-search">Search for recipient</Label>
@@ -462,9 +551,15 @@ export default function SendTokens() {
           )}
         </div>
 
+        {isPaused && (
+          <p className="rounded-[--radius-md] bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
+            Transfers are temporarily disabled by the issuer.
+          </p>
+        )}
+
         <Button
           onClick={() => void handleSend()}
-          disabled={isSending || wallet == null}
+          disabled={isSending || wallet == null || isPaused}
           size="lg"
           className="w-full"
         >
