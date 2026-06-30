@@ -55,7 +55,9 @@ export default function IssuerPanel() {
     if (!Number.isInteger(dec) || dec < 0) { toast.error('Decimals must be a non-negative integer'); return }
     setBusy(true)
     try {
-      const metadata = { label: label.trim(), decimals: dec }
+      // issuer = our identity key, baked into the on-chain publicData so any holder
+      // can SPV-verify it and return funds to the issuer.
+      const metadata = { label: label.trim(), decimals: dec, issuer: identityKey }
       const regDetails: MandalaActionDetails = { kind: 'register', ...metadata }
       const genesisLock = await MandalaAdmin.lock({ wallet: wallet as any, data: regDetails, publicData: metadata })
 

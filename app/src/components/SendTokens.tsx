@@ -33,7 +33,7 @@ export default function SendTokens() {
   const [isSending, setIsSending] = useState(false)
   const [publicKeyInput, setPublicKeyInput] = useState('')
   const [balances, setBalances] = useState<TokenBalance[]>([])
-  const [metas, setMetas] = useState<Record<string, { label: string, decimals: number }>>({})
+  const [metas, setMetas] = useState<Record<string, { label: string, decimals: number, issuer?: string }>>({})
   const [isLoadingBalances, setIsLoadingBalances] = useState(true)
 
   const labelFor = (assetId: string): string => metas[assetId]?.label ?? `${assetId.slice(0, 20)}…`
@@ -64,12 +64,12 @@ export default function SendTokens() {
       // Labels come from the issuer's admin outputs (present only in the issuer's
       // own wallet); holders fall back to a resolver query then truncated assetId.
       const admin = await listAdminAssets(wallet as any)
-      const metaMap: Record<string, { label: string, decimals: number }> = {}
-      for (const a of admin) metaMap[a.assetId] = { label: a.label, decimals: Number(a.metadata?.decimals) || 0 }
+      const metaMap: Record<string, { label: string, decimals: number, issuer?: string }> = {}
+      for (const a of admin) metaMap[a.assetId] = { label: a.label, decimals: Number(a.metadata?.decimals) || 0, issuer: typeof a.metadata?.issuer === 'string' ? a.metadata.issuer : undefined }
       for (const b of [...totals.keys()]) {
         if (metaMap[b] == null) {
           const meta = await resolveAssetMetadata(b)
-          if (meta != null) metaMap[b] = { label: meta.label, decimals: Number(meta.decimals) || 0 }
+          if (meta != null) metaMap[b] = { label: meta.label, decimals: Number(meta.decimals) || 0, issuer: typeof meta.issuer === 'string' ? meta.issuer : undefined }
         }
       }
       setMetas(metaMap)
@@ -343,6 +343,22 @@ export default function SendTokens() {
             )}
           </div>
         </div>
+
+        {/* Return to issuer shortcut — fills the recipient with the asset's
+            SPV-verified issuer identity from its on-chain metadata. */}
+        {assetId && metas[assetId]?.issuer && (
+          <button
+            type="button"
+            onClick={() => {
+              const iss = metas[assetId].issuer as string
+              setRecipient(iss)
+              setPublicKeyInput(iss)
+            }}
+            className="flex w-full items-center justify-center gap-2 rounded-[--radius] border border-input-border bg-input px-3.5 py-2.5 text-[14px] font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            <Send className="h-[16px] w-[16px]" /> Return to issuer
+          </button>
+        )}
 
         {/* Recipient identity search */}
         <div>
