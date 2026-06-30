@@ -21,47 +21,49 @@ export default function AlertBanners({ assetId }: Props) {
 
   useEffect(() => {
     if (!assetId) return
-    void load()
-  }, [assetId, wallet])
+    let cancelled = false
+    void (async () => {
+      const [state, meta] = await Promise.all([
+        resolveAssetState(assetId),
+        resolveAssetMetadata(assetId)
+      ])
 
-  const load = async () => {
-    const [state, meta] = await Promise.all([
-      resolveAssetState(assetId),
-      resolveAssetMetadata(assetId)
-    ])
+      if (cancelled) return
 
-    setIsPaused(state?.isPaused ?? false)
-    setDecimals(Number(meta?.decimals) || 0)
-    setTicker(typeof (meta as any)?.ticker === 'string' ? (meta as any).ticker : undefined)
+      setIsPaused(state?.isPaused ?? false)
+      setDecimals(Number(meta?.decimals) || 0)
+      setTicker(typeof (meta as any)?.ticker === 'string' ? (meta as any).ticker : undefined)
 
-    if (state == null || wallet == null) return
+      if (state == null || wallet == null) return
 
-    // Compute frozen amount: sum amounts of the holder's outputs whose outpoint
-    // is in state.frozenOutpoints.
-    const frozenSet = new Set(state.frozenOutpoints.map(fp => fp.outpoint))
-    if (frozenSet.size === 0) { setFrozenAmount(0); return }
+      // Compute frozen amount: sum amounts of the holder's outputs whose outpoint
+      // is in state.frozenOutpoints.
+      const frozenSet = new Set(state.frozenOutpoints.map(fp => fp.outpoint))
+      if (frozenSet.size === 0) { if (!cancelled) setFrozenAmount(0); return }
 
-    try {
-      const res = await wallet.listOutputs({
-        basket: BASKET,
-        include: 'locking scripts',
-        limit: 1000
-      })
+      try {
+        const res = await wallet.listOutputs({
+          basket: BASKET,
+          include: 'locking scripts',
+          limit: 1000
+        })
 
-      let total = 0
-      for (const o of res.outputs) {
-        const opStr = o.outpoint as string
-        if (!frozenSet.has(opStr)) continue
-        try {
-          const decoded = MandalaToken.decode(LockingScript.fromHex(o.lockingScript as string))
-          if (decoded.assetId === assetId) total += decoded.amount
-        } catch { /* not a mandala output */ }
+        let total = 0
+        for (const o of res.outputs) {
+          const opStr = o.outpoint as string
+          if (!frozenSet.has(opStr)) continue
+          try {
+            const decoded = MandalaToken.decode(LockingScript.fromHex(o.lockingScript as string))
+            if (decoded.assetId === assetId) total += decoded.amount
+          } catch { /* not a mandala output */ }
+        }
+        if (!cancelled) setFrozenAmount(total)
+      } catch (e) {
+        console.error('AlertBanners: error computing frozen amount', e)
       }
-      setFrozenAmount(total)
-    } catch (e) {
-      console.error('AlertBanners: error computing frozen amount', e)
-    }
-  }
+    })()
+    return () => { cancelled = true }
+  }, [assetId, wallet])
 
   if (!isPaused && frozenAmount === 0) return null
 
