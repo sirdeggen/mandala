@@ -56,7 +56,11 @@ export function walletMandalaUnlock (
       const sig = Signature.fromDER([...der])
       const txSig = new TransactionSignature(sig.r, sig.s, scope)
       const sigForScript = txSig.toChecksigFormat()
-      const { publicKey } = await wallet.getPublicKey({ protocolID: FT_PROTOCOL, keyID, counterparty })
+      // The signature is made with derivePrivateKey(counterparty); its matching public
+      // key is the forSelf:true derivation (= the key the locker hashed, by BRC-42
+      // symmetry). For self-held tokens forSelf is symmetric; for tokens locked TO us
+      // by another party (counterparty = sender) only forSelf:true matches the pkh.
+      const { publicKey } = await wallet.getPublicKey({ protocolID: FT_PROTOCOL, keyID, counterparty, forSelf: true })
       const pubkey = Utils.toArray(publicKey, 'hex')
       return new UnlockingScript([
         { op: sigForScript.length, data: sigForScript },
