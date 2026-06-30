@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { MESSAGEBOX, BASKET } from '../lib/mandala/constants'
 import { resolveAssetMetadata } from '../lib/mandala/metadata'
 import { formatAmount } from '../lib/mandala/amount'
+import ReceivePanel from './holder/ReceivePanel'
 
 interface PendingToken {
   id: string
@@ -213,7 +214,19 @@ export default function ReceiveTokens() {
   return (
     <Card>
       {header(false)}
-      <CardContent>
+      <CardContent className="space-y-6">
+        {/* QR code receive panel — always shown above pending tokens */}
+        <div className="rounded-[--radius-lg] border border-separator bg-muted/30 p-4">
+          <ReceivePanel />
+        </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-3">
+          <div className="h-px flex-1 bg-separator" />
+          <span className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground">Pending transfers</span>
+          <div className="h-px flex-1 bg-separator" />
+        </div>
+
         {pendingTokens.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-12 text-center">
             <div className="grid h-14 w-14 place-items-center rounded-full bg-muted">
