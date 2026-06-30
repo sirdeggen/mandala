@@ -1,10 +1,12 @@
 import OverlayExpress from '@bsv/overlay-express'
 import {
   MandalaTopicManager,
+  MandalaStorageManager,
   createMandalaLookupService,
   InMemoryScreeningProvider
 } from '@bsv/overlay-topics'
 import { PrivateKey, ProtoWallet, WalletInterface } from '@bsv/sdk'
+import { MongoClient } from 'mongodb'
 import { config } from 'dotenv'
 config()
 
@@ -34,14 +36,21 @@ const main = async (): Promise<void> => {
   })
   await server.configureMongo(MONGO_URL)
 
+  // OverlayExpress.configureMongo uses db `${NODE_NAME}_lookup_services` (i.e. "mandala_lookup_services").
+  // We must use that same db name so sharedStorage reads/writes the same collections.
+  const mongoClient = new MongoClient(MONGO_URL)
+  await mongoClient.connect()
+  const sharedStorage = new MandalaStorageManager(mongoClient.db(`${NODE_NAME}_lookup_services`))
+
   const mandalaWallet = new ProtoWallet(PrivateKey.fromHex(SERVER_PRIVATE_KEY)) as unknown as WalletInterface
   server.configureTopicManager('tm_mandala', new MandalaTopicManager({
     verifierWallet: mandalaWallet,
     screeningProvider: new InMemoryScreeningProvider([]),
     adminWallet: mandalaWallet,
-    adminProtocolID: [2, 'mandala admin'] as [2, string]
+    adminProtocolID: [2, 'mandala admin'] as [2, string],
+    stateStore: sharedStorage
   }))
-  server.configureLookupServiceWithMongo('ls_mandala', createMandalaLookupService(mandalaWallet))
+  server.configureLookupServiceWithMongo('ls_mandala', createMandalaLookupService(mandalaWallet, sharedStorage))
 
   server.configureEnableGASPSync(false)
   await server.configureEngine(false)
