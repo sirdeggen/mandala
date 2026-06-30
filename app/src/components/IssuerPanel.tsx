@@ -8,6 +8,7 @@ import { encodeLinkagePayload, MandalaActionDetails } from '../lib/mandala/encod
 import { submitToOverlay } from '../lib/mandala/overlay'
 import { outpoint, revealLinkage } from '../lib/mandala/tokens'
 import { walletMandalaUnlock } from '../lib/mandala/unlock'
+import { parseAmount, formatAmount } from '../lib/mandala/amount'
 import {
   AdminAsset,
   listAdminAssets,
@@ -23,6 +24,7 @@ import { Select } from './ui/select'
 export default function IssuerPanel() {
   const { wallet, messageBoxClient, identityKey } = useWallet()
   const [label, setLabel] = useState('')
+  const [decimals, setDecimals] = useState('0')
   const [assets, setAssets] = useState<AdminAsset[]>([])
   const [issueAsset, setIssueAsset] = useState('')
   const [issueAmount, setIssueAmount] = useState('')
@@ -39,60 +41,43 @@ export default function IssuerPanel() {
   useEffect(() => { void reload() }, [reload])
 
   // ---------------------------------------------------------------------------
-  // Register: 2-phase approach
-  //   Phase 1 — create a 1-sat UTXO into BASKET; its outpoint becomes assetId.
-  //   Phase 2 — create a register tx with ONE admin-auth output; no genesis spend
-  //             needed (overlay returns priorOutpointSpent=true for kind:'register').
+  // Register: ONE tx, ONE output that both carries the public metadata blob and
+  // is the first admin auth. Its outpoint is the assetId; issue spends it. The
+  // overlay retains the metadata record across that spend (only eviction clears
+  // it), so the label/precision stay resolvable forever.
+  //   - data (keyID) = { kind:'register', label, decimals } — can't include assetId
+  //     (it IS this output's outpoint, unknown until the tx exists).
+  //   - publicData = { label, decimals } — the on-chain, SPV-verifiable metadata.
   // ---------------------------------------------------------------------------
   const registerAsset = useCallback(async () => {
     if (wallet == null || identityKey == null || label.trim() === '') return
+    const dec = Number(decimals)
+    if (!Number.isInteger(dec) || dec < 0) { toast.error('Decimals must be a non-negative integer'); return }
     setBusy(true)
     try {
-      // Phase 1: genesis output carries the public metadata blob; its outpoint is the
-      // assetId. Locked with MandalaAdmin so the overlay can index + serve it. Never spent.
-      const metadata = { label: label.trim() }
-      const genesisLock = await MandalaAdmin.lock({ wallet: wallet as any, data: { kind: 'register' }, publicData: metadata })
-      const phase1 = await wallet.createAction({
-        description: `Genesis for ${label.trim()}`,
-        outputs: [{
-          satoshis: 1,
-          lockingScript: genesisLock.toHex(),
-          outputDescription: 'asset genesis',
-          basket: BASKET
-        }],
-        options: { randomizeOutputs: false }
-      })
-
-      if (phase1.txid == null || phase1.tx == null) throw new Error('phase1: no tx returned')
-      const assetId = outpoint(phase1.txid, 0)
-
-      // Submit the genesis tx so the overlay admits + indexes its metadata.
-      const genesisOffChain = encodeLinkagePayload({
-        inputs: [], outputs: [],
-        admin: [{ index: 0, actionDetails: { kind: 'register' } }]
-      })
-      await submitToOverlay(phase1.tx as number[], genesisOffChain)
-
-      // Phase 2: register tx — produces ONE admin-auth output, no inputs to sign.
-      const regDetails: MandalaActionDetails = { kind: 'register', assetId }
-      const adminLock = await MandalaAdmin.lock({ wallet: wallet as any, data: regDetails })
+      const metadata = { label: label.trim(), decimals: dec }
+      const regDetails: MandalaActionDetails = { kind: 'register', ...metadata }
+      const genesisLock = await MandalaAdmin.lock({ wallet: wallet as any, data: regDetails, publicData: metadata })
 
       const reg = await wallet.createAction({
         description: `Register ${label.trim()}`,
         outputs: [{
           satoshis: 1,
-          lockingScript: adminLock.toHex(),
-          outputDescription: 'admin auth',
+          lockingScript: genesisLock.toHex(),
+          outputDescription: 'asset genesis + admin auth',
           basket: BASKET,
           // Bookkeeping rides on the admin UTXO itself — the wallet basket is the
           // source of truth for the auth chain (no localStorage, no on-chain marker).
-          customInstructions: adminCustomInstructions(assetId, label.trim(), regDetails, metadata)
+          customInstructions: adminCustomInstructions('', label.trim(), regDetails, metadata)
         }],
         options: { randomizeOutputs: false }
       })
 
       if (reg.tx == null || reg.txid == null) throw new Error('register: no tx returned')
+      const assetId = outpoint(reg.txid, 0)
 
+      // The output's CI was written with an empty assetId (it IS this outpoint, which
+      // didn't exist yet); adminAssetFromOutput resolves it to the outpoint on read.
       const offChainValues = encodeLinkagePayload({
         inputs: [],
         outputs: [],
@@ -102,13 +87,14 @@ export default function IssuerPanel() {
 
       toast.success(`Registered ${label.trim()} (${assetId})`)
       setLabel('')
+      setDecimals('0')
       void reload()
     } catch (e) {
       toast.error(`Register failed: ${String(e)}`)
     } finally {
       setBusy(false)
     }
-  }, [wallet, identityKey, label, reload])
+  }, [wallet, identityKey, label, decimals, reload])
 
   // ---------------------------------------------------------------------------
   // Issue: spend the current auth outpoint; mint FT + next admin-auth output.
@@ -116,7 +102,7 @@ export default function IssuerPanel() {
   const issue = useCallback(async () => {
     if (wallet == null || identityKey == null) return
     const asset = assets.find(a => a.assetId === issueAsset)
-    const amount = Number(issueAmount)
+    const amount = parseAmount(issueAmount, Number(asset?.metadata?.decimals) || 0)
     if (asset == null || !Number.isInteger(amount) || amount < 1) return
     setBusy(true)
     try {
@@ -206,7 +192,7 @@ export default function IssuerPanel() {
       })
       await submitToOverlay(signed.tx as number[], offChainValues)
 
-      toast.success(`Issued ${amount} ${asset.label}`)
+      toast.success(`Issued ${formatAmount(amount, Number(asset.metadata?.decimals) || 0)} ${asset.label}`)
       setIssueAmount('')
       void reload()
     } catch (e) {
@@ -223,7 +209,7 @@ export default function IssuerPanel() {
   const redeem = useCallback(async () => {
     if (wallet == null || identityKey == null) return
     const asset = assets.find(a => a.assetId === redeemAsset)
-    const amount = Number(redeemAmount)
+    const amount = parseAmount(redeemAmount, Number(asset?.metadata?.decimals) || 0)
     if (asset == null || !Number.isInteger(amount) || amount < 1) return
     setBusy(true)
     try {
@@ -343,7 +329,7 @@ export default function IssuerPanel() {
       })
       await submitToOverlay(signed.tx as number[], offChainValues)
 
-      toast.success(`Redeemed (burned) ${amount} ${asset.label}`)
+      toast.success(`Redeemed (burned) ${formatAmount(amount, Number(asset.metadata?.decimals) || 0)} ${asset.label}`)
       setRedeemAmount('')
       void reload()
     } catch (e) {
@@ -360,7 +346,7 @@ export default function IssuerPanel() {
   const recover = useCallback(async () => {
     if (wallet == null || identityKey == null) return
     const asset = assets.find(a => a.assetId === recoverAsset)
-    const amount = Number(recoverAmount)
+    const amount = parseAmount(recoverAmount, Number(asset?.metadata?.decimals) || 0)
     if (asset == null || !Number.isInteger(amount) || amount < 1 || recoverRecipient.trim() === '') return
     setBusy(true)
     try {
@@ -450,7 +436,7 @@ export default function IssuerPanel() {
         })
       }
 
-      toast.success(`Recovered ${amount} ${asset.label} to ${recipient.slice(0, 12)}…`)
+      toast.success(`Recovered ${formatAmount(amount, Number(asset.metadata?.decimals) || 0)} ${asset.label} to ${recipient.slice(0, 12)}…`)
       setRecoverAmount('')
       setRecoverRecipient('')
       void reload()
@@ -485,6 +471,10 @@ export default function IssuerPanel() {
         </div>
         <Label htmlFor="reg-label">Label</Label>
         <Input id="reg-label" value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. Gold Coin" />
+        <div className="mt-3">
+          <Label htmlFor="reg-decimals">Decimals (precision)</Label>
+          <Input id="reg-decimals" type="number" min="0" step="1" className="tabular" value={decimals} onChange={e => setDecimals(e.target.value)} placeholder="0" />
+        </div>
         <Button onClick={() => void registerAsset()} disabled={busy || label.trim() === ''} className="mt-4 w-full">
           <PlusCircle className="h-[18px] w-[18px]" /> Register
         </Button>
@@ -505,7 +495,7 @@ export default function IssuerPanel() {
         <Select id="issue-asset" value={issueAsset} onChange={e => setIssueAsset(e.target.value)}>{assetOptions}</Select>
         <div className="mt-3">
           <Label htmlFor="issue-amount">Amount</Label>
-          <Input id="issue-amount" type="number" min="1" className="tabular" value={issueAmount} onChange={e => setIssueAmount(e.target.value)} />
+          <Input id="issue-amount" type="number" min="0" step="any" className="tabular" value={issueAmount} onChange={e => setIssueAmount(e.target.value)} />
         </div>
         <Button onClick={() => void issue()} disabled={busy || issueAsset === '' || issueAmount === ''} className="mt-4 w-full">
           <Sparkles className="h-[18px] w-[18px]" /> Issue
@@ -527,7 +517,7 @@ export default function IssuerPanel() {
         <Select id="redeem-asset" value={redeemAsset} onChange={e => setRedeemAsset(e.target.value)}>{assetOptions}</Select>
         <div className="mt-3">
           <Label htmlFor="redeem-amount">Amount</Label>
-          <Input id="redeem-amount" type="number" min="1" className="tabular" value={redeemAmount} onChange={e => setRedeemAmount(e.target.value)} />
+          <Input id="redeem-amount" type="number" min="0" step="any" className="tabular" value={redeemAmount} onChange={e => setRedeemAmount(e.target.value)} />
         </div>
         <Button onClick={() => void redeem()} disabled={busy || redeemAsset === '' || redeemAmount === ''} variant="destructive" className="mt-4 w-full">
           <Flame className="h-[18px] w-[18px]" /> Redeem (burn)
@@ -549,7 +539,7 @@ export default function IssuerPanel() {
         <Select id="recover-asset" value={recoverAsset} onChange={e => setRecoverAsset(e.target.value)}>{assetOptions}</Select>
         <div className="mt-3">
           <Label htmlFor="recover-amount">Amount</Label>
-          <Input id="recover-amount" type="number" min="1" className="tabular" value={recoverAmount} onChange={e => setRecoverAmount(e.target.value)} />
+          <Input id="recover-amount" type="number" min="0" step="any" className="tabular" value={recoverAmount} onChange={e => setRecoverAmount(e.target.value)} />
         </div>
         <div className="mt-3">
           <Label htmlFor="recover-recipient">Recipient identity key</Label>

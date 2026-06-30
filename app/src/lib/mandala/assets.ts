@@ -48,7 +48,11 @@ export function adminAssetFromOutput (
 ): AdminAsset | null {
   const ci = parseAdminCI(o.customInstructions)
   if (ci == null) return null
-  return { assetId: ci.assetId, label: ci.label, authOutpoint: o.outpoint, authDetails: ci.authDetails, metadata: ci.metadata }
+  // The genesis/register output can't store its own assetId (the assetId IS its
+  // outpoint, unknown when the CI is written), so it leaves assetId empty. For that
+  // output assetId === its own outpoint. Subsequent auth outputs carry the real assetId.
+  const assetId = ci.assetId !== '' ? ci.assetId : o.outpoint
+  return { assetId, label: ci.label, authOutpoint: o.outpoint, authDetails: ci.authDetails, metadata: ci.metadata }
 }
 
 // List the issuer's live admin assets straight from the wallet basket.

@@ -8,6 +8,7 @@ import { Download, Check, X, RefreshCw, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MESSAGEBOX, BASKET } from '../lib/mandala/constants'
 import { resolveAssetMetadata } from '../lib/mandala/metadata'
+import { formatAmount } from '../lib/mandala/amount'
 
 interface PendingToken {
   id: string
@@ -23,7 +24,7 @@ interface PendingToken {
 export default function ReceiveTokens() {
   const { wallet, messageBoxClient } = useWallet()
   const [pendingTokens, setPendingTokens] = useState<PendingToken[]>([])
-  const [labels, setLabels] = useState<Record<string, string>>({})
+  const [metas, setMetas] = useState<Record<string, { label: string, decimals: number }>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [acceptingTokenId, setAcceptingTokenId] = useState<string | null>(null)
   const [rejectingTokenId, setRejectingTokenId] = useState<string | null>(null)
@@ -34,12 +35,12 @@ export default function ReceiveTokens() {
 
   useEffect(() => {
     void (async () => {
-      const next: Record<string, string> = {}
+      const next: Record<string, { label: string, decimals: number }> = {}
       for (const p of pendingTokens) {
         const meta = await resolveAssetMetadata(p.assetId)
-        if (meta != null) next[p.assetId] = meta.label
+        if (meta != null) next[p.assetId] = { label: meta.label, decimals: Number(meta.decimals) || 0 }
       }
-      setLabels(next)
+      setMetas(next)
     })()
   }, [pendingTokens])
 
@@ -91,7 +92,7 @@ export default function ReceiveTokens() {
       }
 
       // Internalize the token using basket insertion protocol
-      const resolvedLabel = labels[pendingToken.assetId] ?? (await resolveAssetMetadata(pendingToken.assetId))?.label
+      const resolvedLabel = metas[pendingToken.assetId]?.label ?? (await resolveAssetMetadata(pendingToken.assetId))?.label
       await wallet.internalizeAction({
         tx: pendingToken.transaction,
         outputs: [{
@@ -121,7 +122,7 @@ export default function ReceiveTokens() {
       setPendingTokens(updatedPending)
 
       toast.success('Tokens accepted successfully!', {
-        description: `Received ${Number(pendingToken.amount).toLocaleString()} of ${pendingToken.assetId}`,
+        description: `Received ${formatAmount(Number(pendingToken.amount), metas[pendingToken.assetId]?.decimals ?? 0)} of ${pendingToken.assetId}`,
         duration: 5000,
       })
 
@@ -242,9 +243,9 @@ export default function ReceiveTokens() {
                         </span>
                       </div>
                       <p className="tabular text-[28px] font-semibold leading-none tracking-[-0.02em] text-success">
-                        +{Number(pending.amount).toLocaleString()}
+                        +{formatAmount(Number(pending.amount), metas[pending.assetId]?.decimals ?? 0)}
                       </p>
-                      <p className="mt-2 text-[15px] font-semibold">{labels[pending.assetId] ?? `${pending.assetId.slice(0, 20)}…`}</p>
+                      <p className="mt-2 text-[15px] font-semibold">{metas[pending.assetId]?.label ?? `${pending.assetId.slice(0, 20)}…`}</p>
                       <p className="tabular truncate text-[12px] text-subtle-foreground">{pending.assetId}</p>
                       <p className="mt-1 text-[13px] text-muted-foreground">
                         From <span className="tabular text-foreground">{pending.sender.slice(0, 16)}…</span>

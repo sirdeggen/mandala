@@ -5,6 +5,7 @@ import { BASKET } from '../lib/mandala/constants'
 import { decodeBalances, TokenBalance } from '../lib/mandala/tokens'
 import { listAdminAssets } from '../lib/mandala/assets'
 import { resolveAssetMetadata } from '../lib/mandala/metadata'
+import { formatAmount } from '../lib/mandala/amount'
 import { Button } from './ui/button'
 import { cn } from '@/lib/utils'
 
@@ -24,12 +25,13 @@ const tintFor = (id: string) => {
 export default function TokenWallet() {
   const { wallet } = useWallet()
   const [balances, setBalances] = useState<TokenBalance[]>([])
-  const [labels, setLabels] = useState<Record<string, string>>({})
+  const [metas, setMetas] = useState<Record<string, { label: string, decimals: number }>>({})
   const [loading, setLoading] = useState(true)
 
   const labelFor = useCallback((assetId: string): string => {
-    return labels[assetId] ?? `${assetId.slice(0, 10)}…`
-  }, [labels])
+    return metas[assetId]?.label ?? `${assetId.slice(0, 10)}…`
+  }, [metas])
+  const decimalsFor = useCallback((assetId: string): number => metas[assetId]?.decimals ?? 0, [metas])
 
   const refresh = useCallback(async () => {
     if (wallet == null) return
@@ -38,17 +40,18 @@ export default function TokenWallet() {
       const res = await wallet.listOutputs({ basket: BASKET, include: 'locking scripts', limit: 1000 })
       const decoded = decodeBalances(res.outputs.map(o => ({ lockingScript: o.lockingScript as string })))
       setBalances(decoded)
-      // Labels come from the issuer's admin outputs (only present in the issuer's
-      // own wallet); holders fall back to a resolver query then truncated assetId.
+      // Metadata (label + decimals) comes from the issuer's admin outputs (present
+      // only in the issuer's own wallet); holders fall back to a resolver query.
       const admin = await listAdminAssets(wallet as any)
-      const labelMap: Record<string, string> = Object.fromEntries(admin.map(a => [a.assetId, a.label]))
+      const metaMap: Record<string, { label: string, decimals: number }> = {}
+      for (const a of admin) metaMap[a.assetId] = { label: a.label, decimals: Number(a.metadata?.decimals) || 0 }
       for (const b of decoded) {
-        if (labelMap[b.assetId] == null) {
+        if (metaMap[b.assetId] == null) {
           const meta = await resolveAssetMetadata(b.assetId)
-          if (meta != null) labelMap[b.assetId] = meta.label
+          if (meta != null) metaMap[b.assetId] = { label: meta.label, decimals: Number(meta.decimals) || 0 }
         }
       }
-      setLabels(labelMap)
+      setMetas(metaMap)
     } finally { setLoading(false) }
   }, [wallet])
 
@@ -110,7 +113,7 @@ export default function TokenWallet() {
           </div>
           <div className="text-right">
             <p className="tabular text-[26px] font-semibold leading-none tracking-[-0.02em]">
-              {b.amount.toLocaleString()}
+              {formatAmount(b.amount, decimalsFor(b.assetId))}
             </p>
             <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-subtle-foreground">units</p>
           </div>

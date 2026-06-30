@@ -16,6 +16,7 @@ import { walletMandalaUnlock } from '../lib/mandala/unlock'
 import { revealLinkage } from '../lib/mandala/tokens'
 import { listAdminAssets } from '../lib/mandala/assets'
 import { resolveAssetMetadata } from '../lib/mandala/metadata'
+import { parseAmount, formatAmount, formatAmountPlain } from '../lib/mandala/amount'
 import { submitToOverlay } from '../lib/mandala/overlay'
 import { encodeLinkagePayload } from '../lib/mandala/encoding'
 
@@ -32,10 +33,11 @@ export default function SendTokens() {
   const [isSending, setIsSending] = useState(false)
   const [publicKeyInput, setPublicKeyInput] = useState('')
   const [balances, setBalances] = useState<TokenBalance[]>([])
-  const [labels, setLabels] = useState<Record<string, string>>({})
+  const [metas, setMetas] = useState<Record<string, { label: string, decimals: number }>>({})
   const [isLoadingBalances, setIsLoadingBalances] = useState(true)
 
-  const labelFor = (assetId: string): string => labels[assetId] ?? `${assetId.slice(0, 20)}…`
+  const labelFor = (assetId: string): string => metas[assetId]?.label ?? `${assetId.slice(0, 20)}…`
+  const decimalsFor = (assetId: string): number => metas[assetId]?.decimals ?? 0
 
   useEffect(() => {
     void loadBalances()
@@ -62,14 +64,15 @@ export default function SendTokens() {
       // Labels come from the issuer's admin outputs (present only in the issuer's
       // own wallet); holders fall back to a resolver query then truncated assetId.
       const admin = await listAdminAssets(wallet as any)
-      const labelMap: Record<string, string> = Object.fromEntries(admin.map(a => [a.assetId, a.label]))
+      const metaMap: Record<string, { label: string, decimals: number }> = {}
+      for (const a of admin) metaMap[a.assetId] = { label: a.label, decimals: Number(a.metadata?.decimals) || 0 }
       for (const b of [...totals.keys()]) {
-        if (labelMap[b] == null) {
+        if (metaMap[b] == null) {
           const meta = await resolveAssetMetadata(b)
-          if (meta != null) labelMap[b] = meta.label
+          if (meta != null) metaMap[b] = { label: meta.label, decimals: Number(meta.decimals) || 0 }
         }
       }
-      setLabels(labelMap)
+      setMetas(metaMap)
     } catch (e) {
       console.error('Error loading balances:', e)
     } finally {
@@ -212,7 +215,7 @@ export default function SendTokens() {
       toast.error('Select a token', { duration: 3000 })
       return
     }
-    const sendAmount = Number(amount)
+    const sendAmount = parseAmount(amount, decimalsFor(assetId))
     if (!amount || isNaN(sendAmount) || sendAmount <= 0) {
       toast.error('Enter a valid amount', { duration: 3000 })
       return
@@ -220,7 +223,7 @@ export default function SendTokens() {
     const bal = balances.find(b => b.assetId === assetId)
     if (!bal || bal.amount < sendAmount) {
       toast.error('Insufficient balance', {
-        description: `Available: ${bal?.amount.toLocaleString() ?? 0}`,
+        description: `Available: ${formatAmount(bal?.amount ?? 0, decimalsFor(assetId))}`,
         duration: 4000
       })
       return
@@ -238,7 +241,7 @@ export default function SendTokens() {
     try {
       await transfer(assetId, sendAmount, recipient)
       toast.success('Tokens sent!', {
-        description: `${sendAmount.toLocaleString()} tokens sent to ${recipient.slice(0, 12)}…`,
+        description: `${formatAmount(sendAmount, decimalsFor(assetId))} tokens sent to ${recipient.slice(0, 12)}…`,
         duration: 6000
       })
       setAssetId('')
@@ -299,7 +302,7 @@ export default function SendTokens() {
               <option value="">Select a token</option>
               {balances.map(b => (
                 <option key={b.assetId} value={b.assetId}>
-                  {labelFor(b.assetId)} ({b.amount.toLocaleString()} available)
+                  {labelFor(b.assetId)} ({formatAmount(b.amount, decimalsFor(b.assetId))} available)
                 </option>
               ))}
             </Select>
@@ -310,7 +313,7 @@ export default function SendTokens() {
           )}
           {assetId && selectedBalance && (
             <p className="mt-1.5 text-[13px] text-muted-foreground">
-              Available <span className="tabular font-semibold text-foreground">{selectedBalance.amount.toLocaleString()}</span>
+              Available <span className="tabular font-semibold text-foreground">{formatAmount(selectedBalance.amount, decimalsFor(assetId))}</span>
             </p>
           )}
         </div>
@@ -325,13 +328,14 @@ export default function SendTokens() {
               value={amount}
               onChange={e => setAmount(e.target.value)}
               placeholder="e.g. 100"
-              min="1"
+              min="0"
+              step="any"
               className="tabular pr-16"
             />
             {assetId && selectedBalance && (
               <button
                 type="button"
-                onClick={() => setAmount(String(selectedBalance.amount))}
+                onClick={() => setAmount(formatAmountPlain(selectedBalance.amount, decimalsFor(assetId)))}
                 className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-2.5 py-1 text-[12px] font-semibold text-primary transition-colors hover:bg-accent"
               >
                 Max
