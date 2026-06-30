@@ -24,6 +24,7 @@ import { Select } from './ui/select'
 export default function IssuerPanel() {
   const { wallet, messageBoxClient, identityKey } = useWallet()
   const [label, setLabel] = useState('')
+  const [ticker, setTicker] = useState('')
   const [decimals, setDecimals] = useState('0')
   const [assets, setAssets] = useState<AdminAsset[]>([])
   const [issueAsset, setIssueAsset] = useState('')
@@ -57,7 +58,7 @@ export default function IssuerPanel() {
     try {
       // issuer = our identity key, baked into the on-chain publicData so any holder
       // can SPV-verify it and return funds to the issuer.
-      const metadata = { label: label.trim(), decimals: dec, issuer: identityKey }
+      const metadata = { label: label.trim(), ticker: ticker.trim().toUpperCase(), decimals: dec, issuer: identityKey }
       const regDetails: MandalaActionDetails = { kind: 'register', ...metadata }
       const genesisLock = await MandalaAdmin.lock({ wallet: wallet as any, data: regDetails, publicData: metadata })
 
@@ -90,6 +91,7 @@ export default function IssuerPanel() {
 
       toast.success(`Registered ${label.trim()} (${assetId})`)
       setLabel('')
+      setTicker('')
       setDecimals('0')
       void reload()
     } catch (e) {
@@ -97,7 +99,7 @@ export default function IssuerPanel() {
     } finally {
       setBusy(false)
     }
-  }, [wallet, identityKey, label, decimals, reload])
+  }, [wallet, identityKey, label, ticker, decimals, reload])
 
   // ---------------------------------------------------------------------------
   // Issue: spend the current auth outpoint; mint FT + next admin-auth output.
@@ -477,6 +479,10 @@ export default function IssuerPanel() {
         </div>
         <Label htmlFor="reg-label">Label</Label>
         <Input id="reg-label" value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. Gold Coin" />
+        <div className="mt-3">
+          <Label htmlFor="reg-ticker">Ticker</Label>
+          <Input id="reg-ticker" value={ticker} onChange={e => setTicker(e.target.value)} placeholder="e.g. USD" />
+        </div>
         <div className="mt-3">
           <Label htmlFor="reg-decimals">Decimals (precision)</Label>
           <Input id="reg-decimals" type="number" min="0" step="1" className="tabular" value={decimals} onChange={e => setDecimals(e.target.value)} placeholder="0" />
