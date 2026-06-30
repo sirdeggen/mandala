@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatAmount, formatAmountPlain, parseAmount } from './amount'
+import { formatAmount, formatAmountPlain, parseAmount, currencySymbol, formatCurrency } from './amount'
 
 describe('amount precision helpers', () => {
   it('formats base units at a given precision (grouped)', () => {
@@ -32,5 +32,20 @@ describe('amount precision helpers', () => {
     expect(parseAmount('1.234', 2)).toBeNaN()
     expect(parseAmount('0.5', 0)).toBeNaN()
     expect(parseAmount('abc', 2)).toBeNaN()
+  })
+})
+
+describe('currency', () => {
+  it('maps known tickers to symbols and falls back to the ticker', () => {
+    expect(currencySymbol('USD')).toBe('$')
+    expect(currencySymbol('EUR')).toBe('€')
+    expect(currencySymbol('GBP')).toBe('£')
+    expect(currencySymbol('CHF')).toBe('CHF ')
+    expect(currencySymbol('XYZ')).toBe('XYZ ')
+    expect(currencySymbol(undefined)).toBe('')
+  })
+  it('formats base units with the symbol and grouping', () => {
+    expect(formatCurrency(124575, 2, 'USD')).toBe('$1,245.75')
+    expect(formatCurrency(5, 0, undefined)).toBe('5')
   })
 })

@@ -27,6 +27,17 @@ export function formatAmount (baseUnits: number, decimals = 0): string {
   return `${negative ? '-' : ''}${wholeFmt}${frac.length > 0 ? '.' + frac : ''}`
 }
 
+const SYMBOLS: Record<string, string> = { USD: '$', EUR: '€', GBP: '£', CHF: 'CHF ' }
+
+export function currencySymbol (ticker?: string): string {
+  if (ticker == null || ticker === '') return ''
+  return SYMBOLS[ticker.toUpperCase()] ?? `${ticker.toUpperCase()} `
+}
+
+export function formatCurrency (base: number, decimals: number, ticker?: string): string {
+  return `${currencySymbol(ticker)}${formatAmount(base, decimals)}`
+}
+
 // Parse a user-entered display value into integer base units. Returns NaN if the
 // input isn't a valid number or has more fractional places than `decimals` allows.
 export function parseAmount (input: string, decimals = 0): number {
