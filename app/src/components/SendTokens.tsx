@@ -142,7 +142,13 @@ export default function SendTokens() {
 
     const keyIDOut = 'xfer-' + Date.now()
     const ftOut = await new MandalaToken(wallet as any).lockBRC29(selectedAssetId, sendAmount, FT_PROTOCOL, keyIDOut, recipientKey)
-    const outputs: any[] = [{ satoshis: 1, lockingScript: ftOut.toHex(), outputDescription: 'FT to recipient' }]
+    const outputs: any[] = [{
+      satoshis: 1,
+      lockingScript: ftOut.toHex(),
+      outputDescription: 'FT to recipient',
+      customInstructions: JSON.stringify({ protocolID: FT_PROTOCOL, keyID: keyIDOut, counterparty: recipientKey, direction: 'sent', recipient: recipientKey }),
+      tags: ['mandala', 'sent', selectedAssetId]
+    }]
 
     let keyIDChange = ''
     if (change > 0) {
