@@ -8,6 +8,7 @@ import {
 import { PrivateKey, ProtoWallet, WalletInterface } from '@bsv/sdk'
 import { MongoClient } from 'mongodb'
 import { config } from 'dotenv'
+import type { Request, Response } from 'express'
 config()
 
 const requireEnv = (name: string): string => {
@@ -54,6 +55,31 @@ const main = async (): Promise<void> => {
 
   server.configureEnableGASPSync(false)
   await server.configureEngine(false)
+
+  server.app.get('/admin/asset-state/:assetId', (req: Request<{ assetId: string }>, res: Response) => {
+    res.header('Access-Control-Allow-Origin', '*')
+    void (async () => {
+      try {
+        const state = await sharedStorage.getAssetState(req.params.assetId)
+        res.json(state)
+      } catch (e) {
+        res.status(500).json({ error: String(e) })
+      }
+    })()
+  })
+
+  server.app.get('/admin/admin-history/:assetId', (req: Request<{ assetId: string }>, res: Response) => {
+    res.header('Access-Control-Allow-Origin', '*')
+    void (async () => {
+      try {
+        const history = await sharedStorage.findAdminHistoryByAssetId(req.params.assetId)
+        res.json(history)
+      } catch (e) {
+        res.status(500).json({ error: String(e) })
+      }
+    })()
+  })
+
   await server.start()
   console.log(`mandala overlay listening on ${HOSTING_URL}`)
 }
