@@ -81,7 +81,7 @@ export default function AssetAccount({ assetId, balance, decimals: decimalsProp 
       </div>
 
       {/* Tab content */}
-      {tab === 'send' && <SendTokens />}
+      {tab === 'send' && <SendTokens lockedAssetId={assetId} />}
       {tab === 'receive' && <ReceivePanel />}
       {tab === 'history' && (
         <TransactionHistory assetId={assetId} decimals={decimals} ticker={ticker} />

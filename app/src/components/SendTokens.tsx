@@ -28,9 +28,10 @@ interface TokenBalance {
   amount: number
 }
 
-export default function SendTokens() {
+export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string } = {}) {
+  const locked = lockedAssetId != null && lockedAssetId !== ''
   const { wallet, messageBoxClient, identityKey } = useWallet()
-  const [assetId, setAssetId] = useState('')
+  const [assetId, setAssetId] = useState(lockedAssetId ?? '')
   const [amount, setAmount] = useState('')
   const [recipient, setRecipient] = useState('')
   const [isSending, setIsSending] = useState(false)
@@ -49,6 +50,11 @@ export default function SendTokens() {
     void loadBalances()
     void loadContacts()
   }, [wallet])
+
+  // Keep the asset locked to the account this Send tab belongs to.
+  useEffect(() => {
+    if (locked) setAssetId(lockedAssetId as string)
+  }, [lockedAssetId, locked])
 
   useEffect(() => {
     if (!assetId) { setIsPaused(false); return }
@@ -287,7 +293,7 @@ export default function SendTokens() {
         description: `${formatAmount(sendAmount, decimalsFor(assetId))} tokens sent to ${recipient.slice(0, 12)}…`,
         duration: 6000
       })
-      setAssetId('')
+      setAssetId(lockedAssetId ?? '')
       setAmount('')
       setRecipient('')
       setPublicKeyInput('')
@@ -333,10 +339,14 @@ export default function SendTokens() {
       </CardHeader>
 
       <CardContent className="space-y-5">
-        {/* Asset selector */}
+        {/* Asset selector — hidden when this Send tab is locked to one token */}
         <div>
           <Label htmlFor="sendAsset">Token</Label>
-          {isLoadingBalances ? (
+          {locked ? (
+            <div className="flex h-11 w-full items-center rounded-[--radius] border border-input-border bg-input px-3.5 text-[15px] font-medium text-foreground">
+              {labelFor(assetId)}
+            </div>
+          ) : isLoadingBalances ? (
             <div className="flex h-11 w-full items-center rounded-[--radius] border border-input-border bg-input px-3.5 text-[15px] text-subtle-foreground">
               Loading tokens…
             </div>
@@ -430,8 +440,9 @@ export default function SendTokens() {
           </div>
         )}
 
-        {/* Pay again — recent outgoing sends with asset + recipient pre-filled */}
-        {recentSends.length > 0 && (
+        {/* Pay again — recent outgoing sends with asset + recipient pre-filled.
+            Hidden when locked, since it would switch to another token. */}
+        {!locked && recentSends.length > 0 && (
           <div>
             <Label>Pay again</Label>
             <div className="mt-1.5 space-y-1.5">
