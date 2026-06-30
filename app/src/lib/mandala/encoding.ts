@@ -1,4 +1,6 @@
 import { Utils, WalletProtocol } from '@bsv/sdk'
+import type { MandalaActionDetails } from '@bsv/templates'
+export type { MandalaActionKind, MandalaActionDetails } from '@bsv/templates'
 
 export interface SpecificLinkage {
   prover: string
@@ -9,16 +11,6 @@ export interface SpecificLinkage {
   encryptedLinkage: number[]
   encryptedLinkageProof: number[]
   proofType: number
-}
-
-export type MandalaActionKind = 'register' | 'issue' | 'redeem' | 'recover'
-
-export interface MandalaActionDetails {
-  kind: MandalaActionKind
-  assetId?: string
-  amount?: number
-  priorOutpoint?: string
-  [k: string]: unknown
 }
 
 export interface MandalaLinkagePayload {
