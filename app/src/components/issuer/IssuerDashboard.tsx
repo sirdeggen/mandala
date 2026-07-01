@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  LayoutDashboard, PlusCircle, ShieldCheck, Banknote, ChevronDown
+  LayoutDashboard, PlusCircle, ShieldCheck, Banknote, Wallet, ChevronDown
 } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { listAdminAssets, AdminAsset } from '../../lib/mandala/assets'
@@ -10,8 +10,9 @@ import IssuerPanel from '../IssuerPanel'
 import OverviewSection from './OverviewSection'
 import RegulatoryControls from './RegulatoryControls'
 import BankingMock from './BankingMock'
+import TreasurySection from './TreasurySection'
 
-type Section = 'overview' | 'operations' | 'regulatory' | 'banking'
+type Section = 'overview' | 'treasury' | 'operations' | 'regulatory' | 'banking'
 
 const NAV_ITEMS: Array<{
   id: Section
@@ -19,6 +20,7 @@ const NAV_ITEMS: Array<{
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
 }> = [
   { id: 'overview',    label: 'Overview',    icon: LayoutDashboard },
+  { id: 'treasury',    label: 'Treasury',    icon: Wallet },
   { id: 'operations',  label: 'Operations',  icon: PlusCircle },
   { id: 'regulatory',  label: 'Regulatory',  icon: ShieldCheck },
   { id: 'banking',     label: 'Banking',     icon: Banknote },
@@ -196,6 +198,9 @@ export default function IssuerDashboard() {
               asset={currentAsset}
               onReload={() => void reloadAssets()}
             />
+          )}
+          {section === 'treasury' && (
+            <TreasurySection assetId={currentAssetId} asset={currentAsset} />
           )}
           {section === 'operations' && (
             <IssuerPanel assetId={currentAssetId} />
