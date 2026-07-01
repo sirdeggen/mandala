@@ -39,11 +39,14 @@ export async function resolveAdminHistory (assetId: string): Promise<AdminHistor
 const short = (k?: string): string => k == null ? '' : `${k.slice(0, 8)}…`
 
 export function describeAction (d: MandalaActionDetails): string {
+  // 'recover' was removed as an action kind (recovery is now the guarded
+  // 'reissue'), but legacy on-chain admin records may still carry it — describe
+  // it without referencing the removed union member.
+  if ((d.kind as string) === 'recover') return `Recovered ${d.amount} units to ${short(d.recipient as string)} (legacy)`
   switch (d.kind) {
     case 'register': return `Registered asset ${d.assetId}`
     case 'issue': return `Issued ${d.amount} units`
     case 'redeem': return `Redeemed (burned) ${d.amount} units`
-    case 'recover': return `Recovered ${d.amount} units to ${short(d.recipient as string)}`
     case 'pause': return 'Paused transfers'
     case 'unpause': return 'Resumed transfers'
     case 'blockIdentity': return `Blocked identity ${short(d.identityKey as string)}`

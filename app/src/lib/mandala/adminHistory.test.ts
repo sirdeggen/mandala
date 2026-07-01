@@ -54,8 +54,10 @@ describe('describeAction', () => {
     expect(describeAction({ kind: 'redeem', assetId: 'x.0', amount: 100 })).toMatch(/redeem/i)
   })
 
-  it('describes recover in human-readable form', () => {
-    expect(describeAction({ kind: 'recover', assetId: 'x.0', amount: 50, recipient: '03ab' })).toMatch(/recover/i)
+  it('describes a legacy recover record without referencing the removed kind', () => {
+    // 'recover' is no longer a valid MandalaActionKind, but legacy on-chain
+    // records may still carry it — the describer must handle it gracefully.
+    expect(describeAction({ kind: 'recover' as any, assetId: 'x.0', amount: 50, recipient: '03ab' })).toMatch(/recover/i)
   })
 
   it('describes setAccessMode in human-readable form', () => {
