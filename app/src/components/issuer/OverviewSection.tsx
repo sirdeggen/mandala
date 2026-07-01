@@ -18,6 +18,7 @@ interface AssetMetrics {
   netSupply: number
   drift: number
   decimals: number
+  bankBalance: number
 }
 
 // ── Stat tile ──────────────────────────────────────────────────────────────────
@@ -38,7 +39,7 @@ function StatTile({
       <div className="text-[11px] leading-none text-subtle-foreground">{label}</div>
       <div
         className={cn(
-          'mt-[10px] text-[24px] font-semibold leading-none tracking-[-0.3px] tabular-nums',
+          'mt-[10px] text-[24px] font-semibold leading-none tracking-[-0.3px]',
           valueColor ?? 'text-foreground'
         )}
         style={{ fontVariantNumeric: 'tabular-nums' }}
@@ -70,12 +71,11 @@ export default function OverviewSection({ assets, onReload }: Props) {
   const [rows, setRows] = useState<AssetMetrics[]>([])
   const [loading, setLoading] = useState(false)
 
-  const deposits = seedDeposits()
-  const bankDepositAmounts = deposits.map(d => d.amount)
-
   const load = useCallback(async () => {
     if (assets.length === 0) { setRows([]); return }
     setLoading(true)
+    const deposits = seedDeposits()
+    const bankDepositAmounts = deposits.map(d => d.amount)
     try {
       const metrics = await Promise.all(
         assets.map(async (asset): Promise<AssetMetrics> => {
@@ -99,14 +99,14 @@ export default function OverviewSection({ assets, onReload }: Props) {
             issued: totalIssued,
             redeemed: totalRedeemed,
           })
-          return { asset, state, netSupply, drift: recon.drift, decimals }
+          return { asset, state, netSupply, drift: recon.drift, decimals, bankBalance: recon.bankBalance }
         })
       )
       setRows(metrics)
     } finally {
       setLoading(false)
     }
-  }, [assets]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [assets])
 
   useEffect(() => { void load() }, [load])
 
@@ -116,8 +116,8 @@ export default function OverviewSection({ assets, onReload }: Props) {
   const totalDrift = rows.reduce((s, r) => s + r.drift, 0)
   const needsAttention = rows.filter(r => (r.state?.isPaused ?? false) || r.drift !== 0).length
 
-  // Reserve ratio: sum all bank deposits / sum all net supplies
-  const totalBankBal = bankDepositAmounts.reduce((s, a) => s + a, 0) * assets.length
+  // Reserve ratio: sum per-asset bank balances from reconcile outputs
+  const totalBankBal = rows.reduce((s, r) => s + r.bankBalance, 0)
   const reserveRatioPct =
     totalSupply === 0
       ? null
@@ -178,7 +178,7 @@ export default function OverviewSection({ assets, onReload }: Props) {
               ? '—'
               : formatAmount(totalSupply, 0)
           }
-          sub="total base units · all assets"
+          sub="total base units across all assets"
         />
         <StatTile
           label="Net issued"
