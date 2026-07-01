@@ -54,6 +54,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   const [isSending, setIsSending] = useState(false)
   const [sendError, setSendError] = useState('')
   const [sentTxid, setSentTxid] = useState('')
+  const [receiptCopied, setReceiptCopied] = useState(false)
   const [balances, setBalances] = useState<TokenBalance[]>([])
   const [metas, setMetas] = useState<Record<string, { label: string, decimals: number, issuer?: string }>>({})
   const [isLoadingBalances, setIsLoadingBalances] = useState(true)
@@ -411,11 +412,11 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   }
 
   const shareReceipt = async () => {
-    const label = labelFor(assetId)
-    const name = recipientName || recipient.slice(0, 16) + '…'
-    const text = `Sent ${formatAmount(sendAmount, decimals)} ${label} to ${name}${sentTxid ? `\nRef: ${sentTxid.slice(0, 8)}…${sentTxid.slice(-4)}` : ''}`
+    if (!sentTxid) return
     try {
-      await navigator.clipboard.writeText(text)
+      await navigator.clipboard.writeText(sentTxid)
+      setReceiptCopied(true)
+      setTimeout(() => setReceiptCopied(false), 1400)
     } catch { /* ignore */ }
   }
 
@@ -934,10 +935,12 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         <button
           type="button"
           onClick={() => void shareReceipt()}
-          className="flex w-full items-center justify-center gap-2 rounded-[14px] border border-border bg-card px-4 py-[15px] text-[14px] font-semibold text-primary transition-colors hover:bg-accent active:scale-[0.97]"
+          disabled={!sentTxid}
+          className="flex w-full items-center justify-center gap-2 rounded-[14px] border border-border bg-card px-4 py-[15px] text-[14px] font-semibold text-primary transition-colors hover:bg-accent active:scale-[0.97] disabled:opacity-40"
         >
-          <Copy className="h-[15px] w-[15px]" />
-          Share receipt
+          {receiptCopied
+            ? <><CheckCircle2 className="h-[15px] w-[15px] text-success" />Txid copied</>
+            : <><Copy className="h-[15px] w-[15px]" />Share receipt</>}
         </button>
       </div>
     </div>
