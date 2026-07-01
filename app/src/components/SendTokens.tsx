@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Transaction, Beef, LockingScript, PublicKey, IdentityClient } from '@bsv/sdk'
 import type { DisplayableIdentity } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
@@ -18,6 +18,7 @@ import { submitToOverlay } from '../lib/mandala/overlay'
 import { encodeLinkagePayload } from '../lib/mandala/encoding'
 import { loadHistory } from '../lib/mandala/history'
 import { deriveContacts, Contact } from '../lib/mandala/contacts'
+import { listContacts, StoredContact } from '../lib/mandala/contactsStore'
 import { resolveAssetState } from '../lib/mandala/adminState'
 
 // ---------------------------------------------------------------------------
@@ -30,6 +31,12 @@ interface TokenBalance {
 }
 
 type Step = 'recipient' | 'amount' | 'review' | 'sent'
+
+/** A tappable recipient row in the recipient-step shortlist. */
+interface PickRow { identityKey: string; name?: string; avatarURL?: string; subtitle: string }
+
+/** Max recipients shown in the shortlist before it's truncated (recency-first). */
+const CONTACT_LIMIT = 12
 
 // ---------------------------------------------------------------------------
 // Component
@@ -60,6 +67,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   const [metas, setMetas] = useState<Record<string, { label: string, decimals: number, issuer?: string }>>({})
   const [isLoadingBalances, setIsLoadingBalances] = useState(true)
   const [contacts, setContacts] = useState<Contact[]>([])
+  const [saved, setSaved] = useState<StoredContact[]>([])
   const [isPaused, setIsPaused] = useState(false)
 
   // Helpers
@@ -96,9 +104,15 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
     try {
       const history = await loadHistory(wallet as any)
       setContacts(deriveContacts(history))
-      // (recent sends retained in contacts list only for now)
     } catch (e) {
       console.error('Error loading contacts:', e)
+    }
+    // Saved contacts (names/avatars) are loaded independently so a store read
+    // failure never blocks the recency list.
+    try {
+      setSaved(await listContacts(wallet as any))
+    } catch (e) {
+      console.error('Error loading saved contacts:', e)
     }
   }
 
@@ -347,6 +361,43 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   const decimals = decimalsFor(assetId)
   const sendAmount = parseAmount(amountStr, decimals)
 
+  // Recipient shortlist shown under the search field — tap to pick, no search
+  // needed. History counterparties come first (most recently sent-to/received-from,
+  // per deriveContacts), enriched with saved-contact names/avatars; saved contacts
+  // never transacted with follow, alphabetically. Truncated to CONTACT_LIMIT, so
+  // truncation drops the least-recent.
+  const pickList = useMemo<PickRow[]>(() => {
+    const savedByKey = new Map(saved.map(c => [c.identityKey, c]))
+    const seen = new Set<string>()
+    const out: PickRow[] = []
+    for (const c of contacts) {
+      seen.add(c.identityKey)
+      const s = savedByKey.get(c.identityKey)
+      out.push({
+        identityKey: c.identityKey,
+        name: s?.name,
+        avatarURL: s?.avatarURL,
+        subtitle: s?.handle ? `@${s.handle}` : s?.email ?? `${c.count} transaction${c.count !== 1 ? 's' : ''}`,
+      })
+    }
+    for (const s of saved.filter(s => !seen.has(s.identityKey)).sort((a, b) => a.name.localeCompare(b.name))) {
+      out.push({ identityKey: s.identityKey, name: s.name, avatarURL: s.avatarURL, subtitle: s.handle ? `@${s.handle}` : s.email ?? 'Saved contact' })
+    }
+    return out.slice(0, CONTACT_LIMIT)
+  }, [contacts, saved])
+
+  // Select a recipient from the shortlist / issuer shortcut and advance the wizard.
+  const pickRecipient = (identityKey: string, name = '', avatarURL = '') => {
+    setRecipient(identityKey)
+    setPublicKeyInput(identityKey)
+    setRecipientName(name)
+    setRecipientAvatarURL(avatarURL)
+    setSearchInput('')
+    setIdentities([])
+    setSelectedIdentity(null)
+    setStep('amount')
+  }
+
   const confirmRecipient = () => {
     if (!recipient.trim()) return
     setStep('amount')
@@ -520,67 +571,32 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         )}
       </div>
 
-      {/* Recent */}
-      {contacts.length > 0 && (
-        <div className="px-5 pt-[22px]">
-          <SectionLabel>Recent</SectionLabel>
-          <div className="flex gap-3">
-            {contacts.slice(0, 4).map(c => (
-              <button
-                key={c.identityKey}
-                type="button"
-                onClick={() => {
-                  setRecipient(c.identityKey)
-                  setPublicKeyInput(c.identityKey)
-                  setRecipientName('')
-                  setRecipientAvatarURL('')
-                  setSearchInput('')
-                  setIdentities([])
-                  setSelectedIdentity(null)
-                  setStep('amount')
-                }}
-                className="flex flex-col items-center gap-2 w-[62px] active:scale-[0.97] transition-transform"
-              >
-                <div className="h-[52px] w-[52px] flex-none flex items-center justify-center rounded-full bg-primary text-primary-foreground font-semibold text-[16px]">
-                  {getInitials('', c.identityKey)}
-                </div>
-                <span className="text-[11.5px] text-subtle-foreground truncate w-full text-center">
-                  {c.identityKey.slice(0, 6)}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* All Contacts list */}
-      {contacts.length > 0 && (
+      {/* Contacts shortlist — recency-first, tap to select (no search needed).
+          Truncated to CONTACT_LIMIT so the most recent stay on screen. */}
+      {pickList.length > 0 && (
         <div className="px-5 pt-6">
-          <SectionLabel>All Contacts</SectionLabel>
+          <SectionLabel>Contacts</SectionLabel>
           <div className="divide-y divide-separator">
-            {contacts.slice(0, 8).map(c => (
+            {pickList.map(c => (
               <button
                 key={c.identityKey}
                 type="button"
-                onClick={() => {
-                  setRecipient(c.identityKey)
-                  setPublicKeyInput(c.identityKey)
-                  setRecipientName('')
-                  setRecipientAvatarURL('')
-                  setSearchInput('')
-                  setIdentities([])
-                  setSelectedIdentity(null)
-                  setStep('amount')
-                }}
+                onClick={() => pickRecipient(c.identityKey, c.name ?? '', c.avatarURL ?? '')}
                 className="flex w-full items-center gap-3 py-[11px] hover:bg-muted/60 active:bg-accent transition-colors -mx-1 px-1 rounded-[--radius]"
               >
-                <div className="h-10 w-10 flex-none flex items-center justify-center rounded-full bg-primary text-primary-foreground font-semibold text-[13px]">
-                  {getInitials('', c.identityKey)}
-                </div>
+                {c.avatarURL ? (
+                  <img src={c.avatarURL} alt={c.name ?? ''} className="h-10 w-10 flex-none rounded-full object-cover" />
+                ) : (
+                  <div className="h-10 w-10 flex-none flex items-center justify-center rounded-full bg-primary text-primary-foreground font-semibold text-[13px]">
+                    {getInitials(c.name ?? '', c.identityKey)}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0 text-left">
-                  <div className="tabular text-[14px] font-semibold truncate">{c.identityKey.slice(0, 16)}…</div>
-                  <div className="text-[11.5px] text-subtle-foreground mt-0.5">
-                    {c.count} transaction{c.count !== 1 ? 's' : ''}
+                  <div className="text-[14px] font-semibold truncate">
+                    {c.name || `${c.identityKey.slice(0, 16)}…`}
+                  </div>
+                  <div className="text-[11.5px] text-subtle-foreground mt-0.5 truncate">
+                    {c.subtitle}
                   </div>
                 </div>
                 <ChevronLeft className="h-[17px] w-[17px] text-border rotate-180 flex-none" />
