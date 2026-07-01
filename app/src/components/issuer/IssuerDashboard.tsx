@@ -47,10 +47,7 @@ export default function IssuerDashboard() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background">
       {/* ── LEFT SIDEBAR NAV ── */}
-      <aside
-        className="flex w-[230px] shrink-0 flex-col border-r border-separator bg-muted"
-        style={{ padding: '20px 14px' }}
-      >
+      <aside className="flex w-[230px] shrink-0 flex-col border-r border-separator bg-muted px-3.5 py-5">
         {/* Brand */}
         <div className="px-2 pb-5">
           <BrandMark size="md" wordmark sublabel="ISSUER CONSOLE" />
@@ -69,9 +66,10 @@ export default function IssuerDashboard() {
                   'relative flex items-center gap-[11px] rounded-[10px] px-3 py-[10px] text-left text-[13px] font-medium',
                   'transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   active
-                    ? 'bg-card text-foreground font-semibold shadow-[0_1px_2px_rgba(27,30,36,0.06)]'
+                    ? 'bg-card text-foreground font-semibold'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
+                style={active ? { boxShadow: '0 1px 2px var(--separator)' } : undefined}
               >
                 {/* Brass left accent bar for active item */}
                 {active && (
