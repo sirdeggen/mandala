@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   LayoutDashboard, PlusCircle, ShieldCheck, Banknote, Wallet, ChevronDown
 } from 'lucide-react'
@@ -91,23 +92,60 @@ function AssetSwitcher({ assets, currentAssetId, onChange }: AssetSwitcherProps)
 
 // ── IssuerDashboard ───────────────────────────────────────────────────────────
 
+const SECTION_IDS = NAV_ITEMS.map(n => n.id) as string[]
+
 export default function IssuerDashboard() {
   const { wallet, identityKey } = useWallet()
-  const [section, setSection] = useState<Section>('overview')
+  const navigate = useNavigate()
+  const params = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [assets, setAssets] = useState<AdminAsset[]>([])
-  const [currentAssetId, setCurrentAssetId] = useState('')
+
+  // Section lives in the path (/issuer/:section); asset lives in ?asset — both
+  // in the URL so a reload restores exactly where the operator was.
+  const section: Section = SECTION_IDS.includes(params.section ?? '')
+    ? (params.section as Section)
+    : 'overview'
+  const currentAssetId = searchParams.get('asset') ?? ''
+
+  const goSection = (id: Section) => {
+    const qs = searchParams.toString()
+    navigate(`/issuer/${id}${qs ? `?${qs}` : ''}`)
+  }
+  const selectAsset = (assetId: string) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('asset', assetId)
+      return next
+    })
+  }
 
   const reloadAssets = useCallback(async () => {
     if (wallet == null) return
-    const list = await listAdminAssets(wallet as any)
-    setAssets(list)
-    // Default to first asset if nothing selected yet
-    if (list.length > 0 && currentAssetId === '') {
-      setCurrentAssetId(list[0].assetId)
-    }
-  }, [wallet, currentAssetId])
+    setAssets(await listAdminAssets(wallet as any))
+  }, [wallet])
 
   useEffect(() => { void reloadAssets() }, [reloadAssets])
+
+  // Normalise an unknown /issuer/:section to overview, keeping ?asset.
+  useEffect(() => {
+    if (params.section != null && !SECTION_IDS.includes(params.section)) {
+      const qs = searchParams.toString()
+      navigate(`/issuer/overview${qs ? `?${qs}` : ''}`, { replace: true })
+    }
+  }, [params.section, searchParams, navigate])
+
+  // Auto-select the first asset into ?asset when the URL has no valid selection.
+  useEffect(() => {
+    if (assets.length === 0) return
+    const valid = currentAssetId !== '' && assets.some(a => a.assetId === currentAssetId)
+    if (valid) return
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('asset', assets[0].assetId)
+      return next
+    }, { replace: true })
+  }, [assets, currentAssetId, setSearchParams])
 
   const currentAsset = assets.find(a => a.assetId === currentAssetId) ?? null
 
@@ -133,7 +171,7 @@ export default function IssuerDashboard() {
               <button
                 key={id}
                 type="button"
-                onClick={() => setSection(id)}
+                onClick={() => goSection(id)}
                 className={cn(
                   'relative flex items-center gap-[11px] rounded-[10px] px-3 py-[10px] text-left text-[13px] font-medium',
                   'transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -187,7 +225,7 @@ export default function IssuerDashboard() {
           <AssetSwitcher
             assets={assets}
             currentAssetId={currentAssetId}
-            onChange={setCurrentAssetId}
+            onChange={selectAsset}
           />
         </div>
 

@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import App from './App'
 import { WalletProvider } from './context/WalletContext'
@@ -7,9 +8,11 @@ import './globals.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <WalletProvider>
-      <App />
-      <Toaster richColors theme="system" position="top-right" />
-    </WalletProvider>
+    <BrowserRouter>
+      <WalletProvider>
+        <App />
+        <Toaster richColors theme="system" position="top-right" />
+      </WalletProvider>
+    </BrowserRouter>
   </React.StrictMode>
 )

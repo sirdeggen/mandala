@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Bell, Send, Download, Users, RefreshCw, ChevronDown } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { BASKET } from '../../lib/mandala/constants'
@@ -192,8 +193,16 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
   const [assets, setAssets] = useState<AssetRow[]>([])
   const [history, setHistory] = useState<HistoryRow[]>([])
   const [loading, setLoading] = useState(true)
-  // currentAssetId: the asset currently shown in the hero / activity sections
-  const [currentAssetId, setCurrentAssetId] = useState<string | null>(null)
+  // currentAssetId lives in the URL (?asset=…) so a reload restores the selection.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const currentAssetId = searchParams.get('asset') ?? ''
+  const selectAsset = useCallback((assetId: string) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('asset', assetId)
+      return next
+    }) // push a history entry so Back returns to the previous account
+  }, [setSearchParams])
   // switcher dropdown open state
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const switcherRef = useRef<HTMLDivElement>(null)
@@ -255,12 +264,6 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
 
       setAssets(rows)
       setHistory(historyRows)
-
-      // Auto-select primary (first non-zero) if not yet set or previous selection gone
-      setCurrentAssetId(prev => {
-        if (prev && rows.some(r => r.assetId === prev)) return prev
-        return rows.find(a => a.balance > 0)?.assetId ?? rows[0]?.assetId ?? null
-      })
     } finally {
       setLoading(false)
     }
@@ -269,6 +272,21 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // Auto-select a default account (first non-zero) into ?asset when the URL has
+  // no valid selection — writes with replace so it doesn't add a history entry.
+  useEffect(() => {
+    if (assets.length === 0) return
+    const valid = currentAssetId !== '' && assets.some(a => a.assetId === currentAssetId)
+    if (valid) return
+    const def = assets.find(a => a.balance > 0)?.assetId ?? assets[0]?.assetId
+    if (def == null) return
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('asset', def)
+      return next
+    }, { replace: true })
+  }, [assets, currentAssetId, setSearchParams])
 
   // Close switcher on outside click
   useEffect(() => {
@@ -361,7 +379,7 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
                       role="option"
                       aria-selected={isSelected}
                       onClick={() => {
-                        setCurrentAssetId(a.assetId)
+                        selectAsset(a.assetId)
                         setSwitcherOpen(false)
                       }}
                       className={cn(

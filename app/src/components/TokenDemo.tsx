@@ -1,5 +1,5 @@
-import { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import { Routes, Route, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useWallet } from '../context/WalletContext'
 import IssuerDashboard from './issuer/IssuerDashboard'
 import TokenWallet from './TokenWallet'
@@ -8,15 +8,101 @@ import ReceiveTokens from './ReceiveTokens'
 import ContactsPage from './holder/ContactsPage'
 import type { HolderAction } from './holder/HolderHome'
 
-type HolderTab = 'home' | 'send' | 'receive' | 'contacts'
+// ─── Routing model ──────────────────────────────────────────────────────────
+// The full app state lives in the URL so a browser reload restores it:
+//   Holder:  /              home (selected token in ?asset=<id>)
+//            /send          send flow      (?asset locks the source account)
+//            /receive       receive
+//            /contacts      contacts manager
+//   Issuer:  /issuer/:section   (?asset=<id> selects the asset)
+// Switching the token dropdown updates ?asset via the History API — no reload.
+
+// ─── Shared bits ──────────────────────────────────────────────────────────────
+
+/** Read the currently-selected asset id from the URL (?asset=…). */
+function useAssetParam(): string {
+  const [params] = useSearchParams()
+  return params.get('asset') ?? ''
+}
+
+/** A "/" link that carries the current ?asset so the switcher survives round-trips. */
+function homePath(asset: string): string {
+  return asset ? `/?asset=${encodeURIComponent(asset)}` : '/'
+}
+
+/** Back-arrow header used by the Send / Receive drill-ins. */
+function DrillHeader({ title, onBack }: { title: string; onBack: () => void }) {
+  return (
+    <div className="mb-6 flex items-center gap-3">
+      <button
+        type="button"
+        onClick={onBack}
+        className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label="Back to home"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 12H5M12 19l-7-7 7-7" />
+        </svg>
+      </button>
+      <h2 className="text-[17px] font-semibold tracking-[-0.01em]">{title}</h2>
+    </div>
+  )
+}
+
+// ─── Holder views (route targets) ──────────────────────────────────────────────
+
+function HolderShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative mx-auto flex min-h-screen max-w-[430px] flex-col bg-background">
+      {/* No bottom bar — nav lives in the home quick actions; drill-ins carry a back arrow */}
+      <div className="flex-1 overflow-y-auto">{children}</div>
+    </div>
+  )
+}
+
+function HomeView() {
+  const { identityKey } = useWallet()
+  const navigate = useNavigate()
+  // Quick actions navigate to a route, carrying the current account as ?asset.
+  const handleAction = (action: HolderAction, assetId?: string) => {
+    const search = assetId ? `?asset=${encodeURIComponent(assetId)}` : ''
+    navigate(`/${action}${search}`)
+  }
+  return <TokenWallet identityKey={identityKey} onAction={handleAction} />
+}
+
+function SendView() {
+  const navigate = useNavigate()
+  const asset = useAssetParam()
+  return (
+    <div className="flex min-h-screen flex-col px-5 pt-8">
+      <DrillHeader title="Send" onBack={() => navigate(homePath(asset))} />
+      <SendTokens lockedAssetId={asset || undefined} />
+    </div>
+  )
+}
+
+function ReceiveView() {
+  const navigate = useNavigate()
+  const asset = useAssetParam()
+  return (
+    <div className="px-5 pt-8">
+      <DrillHeader title="Receive" onBack={() => navigate(homePath(asset))} />
+      <ReceiveTokens />
+    </div>
+  )
+}
+
+function ContactsView() {
+  const navigate = useNavigate()
+  const asset = useAssetParam()
+  return <ContactsPage onBack={() => navigate(homePath(asset))} />
+}
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function TokenDemo() {
-  const { isInitialized, error, isIssuer, identityKey } = useWallet()
-  const [holderTab, setHolderTab] = useState<HolderTab>('home')
-  // assetId locked in the current send flow (set when user taps Send from home)
-  const [sendAssetId, setSendAssetId] = useState<string | undefined>(undefined)
+  const { isInitialized, error, isIssuer } = useWallet()
 
   // ── Loading state ──
   if (!isInitialized) {
@@ -51,81 +137,26 @@ export default function TokenDemo() {
     )
   }
 
-  // ── Issuer: full-viewport console shell ──
+  // ── Issuer: full-viewport console, section in the path ──
   if (isIssuer) {
-    return <IssuerDashboard />
+    return (
+      <Routes>
+        <Route path="/issuer/:section" element={<IssuerDashboard />} />
+        <Route path="*" element={<Navigate to="/issuer/overview" replace />} />
+      </Routes>
+    )
   }
 
-  // ── Holder: Meridian single-account home + bottom tab bar ──
-  // The tab bar is hidden when in the send flow (Direction 3: no bottom bar in send).
-  const handleAction = (action: HolderAction, assetId?: string) => {
-    if (action === 'send') {
-      setSendAssetId(assetId)
-      setHolderTab('send')
-    } else if (action === 'receive') {
-      setHolderTab('receive')
-    } else if (action === 'contacts') {
-      setHolderTab('contacts')
-    }
-  }
-
-  const goHome = () => setHolderTab('home')
-
+  // ── Holder: Meridian single-account home + drill-in routes ──
   return (
-    <div className="relative mx-auto flex min-h-screen max-w-[430px] flex-col bg-background">
-      {/* Scrollable content area — no bottom bar (nav lives in the home quick actions) */}
-      <div className="flex-1 overflow-y-auto">
-        {holderTab === 'home' && (
-          <TokenWallet
-            identityKey={identityKey}
-            onAction={handleAction}
-          />
-        )}
-
-        {holderTab === 'send' && (
-          /* Full-screen send wizard — no bottom tab bar (Direction 3) */
-          <div className="flex min-h-screen flex-col px-5 pt-8">
-            {/* Back-to-home header */}
-            <div className="mb-6 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={goHome}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label="Back to home"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M19 12H5M12 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <h2 className="text-[17px] font-semibold tracking-[-0.01em]">Send</h2>
-            </div>
-            <SendTokens lockedAssetId={sendAssetId} />
-          </div>
-        )}
-
-        {holderTab === 'receive' && (
-          <div className="px-5 pt-8">
-            <div className="mb-6 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={goHome}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label="Back to home"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M19 12H5M12 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <h2 className="text-[17px] font-semibold tracking-[-0.01em]">Receive</h2>
-            </div>
-            <ReceiveTokens />
-          </div>
-        )}
-
-        {holderTab === 'contacts' && (
-          <ContactsPage onBack={goHome} />
-        )}
-      </div>
-    </div>
+    <HolderShell>
+      <Routes>
+        <Route path="/" element={<HomeView />} />
+        <Route path="/send" element={<SendView />} />
+        <Route path="/receive" element={<ReceiveView />} />
+        <Route path="/contacts" element={<ContactsView />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </HolderShell>
   )
 }
