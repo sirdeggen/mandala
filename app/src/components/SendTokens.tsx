@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
-import { Transaction, Beef, LockingScript, PublicKey } from '@bsv/sdk'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Transaction, Beef, LockingScript, PublicKey, IdentityClient } from '@bsv/sdk'
+import type { DisplayableIdentity } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
 import { Button } from './ui/button'
 import { Select } from './ui/select'
-import { useIdentitySearch } from '@bsv/identity-react'
 import { useWallet } from '../context/WalletContext'
 import { ChevronLeft, Search, Loader2, CheckCircle2, Copy, Send } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -136,21 +136,63 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   }
 
   // ---------------------------------------------------------------------------
-  // Identity search
+  // Identity search — local state replacing useIdentitySearch hook
   // ---------------------------------------------------------------------------
 
-  const identitySearch = useIdentitySearch({
-    originator: 'mandala',
-    wallet: wallet as any,
-    onIdentitySelected: (identity) => {
-      if (identity) {
-        setRecipient(identity.identityKey)
-        setPublicKeyInput(identity.identityKey)
-        setRecipientName(identity.name ?? '')
-        setRecipientAvatarURL(identity.avatarURL ?? '')
-      }
+  const [searchInput, setSearchInput] = useState('')
+  const [identities, setIdentities] = useState<DisplayableIdentity[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [selectedIdentity, setSelectedIdentity] = useState<DisplayableIdentity | null>(null)
+  const searchRequestIdRef = useRef(0)
+
+  // Detect if input is a compressed public key (identity key)
+  const isIdentityKey = useCallback((key: string): boolean => {
+    return /^(02|03|04)[0-9a-fA-F]{64}$/.test(key)
+  }, [])
+
+  useEffect(() => {
+    const query = searchInput.trim()
+    if (!query) {
+      setIdentities([])
+      setIsSearching(false)
+      return
     }
-  })
+    if (wallet == null) return
+
+    setIsSearching(true)
+    const requestId = ++searchRequestIdRef.current
+    const timer = setTimeout(async () => {
+      try {
+        const client = new IdentityClient(wallet as any, undefined, 'mandala')
+        const results = isIdentityKey(query)
+          ? await client.resolveByIdentityKey({ identityKey: query }, true)
+          : await client.resolveByAttributes({ attributes: { any: query } }, true)
+        if (requestId !== searchRequestIdRef.current) return // stale — discard
+        setIdentities(results as DisplayableIdentity[])
+      } catch (err) {
+        if (requestId !== searchRequestIdRef.current) return
+        console.error('Identity search failed:', err)
+        setIdentities([])
+      } finally {
+        if (requestId === searchRequestIdRef.current) setIsSearching(false)
+      }
+    }, 250)
+
+    return () => { clearTimeout(timer) }
+  }, [searchInput, wallet, isIdentityKey])
+
+  const handleIdentitySelect = useCallback((identity: DisplayableIdentity | null) => {
+    setSelectedIdentity(identity)
+    if (identity) {
+      setIdentities([])
+      setRecipient(identity.identityKey)
+      setPublicKeyInput(identity.identityKey)
+      setRecipientName(identity.name ?? '')
+      setRecipientAvatarURL(identity.avatarURL ?? '')
+    } else {
+      setSelectedIdentity(null)
+    }
+  }, [])
 
   const getInitials = (name: string, key: string): string => {
     if (!name || name.trim() === '') return key.slice(0, 2).toUpperCase()
@@ -363,7 +405,9 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
     setPublicKeyInput('')
     setSentTxid('')
     setSendError('')
-    identitySearch.handleSelect(null as any, null)
+    setSearchInput('')
+    setIdentities([])
+    setSelectedIdentity(null)
   }
 
   const shareReceipt = async () => {
@@ -429,55 +473,46 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
           <Search className="h-[17px] w-[17px] flex-none text-subtle-foreground" />
           <input
             type="text"
-            value={identitySearch.inputValue}
-            onChange={e => identitySearch.handleInputChange(e, e.target.value, 'input')}
+            value={searchInput}
+            onChange={e => { setSearchInput(e.target.value); setSelectedIdentity(null) }}
             placeholder="Name, @handle or email"
             className="min-w-0 flex-1 bg-transparent text-[13.5px] text-foreground placeholder:text-subtle-foreground outline-none"
             autoComplete="off"
           />
-          {identitySearch.isLoading && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+          {isSearching && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
         </div>
 
         {/* Search results dropdown */}
-        {identitySearch.inputValue && identitySearch.identities.length > 0 && !identitySearch.selectedIdentity && (
+        {searchInput && identities.length > 0 && !selectedIdentity && (
           <div className="mt-2 rounded-[--radius-md] bg-popover shadow-[var(--shadow-pop)] overflow-hidden">
-            {identitySearch.identities.map(identity => {
-              if (typeof identity === 'string') return null
-              return (
-                <div
-                  key={identity.identityKey}
-                  onClick={() => {
-                    identitySearch.handleSelect(null as any, identity)
-                    setRecipient(identity.identityKey)
-                    setPublicKeyInput(identity.identityKey)
-                    setRecipientName(identity.name ?? '')
-                    setRecipientAvatarURL(identity.avatarURL ?? '')
-                  }}
-                  className="flex cursor-pointer items-center gap-3 border-b border-separator p-3 transition-colors last:border-b-0 hover:bg-muted active:bg-accent"
-                >
-                  {identity.avatarURL ? (
-                    <img src={identity.avatarURL} alt={identity.name} className="h-10 w-10 rounded-full flex-none" />
-                  ) : (
-                    <div className="grid h-10 w-10 flex-none place-items-center rounded-full bg-primary text-[13px] font-semibold text-primary-foreground">
-                      {getInitials(identity.name || '', identity.identityKey)}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[14px] font-semibold">{identity.name || 'Unknown'}</div>
-                    <div className="tabular truncate text-[11.5px] text-subtle-foreground mt-0.5">@{identity.identityKey.slice(0, 16)}…</div>
+            {identities.map(identity => (
+              <div
+                key={identity.identityKey}
+                onClick={() => handleIdentitySelect(identity)}
+                className="flex cursor-pointer items-center gap-3 border-b border-separator p-3 transition-colors last:border-b-0 hover:bg-muted active:bg-accent"
+              >
+                {identity.avatarURL ? (
+                  <img src={identity.avatarURL} alt={identity.name} className="h-10 w-10 rounded-full flex-none" />
+                ) : (
+                  <div className="grid h-10 w-10 flex-none place-items-center rounded-full bg-primary text-[13px] font-semibold text-primary-foreground">
+                    {getInitials(identity.name || '', identity.identityKey)}
                   </div>
-                  {identity.badgeLabel && (
-                    <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-medium text-accent-foreground">
-                      {identity.badgeLabel}
-                    </span>
-                  )}
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14px] font-semibold">{identity.name || 'Unknown'}</div>
+                  <div className="tabular truncate text-[11.5px] text-subtle-foreground mt-0.5">@{identity.identityKey.slice(0, 16)}…</div>
                 </div>
-              )
-            })}
+                {identity.badgeLabel && (
+                  <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-medium text-accent-foreground">
+                    {identity.badgeLabel}
+                  </span>
+                )}
+              </div>
+            ))}
           </div>
         )}
 
-        {identitySearch.inputValue && identitySearch.identities.length === 0 && !identitySearch.isLoading && (
+        {searchInput && identities.length === 0 && !isSearching && (
           <p className="mt-2 text-[13px] text-subtle-foreground">No identities found</p>
         )}
       </div>
@@ -496,7 +531,9 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
                   setPublicKeyInput(c.identityKey)
                   setRecipientName('')
                   setRecipientAvatarURL('')
-                  identitySearch.handleSelect(null as any, null)
+                  setSearchInput('')
+                  setIdentities([])
+                  setSelectedIdentity(null)
                   setStep('amount')
                 }}
                 className="flex flex-col items-center gap-2 w-[62px] active:scale-[0.97] transition-transform"
@@ -527,7 +564,9 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
                   setPublicKeyInput(c.identityKey)
                   setRecipientName('')
                   setRecipientAvatarURL('')
-                  identitySearch.handleSelect(null as any, null)
+                  setSearchInput('')
+                  setIdentities([])
+                  setSelectedIdentity(null)
                   setStep('amount')
                 }}
                 className="flex w-full items-center gap-3 py-[11px] hover:bg-muted/60 active:bg-accent transition-colors -mx-1 px-1 rounded-[--radius]"
@@ -559,7 +598,9 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
               setPublicKeyInput(iss)
               setRecipientName('Issuer')
               setRecipientAvatarURL('')
-              identitySearch.handleSelect(null as any, null)
+              setSearchInput('')
+              setIdentities([])
+              setSelectedIdentity(null)
               setStep('amount')
             }}
             className="flex w-full items-center justify-center gap-2 rounded-[--radius-md] border border-border bg-card px-3.5 py-2.5 text-[14px] font-medium text-foreground transition-colors hover:bg-accent active:scale-[0.97]"
@@ -601,7 +642,9 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
                   setRecipient(val)
                   setRecipientName('')
                   setRecipientAvatarURL('')
-                  identitySearch.handleSelect(null as any, null)
+                  setSearchInput('')
+                  setIdentities([])
+                  setSelectedIdentity(null)
                 } catch {
                   setRecipient('')
                 }
