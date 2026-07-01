@@ -16,3 +16,7 @@ export function reconcile (p: { deposits: number[], withdrawals: number[], issue
   const netSupply = p.issued - p.redeemed
   return { bankBalance: bal, netSupply, drift: bal - netSupply }
 }
+
+/** Sum the amounts of deposits that have not yet been issued against on-chain. */
+export const unissuedSum = (deposits: MockDeposit[], issuedIds: Set<string>): number =>
+  deposits.filter(d => !issuedIds.has(d.id)).reduce((a, d) => a + d.amount, 0)

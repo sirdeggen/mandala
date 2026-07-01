@@ -1,6 +1,6 @@
 // app/src/lib/mandala/banking.test.ts
 import { it, expect } from 'vitest'
-import { reconcile, bankBalance } from './banking'
+import { reconcile, bankBalance, unissuedSum, seedDeposits } from './banking'
 
 it('bank balance nets deposits minus withdrawals', () => {
   expect(bankBalance([100, 50], [30])).toBe(120)
@@ -12,4 +12,10 @@ it('reconciles with no drift when issued-redeemed equals bank balance', () => {
 it('a redeem with no bank withdrawal does NOT flag drift only if modeled as a withdrawal', () => {
   const r = reconcile({ deposits: [100], withdrawals: [], issued: 100, redeemed: 40 })
   expect(r.drift).toBe(40) // bank 100 vs supply 60 -> 40 drift until a withdrawal is recorded
+})
+it('unissuedSum sums deposits not in the issued set', () => {
+  const deps = seedDeposits()
+  expect(unissuedSum(deps, new Set())).toBe(30000)
+  expect(unissuedSum(deps, new Set(['BR-1001']))).toBe(5000)
+  expect(unissuedSum(deps, new Set(['BR-1001', 'BR-1002']))).toBe(0)
 })

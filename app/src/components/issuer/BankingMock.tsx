@@ -5,7 +5,7 @@ import { Select } from '../ui/select'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset, listAdminAssets, submitAdminAction } from '../../lib/mandala/assets'
 import { resolveAdminHistory } from '../../lib/mandala/adminHistory'
-import { seedDeposits, reconcile, MockDeposit } from '../../lib/mandala/banking'
+import { seedDeposits, reconcile, unissuedSum, MockDeposit } from '../../lib/mandala/banking'
 import { formatAmount } from '../../lib/mandala/amount'
 
 interface IssuedDeposit {
@@ -180,38 +180,64 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
       </div>
 
       {/* RECONCILIATION */}
-      {recon != null && (
-        <>
-          <p className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase mb-[10px] mt-[22px]">
-            Reconciliation
-          </p>
-          <div className="bg-card border border-border rounded-[14px] px-[18px] pt-[6px] pb-[14px]">
-            {/* Bank balance */}
-            <div className="flex justify-between items-center border-b border-separator py-3">
-              <span className="text-[13px] text-muted-foreground">Bank balance</span>
-              <span className="text-[14px] font-semibold tabular-nums">{formatAmount(recon.bankBalance, decimals)}</span>
-            </div>
-            {/* Net supply */}
-            <div className="flex justify-between items-center border-b border-separator py-3">
-              <span className="text-[13px] text-muted-foreground">Net supply · issued − redeemed</span>
-              <span className="text-[14px] font-semibold tabular-nums">{formatAmount(recon.netSupply, decimals)}</span>
-            </div>
-            {/* Drift */}
-            <div className={`flex justify-between items-center py-3 ${recon.drift !== 0 ? 'text-warning' : 'text-success'}`}>
-              <span className="text-[13px]">Drift</span>
-              <span className="text-[14px] font-semibold tabular-nums">
-                {recon.drift > 0 ? '+' : ''}{formatAmount(recon.drift, decimals)}
-              </span>
-            </div>
-            {/* Amber callout */}
-            {recon.drift !== 0 && (
-              <div className="bg-warning/[0.08] rounded-[10px] px-[13px] py-[10px] text-[11.5px] text-warning leading-[1.4]">
-                Drift = {formatAmount(Math.abs(recon.drift), decimals)} received but not yet issued. Issue deposits to bring reserves and supply back in line.
+      {recon != null && (() => {
+        const issuedIdSet = new Set(receivedDeposits.map(r => r.depositId))
+        const pendingDeposits = deposits.filter(d => !issuedIdSet.has(d.id))
+        const pendingSum = unissuedSum(deposits, issuedIdSet)
+        const hasDrift = recon.drift !== 0
+        return (
+          <>
+            <p className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase mb-[10px] mt-[22px]">
+              Reconciliation
+            </p>
+            <div className="bg-card border border-border rounded-[14px] px-[18px] pt-[6px] pb-[14px]">
+              {/* Bank balance */}
+              <div className="flex justify-between items-center border-b border-separator py-3">
+                <span className="text-[13px] text-muted-foreground">Bank balance</span>
+                <span className="text-[14px] font-semibold tabular-nums">{formatAmount(recon.bankBalance, decimals)}</span>
               </div>
-            )}
-          </div>
-        </>
-      )}
+              {/* Net supply */}
+              <div className="flex justify-between items-center border-b border-separator py-3">
+                <span className="text-[13px] text-muted-foreground">Net supply · issued − redeemed</span>
+                <span className="text-[14px] font-semibold tabular-nums">{formatAmount(recon.netSupply, decimals)}</span>
+              </div>
+              {/* Drift */}
+              <div className={`flex justify-between items-center ${hasDrift ? 'py-3' : 'pt-3'} ${hasDrift ? 'text-warning' : 'text-success'}`}>
+                <span className="text-[13px] font-semibold">Drift</span>
+                <span className="text-[14px] font-semibold tabular-nums">
+                  {recon.drift > 0 ? '+' : ''}{formatAmount(recon.drift, decimals)}
+                </span>
+              </div>
+              {/* Amber callout — ties drift to unissued deposits */}
+              {hasDrift && (
+                <div className="bg-warning/[0.08] rounded-[10px] px-[13px] py-[10px] text-[11.5px] text-warning leading-[1.4]">
+                  <div className="font-semibold mb-[6px]">
+                    Drift {recon.drift > 0 ? '+' : ''}{formatAmount(Math.abs(recon.drift), decimals)} = {pendingDeposits.length} unissued deposit{pendingDeposits.length !== 1 ? 's' : ''} ({formatAmount(pendingSum, decimals)} awaiting issuance)
+                  </div>
+                  {pendingDeposits.length > 0 && (
+                    <div className="flex flex-col gap-[5px] mt-[4px]">
+                      {pendingDeposits.map(dep => (
+                        <div key={dep.id} className="flex items-center justify-between gap-2 text-[11px]">
+                          <span className="opacity-80">{dep.originator}</span>
+                          <span className="opacity-60 font-mono">{dep.id}</span>
+                          <span className="font-semibold tabular-nums">{dep.currency}{formatAmount(dep.amount, decimals)}</span>
+                          <span className="opacity-60 italic">awaiting issuance</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Reconciled callout */}
+              {!hasDrift && (
+                <div className="text-success text-[11.5px] font-medium pt-1 pb-1">
+                  Reconciled — 100%
+                </div>
+              )}
+            </div>
+          </>
+        )
+      })()}
     </div>
   )
 }
