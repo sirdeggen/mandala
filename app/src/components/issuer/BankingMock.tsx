@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Banknote, RefreshCw, CheckCircle2, ArrowDownLeft } from 'lucide-react'
+import { CheckCircle2, ArrowDownLeft } from 'lucide-react'
 import { toast } from 'sonner'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card'
-import { Button } from '../ui/button'
 import { Select } from '../ui/select'
-import { Label } from '../ui/label'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset, listAdminAssets, submitAdminAction } from '../../lib/mandala/assets'
 import { resolveAdminHistory } from '../../lib/mandala/adminHistory'
@@ -105,106 +102,106 @@ export default function BankingMock() {
   const alreadyIssued = (depositId: string) => receivedDeposits.some(r => r.depositId === depositId)
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-[11px] bg-accent text-accent-foreground">
-              <Banknote className="h-[19px] w-[19px]" />
-            </div>
-            <div>
-              <CardTitle>Banking</CardTitle>
-              <CardDescription>Plaid-sandbox deposit feed + reconciliation</CardDescription>
-            </div>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => void computeReconciliation()}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {/* Asset selector */}
+    <div>
+      {/* Page heading row */}
+      <div className="flex items-center justify-between">
         <div>
-          <Label htmlFor="bm-asset">Issue against asset</Label>
-          <Select
-            id="bm-asset"
-            value={selectedAssetId}
-            onChange={e => setSelectedAssetId(e.target.value)}
-          >
-            <option value="">Select asset…</option>
-            {assets.map(a => (
-              <option key={a.assetId} value={a.assetId}>{a.label}</option>
-            ))}
-          </Select>
+          <h1 className="text-[27px] font-semibold tracking-[-0.5px] leading-tight">Banking</h1>
+          <p className="text-[13px] text-muted-foreground mt-[3px]">Plaid-sandbox deposit feed &amp; reserve reconciliation</p>
         </div>
+        <Select
+          id="bm-asset"
+          value={selectedAssetId}
+          onChange={e => setSelectedAssetId(e.target.value)}
+          className="w-auto text-[13px] rounded-full px-3 py-1.5 h-auto"
+        >
+          <option value="">Select asset…</option>
+          {assets.map(a => (
+            <option key={a.assetId} value={a.assetId}>{a.label}</option>
+          ))}
+        </Select>
+      </div>
 
-        {/* Deposit feed */}
-        <section>
-          <h3 className="mb-2 text-[14px] font-semibold">Incoming deposits</h3>
-          <div className="space-y-2">
-            {deposits.map(dep => {
-              const issued = alreadyIssued(dep.id)
-              return (
-                <div
-                  key={dep.id}
-                  className="flex items-center justify-between rounded-[--radius-md] border border-separator bg-muted/40 px-4 py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="grid h-9 w-9 place-items-center rounded-full bg-accent/70 text-accent-foreground">
-                      <ArrowDownLeft className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="text-[14px] font-medium">{dep.originator}</div>
-                      <div className="tabular text-[12px] text-muted-foreground">
-                        {dep.id} · {new Date(dep.timestamp).toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="tabular text-[15px] font-semibold">
-                      {formatAmount(dep.amount, decimals)} {dep.currency}
-                    </span>
-                    {issued ? (
-                      <div className="flex items-center gap-1 text-[12px] text-success">
-                        <CheckCircle2 className="h-4 w-4" /> Issued
-                      </div>
-                    ) : (
-                      <Button
-                        size="sm"
-                        onClick={() => void handleReceiveDeposit(dep)}
-                        disabled={busy || selectedAssetId === ''}
-                      >
-                        Receive
-                      </Button>
-                    )}
-                  </div>
+      {/* INCOMING DEPOSITS */}
+      <p className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase mb-[10px] mt-[22px]">
+        Incoming Deposits
+      </p>
+      <div className="bg-card border border-border rounded-[14px] overflow-hidden">
+        {deposits.map((dep, idx) => {
+          const issued = alreadyIssued(dep.id)
+          const dateStr = new Date(dep.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+          return (
+            <div
+              key={dep.id}
+              className={`flex items-center gap-[14px] px-[18px] py-[15px]${idx > 0 ? ' border-t border-separator' : ''}`}
+            >
+              {/* Icon */}
+              <div className="w-10 h-10 rounded-[11px] bg-[rgba(35,64,94,.1)] text-primary grid place-items-center flex-none">
+                <ArrowDownLeft size={18} />
+              </div>
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="text-[14px] font-semibold">{dep.originator}</div>
+                <div className="text-[11.5px] text-subtle-foreground mt-[3px]">
+                  {dep.id} · {dep.currency} · {dateStr}
                 </div>
-              )
-            })}
-          </div>
-        </section>
-
-        {/* Reconciliation */}
-        {recon != null && (
-          <section>
-            <h3 className="mb-2 text-[14px] font-semibold">Reconciliation</h3>
-            <div className="rounded-[--radius-md] border border-separator bg-muted/40 px-4 py-3 space-y-1 text-[13px]">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Bank balance</span>
-                <span className="tabular font-semibold">{formatAmount(recon.bankBalance, decimals)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Net supply (issued − redeemed)</span>
-                <span className="tabular font-semibold">{formatAmount(recon.netSupply, decimals)}</span>
-              </div>
-              <div className={`flex justify-between font-semibold ${recon.drift !== 0 ? 'text-destructive' : 'text-success'}`}>
-                <span>Drift</span>
-                <span className="tabular">{recon.drift > 0 ? '+' : ''}{formatAmount(recon.drift, decimals)}</span>
-              </div>
+              {/* Amount */}
+              <span className="text-[15px] font-semibold tabular-nums">
+                {dep.currency}{formatAmount(dep.amount, decimals)}
+              </span>
+              {/* Action */}
+              {issued ? (
+                <div className="flex items-center gap-1 text-[12px] text-success">
+                  <CheckCircle2 size={14} /> Issued
+                </div>
+              ) : (
+                <button
+                  className="bg-primary text-primary-foreground rounded-[10px] px-4 py-[10px] text-[12.5px] font-semibold whitespace-nowrap disabled:opacity-50"
+                  onClick={() => void handleReceiveDeposit(dep)}
+                  disabled={busy || selectedAssetId === ''}
+                >
+                  Receive &amp; issue
+                </button>
+              )}
             </div>
-          </section>
-        )}
-      </CardContent>
-    </Card>
+          )
+        })}
+      </div>
+
+      {/* RECONCILIATION */}
+      {recon != null && (
+        <>
+          <p className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase mb-[10px] mt-[22px]">
+            Reconciliation
+          </p>
+          <div className="bg-card border border-border rounded-[14px] px-[18px] pt-[6px] pb-[14px]">
+            {/* Bank balance */}
+            <div className="flex justify-between items-center border-b border-separator py-3">
+              <span className="text-[13px] text-muted-foreground">Bank balance</span>
+              <span className="text-[14px] font-semibold tabular-nums">{formatAmount(recon.bankBalance, decimals)}</span>
+            </div>
+            {/* Net supply */}
+            <div className="flex justify-between items-center border-b border-separator py-3">
+              <span className="text-[13px] text-muted-foreground">Net supply · issued − redeemed</span>
+              <span className="text-[14px] font-semibold tabular-nums">{formatAmount(recon.netSupply, decimals)}</span>
+            </div>
+            {/* Drift */}
+            <div className={`flex justify-between items-center py-3 ${recon.drift !== 0 ? 'text-[#B4703A]' : 'text-success'}`}>
+              <span className="text-[13px]">Drift</span>
+              <span className="text-[14px] font-semibold tabular-nums">
+                {recon.drift > 0 ? '+' : ''}{formatAmount(recon.drift, decimals)}
+              </span>
+            </div>
+            {/* Amber callout */}
+            {recon.drift !== 0 && (
+              <div className="bg-[rgba(180,112,58,.08)] rounded-[10px] px-[13px] py-[10px] text-[11.5px] text-[#8A6A3B] leading-[1.4]">
+                Drift = {formatAmount(Math.abs(recon.drift), decimals)} received but not yet issued. Issue deposits to bring reserves and supply back in line.
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   )
 }

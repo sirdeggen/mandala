@@ -14,12 +14,10 @@ import {
   listAdminAssets,
   adminCustomInstructions
 } from '../lib/mandala/assets'
-import { PlusCircle, Sparkles, Flame, ShieldAlert } from 'lucide-react'
-import { Button } from './ui/button'
-import { Card } from './ui/card'
+import { Sparkles, Flame, ShieldAlert } from 'lucide-react'
 import { Input } from './ui/input'
-import { Label } from './ui/label'
 import { Select } from './ui/select'
+import { Button } from './ui/button'
 
 export default function IssuerPanel() {
   const { wallet, messageBoxClient, identityKey } = useWallet()
@@ -35,6 +33,11 @@ export default function IssuerPanel() {
   const [recoverAmount, setRecoverAmount] = useState('')
   const [recoverRecipient, setRecoverRecipient] = useState('')
   const [busy, setBusy] = useState(false)
+
+  // UI-only state (not passed to any core function)
+  const [issueRef, setIssueRef] = useState('')
+  const [redeemNote, setRedeemNote] = useState('')
+  const [recoverOutpoint, setRecoverOutpoint] = useState('')
 
   const reload = useCallback(async () => {
     if (wallet != null) setAssets(await listAdminAssets(wallet as any))
@@ -464,103 +467,270 @@ export default function IssuerPanel() {
     </>
   )
 
+  // Shared input style
+  const inputCls = 'bg-muted border border-[rgba(27,30,36,.12)] rounded-[10px] px-[13px] py-[11px] text-[13px] text-subtle-foreground placeholder:text-subtle-foreground w-full'
+  const labelCls = 'block text-[11px] font-medium text-subtle-foreground mb-[7px]'
+
   return (
     <div className="space-y-5">
-      {/* Register */}
-      <Card className="p-5">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-[11px] bg-accent text-accent-foreground">
-            <PlusCircle className="h-[19px] w-[19px]" />
-          </div>
-          <div>
-            <h2 className="text-[17px] font-semibold tracking-[-0.01em]">Register asset</h2>
-            <p className="text-[13px] text-muted-foreground">Create a new token class</p>
-          </div>
-        </div>
-        <Label htmlFor="reg-label">Label</Label>
-        <Input id="reg-label" value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. Gold Coin" />
-        <div className="mt-3">
-          <Label htmlFor="reg-ticker">Ticker</Label>
-          <Input id="reg-ticker" value={ticker} onChange={e => setTicker(e.target.value)} placeholder="e.g. USD" />
-        </div>
-        <div className="mt-3">
-          <Label htmlFor="reg-decimals">Decimals (precision)</Label>
-          <Input id="reg-decimals" type="number" min="0" step="1" className="tabular" value={decimals} onChange={e => setDecimals(e.target.value)} placeholder="0" />
-        </div>
-        <Button onClick={() => void registerAsset()} disabled={busy || label.trim() === ''} className="mt-4 w-full">
-          <PlusCircle className="h-[18px] w-[18px]" /> Register
-        </Button>
-      </Card>
+      {/* Page heading */}
+      <div className="mb-1">
+        <h1 style={{ fontSize: 27, fontWeight: 600, letterSpacing: '-0.5px', lineHeight: 1.15 }}>
+          Operations
+        </h1>
+        <p className="text-subtle-foreground text-[13.5px] mt-1">
+          Mint, redeem &amp; recover the US Dollar stablecoin
+        </p>
+      </div>
 
-      {/* Issue */}
-      <Card className="p-5">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-[11px] bg-accent text-accent-foreground">
-            <Sparkles className="h-[19px] w-[19px]" />
+      {/* Issue + Redeem: 2-col grid */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {/* Issue card */}
+        <div className="bg-card border border-border rounded-[14px] p-[18px] flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <div
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px]"
+              style={{ background: 'rgba(35,64,94,.1)', color: '#23405E' }}
+            >
+              <Sparkles className="h-[18px] w-[18px]" />
+            </div>
+            <div>
+              <p className="text-[15px] font-semibold leading-tight">Issue tokens</p>
+              <p className="text-[11.5px] text-subtle-foreground mt-0.5">Mint new mUSD into circulation</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-[17px] font-semibold tracking-[-0.01em]">Issue tokens</h2>
-            <p className="text-[13px] text-muted-foreground">Mint new units of an asset</p>
-          </div>
-        </div>
-        <Label htmlFor="issue-asset">Asset</Label>
-        <Select id="issue-asset" value={issueAsset} onChange={e => setIssueAsset(e.target.value)}>{assetOptions}</Select>
-        <div className="mt-3">
-          <Label htmlFor="issue-amount">Amount</Label>
-          <Input id="issue-amount" type="number" min="0" step="any" className="tabular" value={issueAmount} onChange={e => setIssueAmount(e.target.value)} />
-        </div>
-        <Button onClick={() => void issue()} disabled={busy || issueAsset === '' || issueAmount === ''} className="mt-4 w-full">
-          <Sparkles className="h-[18px] w-[18px]" /> Issue
-        </Button>
-      </Card>
 
-      {/* Redeem / burn */}
-      <Card className="p-5">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-[11px] bg-destructive/12 text-destructive">
-            <Flame className="h-[19px] w-[19px]" />
+          <div className="space-y-3">
+            <div>
+              <label className={labelCls} htmlFor="issue-asset">Asset</label>
+              <Select id="issue-asset" value={issueAsset} onChange={e => setIssueAsset(e.target.value)} className={inputCls}>
+                {assetOptions}
+              </Select>
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="issue-amount">Amount</label>
+              <Input
+                id="issue-amount"
+                type="number"
+                min="0"
+                step="any"
+                value={issueAmount}
+                onChange={e => setIssueAmount(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="issue-ref">Backed by (optional)</label>
+              <Input
+                id="issue-ref"
+                type="text"
+                value={issueRef}
+                onChange={e => setIssueRef(e.target.value)}
+                placeholder="Bank deposit ref · BR-…"
+                className={inputCls}
+              />
+            </div>
           </div>
-          <div>
-            <h2 className="text-[17px] font-semibold tracking-[-0.01em]">Redeem tokens</h2>
-            <p className="text-[13px] text-muted-foreground">Permanently burn units</p>
-          </div>
-        </div>
-        <Label htmlFor="redeem-asset">Asset</Label>
-        <Select id="redeem-asset" value={redeemAsset} onChange={e => setRedeemAsset(e.target.value)}>{assetOptions}</Select>
-        <div className="mt-3">
-          <Label htmlFor="redeem-amount">Amount</Label>
-          <Input id="redeem-amount" type="number" min="0" step="any" className="tabular" value={redeemAmount} onChange={e => setRedeemAmount(e.target.value)} />
-        </div>
-        <Button onClick={() => void redeem()} disabled={busy || redeemAsset === '' || redeemAmount === ''} variant="destructive" className="mt-4 w-full">
-          <Flame className="h-[18px] w-[18px]" /> Redeem (burn)
-        </Button>
-      </Card>
 
-      {/* Recover / seize */}
-      <Card className="p-5">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-[11px] bg-warning/15 text-warning">
-            <ShieldAlert className="h-[19px] w-[19px]" />
+          <Button
+            onClick={() => void issue()}
+            disabled={busy || issueAsset === '' || issueAmount === ''}
+            className="w-full rounded-[11px] bg-primary text-primary-foreground mt-auto"
+          >
+            Issue mUSD
+          </Button>
+        </div>
+
+        {/* Redeem card */}
+        <div className="bg-card border border-border rounded-[14px] p-[18px] flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <div
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px]"
+              style={{ background: 'rgba(180,112,58,.12)', color: '#B4703A' }}
+            >
+              <Flame className="h-[18px] w-[18px]" />
+            </div>
+            <div>
+              <p className="text-[15px] font-semibold leading-tight">Redeem tokens</p>
+              <p className="text-[11.5px] text-subtle-foreground mt-0.5">Burn mUSD out of circulation</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label className={labelCls} htmlFor="redeem-asset">Asset</label>
+              <Select id="redeem-asset" value={redeemAsset} onChange={e => setRedeemAsset(e.target.value)} className={inputCls}>
+                {assetOptions}
+              </Select>
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="redeem-amount">Amount</label>
+              <Input
+                id="redeem-amount"
+                type="number"
+                min="0"
+                step="any"
+                value={redeemAmount}
+                onChange={e => setRedeemAmount(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls} htmlFor="redeem-note">Settlement note (optional)</label>
+              <Input
+                id="redeem-note"
+                type="text"
+                value={redeemNote}
+                onChange={e => setRedeemNote(e.target.value)}
+                placeholder="e.g. wire returned to holder"
+                className={inputCls}
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={() => void redeem()}
+            disabled={busy || redeemAsset === '' || redeemAmount === ''}
+            className="w-full rounded-[11px] mt-auto py-[10px] px-4 text-[13.5px] font-medium transition-opacity disabled:opacity-40"
+            style={{
+              background: '#fff',
+              border: '1.5px solid rgba(180,83,74,.4)',
+              color: '#B4534A'
+            }}
+          >
+            Redeem (burn)
+          </button>
+        </div>
+      </div>
+
+      {/* Recover: full-width card */}
+      <div className="bg-card border border-border rounded-[14px] p-[18px]">
+        <div className="flex items-center gap-3 mb-4">
+          <div
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px]"
+            style={{ background: 'rgba(138,109,59,.14)', color: '#8A6D3B' }}
+          >
+            <ShieldAlert className="h-[18px] w-[18px]" />
           </div>
           <div>
-            <h2 className="text-[17px] font-semibold tracking-[-0.01em]">Recover tokens</h2>
-            <p className="text-[13px] text-muted-foreground">Seize and re-issue to a recipient</p>
+            <p className="text-[15px] font-semibold leading-tight">Recover tokens</p>
+            <p className="text-[11.5px] text-subtle-foreground mt-0.5">
+              Seize from a frozen output and re-issue the same amount to the rightful owner · net supply unchanged
+            </p>
           </div>
         </div>
-        <Label htmlFor="recover-asset">Asset</Label>
-        <Select id="recover-asset" value={recoverAsset} onChange={e => setRecoverAsset(e.target.value)}>{assetOptions}</Select>
-        <div className="mt-3">
-          <Label htmlFor="recover-amount">Amount</Label>
-          <Input id="recover-amount" type="number" min="0" step="any" className="tabular" value={recoverAmount} onChange={e => setRecoverAmount(e.target.value)} />
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+          <div>
+            <label className={labelCls} htmlFor="recover-asset">Asset</label>
+            <Select id="recover-asset" value={recoverAsset} onChange={e => setRecoverAsset(e.target.value)} className={inputCls}>
+              {assetOptions}
+            </Select>
+          </div>
+          <div>
+            <label className={labelCls} htmlFor="recover-amount">Amount</label>
+            <Input
+              id="recover-amount"
+              type="number"
+              min="0"
+              step="any"
+              value={recoverAmount}
+              onChange={e => setRecoverAmount(e.target.value)}
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className={labelCls} htmlFor="recover-outpoint">From frozen outpoint</label>
+            <Input
+              id="recover-outpoint"
+              type="text"
+              value={recoverOutpoint}
+              onChange={e => setRecoverOutpoint(e.target.value)}
+              placeholder="txid.vout"
+              className={`${inputCls} font-mono`}
+            />
+          </div>
+          <div>
+            <label className={labelCls} htmlFor="recover-recipient">To identity key</label>
+            <Input
+              id="recover-recipient"
+              type="text"
+              value={recoverRecipient}
+              onChange={e => setRecoverRecipient(e.target.value)}
+              placeholder="02abc…"
+              className={`${inputCls} font-mono`}
+            />
+          </div>
         </div>
-        <div className="mt-3">
-          <Label htmlFor="recover-recipient">Recipient identity key</Label>
-          <Input id="recover-recipient" type="text" className="tabular" placeholder="e.g. 02abc…" value={recoverRecipient} onChange={e => setRecoverRecipient(e.target.value)} />
+
+        <button
+          onClick={() => void recover()}
+          disabled={busy || recoverAsset === '' || recoverAmount === '' || recoverRecipient.trim() === ''}
+          className="mt-4 rounded-[11px] px-5 py-[10px] text-[13.5px] font-medium transition-opacity disabled:opacity-40"
+          style={{ background: '#8A6D3B', color: '#FDF8F0' }}
+        >
+          Recover
+        </button>
+      </div>
+
+      {/* Register: slim strip at bottom */}
+      <div
+        className="rounded-[12px] border-dashed border p-[14px_18px]"
+        style={{ background: '#EFE9DD', borderColor: 'rgba(27,30,36,.18)' }}
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="shrink-0">
+            <p className="text-[13.5px] font-semibold leading-tight">Register a new asset</p>
+            <p className="text-[11.5px] text-subtle-foreground mt-0.5">
+              Rare — most issuers run a single stablecoin
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-2 flex-1 sm:justify-end">
+            <div className="flex flex-col min-w-[110px]">
+              <label className={labelCls} htmlFor="reg-label">Label</label>
+              <Input
+                id="reg-label"
+                value={label}
+                onChange={e => setLabel(e.target.value)}
+                placeholder="e.g. Gold Coin"
+                className="bg-white border border-[rgba(27,30,36,.14)] rounded-[8px] px-[11px] py-[8px] text-[12.5px] placeholder:text-subtle-foreground"
+              />
+            </div>
+            <div className="flex flex-col min-w-[72px]">
+              <label className={labelCls} htmlFor="reg-ticker">Ticker</label>
+              <Input
+                id="reg-ticker"
+                value={ticker}
+                onChange={e => setTicker(e.target.value)}
+                placeholder="USD"
+                className="bg-white border border-[rgba(27,30,36,.14)] rounded-[8px] px-[11px] py-[8px] text-[12.5px] placeholder:text-subtle-foreground"
+              />
+            </div>
+            <div className="flex flex-col min-w-[64px]">
+              <label className={labelCls} htmlFor="reg-decimals">Decimals</label>
+              <Input
+                id="reg-decimals"
+                type="number"
+                min="0"
+                step="1"
+                value={decimals}
+                onChange={e => setDecimals(e.target.value)}
+                placeholder="0"
+                className="bg-white border border-[rgba(27,30,36,.14)] rounded-[8px] px-[11px] py-[8px] text-[12.5px] placeholder:text-subtle-foreground tabular-nums"
+              />
+            </div>
+            <button
+              onClick={() => void registerAsset()}
+              disabled={busy || label.trim() === ''}
+              className="shrink-0 rounded-[8px] border px-4 py-[8px] text-[12.5px] font-medium transition-opacity disabled:opacity-40"
+              style={{ background: '#fff', borderColor: 'rgba(27,30,36,.2)', color: '#23405E' }}
+            >
+              Register asset
+            </button>
+          </div>
         </div>
-        <Button onClick={() => void recover()} disabled={busy || recoverAsset === '' || recoverAmount === '' || recoverRecipient.trim() === ''} variant="warning" className="mt-4 w-full">
-          <ShieldAlert className="h-[18px] w-[18px]" /> Recover
-        </Button>
-      </Card>
+      </div>
     </div>
   )
 }
