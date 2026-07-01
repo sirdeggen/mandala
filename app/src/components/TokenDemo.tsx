@@ -1,24 +1,12 @@
 import { useState } from 'react'
-import * as Tabs from '@radix-ui/react-tabs'
-import { Wallet, Send, Download, ShieldCheck, AlertTriangle, Home } from 'lucide-react'
+import { Send, Download, AlertTriangle, Home } from 'lucide-react'
 import { useWallet } from '../context/WalletContext'
 import IssuerDashboard from './issuer/IssuerDashboard'
 import TokenWallet from './TokenWallet'
 import SendTokens from './SendTokens'
 import ReceiveTokens from './ReceiveTokens'
 import { cn } from '@/lib/utils'
-import { BrandMark } from './ui/BrandMark'
 import type { HolderAction } from './holder/HolderHome'
-
-// ─── Segment trigger style (issuer view still uses Radix tabs) ───────────────
-const segTrigger = cn(
-  'inline-flex flex-1 items-center justify-center gap-1.5 rounded-[7px] px-3 py-1.5',
-  'text-[13px] font-medium text-muted-foreground select-none cursor-pointer',
-  'transition-[color,background-color,box-shadow,transform] duration-150 ease-out active:scale-[0.98]',
-  'data-[state=active]:bg-[var(--segment-thumb)] data-[state=active]:text-foreground',
-  'data-[state=active]:shadow-[var(--shadow-thumb)] data-[state=active]:font-semibold',
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50'
-)
 
 // ─── Meridian tab-bar for the holder view ────────────────────────────────────
 
@@ -119,55 +107,9 @@ export default function TokenDemo() {
     )
   }
 
-  // ── Issuer: keep existing Radix-tabs layout (issuer dashboard is complex) ──
+  // ── Issuer: full-viewport console shell ──
   if (isIssuer) {
-    return (
-      <div className="mx-auto max-w-2xl px-5 pb-20 pt-8 sm:pt-12">
-        <header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <BrandMark wordmark size="sm" sublabel="TOKEN WALLET" />
-        </header>
-
-        <div className="mb-5 flex items-center gap-2.5 rounded-[--radius-md] bg-accent px-4 py-3 animate-in">
-          <ShieldCheck className="h-[18px] w-[18px] shrink-0 text-accent-foreground" />
-          <p className="text-[13px] font-medium text-accent-foreground">
-            Issuer mode — this wallet controls the overlay instance.
-          </p>
-        </div>
-
-        <Tabs.Root defaultValue="issuer">
-          <Tabs.List
-            className="mb-6 flex w-full gap-1 rounded-[10px] bg-[var(--segment-track)] p-1"
-            aria-label="Sections"
-          >
-            <Tabs.Trigger value="issuer" className={segTrigger}>
-              <ShieldCheck className="h-4 w-4" /> Issuer
-            </Tabs.Trigger>
-            <Tabs.Trigger value="wallet" className={segTrigger}>
-              <Wallet className="h-4 w-4" /> Wallet
-            </Tabs.Trigger>
-            <Tabs.Trigger value="send" className={segTrigger}>
-              <Send className="h-4 w-4" /> Send
-            </Tabs.Trigger>
-            <Tabs.Trigger value="receive" className={segTrigger}>
-              <Download className="h-4 w-4" /> Receive
-            </Tabs.Trigger>
-          </Tabs.List>
-
-          <Tabs.Content value="issuer" className="animate-in focus-visible:outline-none">
-            <IssuerDashboard />
-          </Tabs.Content>
-          <Tabs.Content value="wallet" className="animate-in focus-visible:outline-none">
-            <TokenWallet identityKey={identityKey} />
-          </Tabs.Content>
-          <Tabs.Content value="send" className="animate-in focus-visible:outline-none">
-            <SendTokens />
-          </Tabs.Content>
-          <Tabs.Content value="receive" className="animate-in focus-visible:outline-none">
-            <ReceiveTokens />
-          </Tabs.Content>
-        </Tabs.Root>
-      </div>
-    )
+    return <IssuerDashboard />
   }
 
   // ── Holder: Meridian accounts-first home + bottom tab bar ──
