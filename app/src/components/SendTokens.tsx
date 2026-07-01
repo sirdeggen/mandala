@@ -6,6 +6,7 @@ import { Button } from './ui/button'
 import { Select } from './ui/select'
 import { useWallet } from '../context/WalletContext'
 import { ChevronLeft, Search, Loader2, CheckCircle2, Copy, Send } from 'lucide-react'
+import { noAutofill } from '../lib/noAutofill'
 import { cn } from '@/lib/utils'
 import { BASKET, FT_PROTOCOL, MESSAGEBOX } from '../lib/mandala/constants'
 import { walletMandalaUnlock } from '../lib/mandala/unlock'
@@ -473,12 +474,13 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         <div className="flex items-center gap-2.5 rounded-[14px] border border-border bg-card px-3.5 py-3">
           <Search className="h-[17px] w-[17px] flex-none text-subtle-foreground" />
           <input
+            {...noAutofill}
+            name="mandala-recipient-search"
             type="text"
             value={searchInput}
             onChange={e => { setSearchInput(e.target.value); setSelectedIdentity(null) }}
             placeholder="Name, @handle or email"
             className="min-w-0 flex-1 bg-transparent text-[13.5px] text-foreground placeholder:text-subtle-foreground outline-none"
-            autoComplete="off"
           />
           {isSearching && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
         </div>

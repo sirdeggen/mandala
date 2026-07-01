@@ -1,72 +1,14 @@
 import { useState } from 'react'
-import { Send, Download, AlertTriangle, Home } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { useWallet } from '../context/WalletContext'
 import IssuerDashboard from './issuer/IssuerDashboard'
 import TokenWallet from './TokenWallet'
 import SendTokens from './SendTokens'
 import ReceiveTokens from './ReceiveTokens'
-import { cn } from '@/lib/utils'
+import ContactsPage from './holder/ContactsPage'
 import type { HolderAction } from './holder/HolderHome'
 
-// ─── Meridian tab-bar for the holder view ────────────────────────────────────
-
-type HolderTab = 'home' | 'send' | 'receive'
-
-function HolderTabBar({
-  active,
-  onChange,
-}: {
-  active: HolderTab
-  onChange: (tab: HolderTab) => void
-}) {
-  const item = (tab: HolderTab, icon: React.ReactNode, label: string) => {
-    const isActive = active === tab
-    return (
-      <button
-        key={tab}
-        type="button"
-        onClick={() => onChange(tab)}
-        aria-label={label}
-        className={cn(
-          'flex flex-col items-center gap-[4px] rounded-[10px] px-3 py-2',
-          'text-[10px] font-medium leading-none transition-colors duration-150',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          isActive ? 'text-primary' : 'text-muted-foreground'
-        )}
-      >
-        {tab === 'send' ? (
-          /* Send gets the raised FAB-style button from the comp */
-          <div
-            className={cn(
-              'flex h-[46px] w-[46px] items-center justify-center rounded-full',
-              'shadow-[0_8px_18px_-4px_rgba(35,64,94,0.5)]',
-              'bg-primary text-primary-foreground',
-              '-mt-[18px]'
-            )}
-          >
-            {icon}
-          </div>
-        ) : (
-          icon
-        )}
-        <span className={tab === 'send' ? 'mt-[2px]' : ''}>{label}</span>
-      </button>
-    )
-  }
-
-  return (
-    <div
-      className={cn(
-        'flex items-center justify-around px-[26px] pb-[16px] pt-[10px]',
-        'border-t border-separator bg-background/92 backdrop-blur-[14px]'
-      )}
-    >
-      {item('home',    <Home    className="h-[22px] w-[22px]" strokeWidth={1.9} />, 'Home'   )}
-      {item('send',    <Send    className="h-[20px] w-[20px]" strokeWidth={2}   />, 'Send'   )}
-      {item('receive', <Download className="h-[22px] w-[22px]" strokeWidth={1.9} />, 'Receive')}
-    </div>
-  )
-}
+type HolderTab = 'home' | 'send' | 'receive' | 'contacts'
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -122,21 +64,17 @@ export default function TokenDemo() {
       setHolderTab('send')
     } else if (action === 'receive') {
       setHolderTab('receive')
-    }
-    // 'request' has no dedicated tab yet — falls back to receive
-    else if (action === 'request') {
-      setHolderTab('receive')
+    } else if (action === 'contacts') {
+      setHolderTab('contacts')
     }
   }
 
   const goHome = () => setHolderTab('home')
 
-  const showTabBar = holderTab !== 'send'
-
   return (
     <div className="relative mx-auto flex min-h-screen max-w-[430px] flex-col bg-background">
-      {/* Scrollable content area */}
-      <div className={cn('flex-1 overflow-y-auto', showTabBar ? 'pb-[82px]' : 'pb-0')}>
+      {/* Scrollable content area — no bottom bar (nav lives in the home quick actions) */}
+      <div className="flex-1 overflow-y-auto">
         {holderTab === 'home' && (
           <TokenWallet
             identityKey={identityKey}
@@ -183,14 +121,11 @@ export default function TokenDemo() {
             <ReceiveTokens />
           </div>
         )}
-      </div>
 
-      {/* Meridian bottom tab bar — hidden in the send flow (Direction 3) */}
-      {showTabBar && (
-        <div className="fixed bottom-0 left-1/2 w-full max-w-[430px] -translate-x-1/2">
-          <HolderTabBar active={holderTab} onChange={setHolderTab} />
-        </div>
-      )}
+        {holderTab === 'contacts' && (
+          <ContactsPage onBack={goHome} />
+        )}
+      </div>
     </div>
   )
 }

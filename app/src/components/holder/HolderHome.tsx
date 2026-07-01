@@ -4,7 +4,7 @@
  * Sections (top → bottom):
  *   1. Brand row  — BrandMark + currency switcher chip (corner) + notification bell + avatar chip
  *   2. Hero       — greeting, labelled balance for CURRENT account
- *   3. Quick actions — Send | Request | Receive (wired to real tabs via onAction)
+ *   3. Quick actions — Send | Contacts | Receive (wired to real tabs via onAction)
  *   4. RECENT activity — last 4 history rows for CURRENT account
  *
  * Currency switcher: a compact "$ USD ▾" chip in the top-right area; when >1 currency
@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bell, Send, Download, Plus, RefreshCw, ChevronDown } from 'lucide-react'
+import { Bell, Send, Download, Users, RefreshCw, ChevronDown } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { BASKET } from '../../lib/mandala/constants'
 import { decodeBalances } from '../../lib/mandala/tokens'
@@ -179,7 +179,7 @@ function RecentRow({ row, decimals, ticker }: { row: HistoryRow; decimals: numbe
 // Main component
 // ---------------------------------------------------------------------------
 
-export type HolderAction = 'send' | 'receive' | 'request'
+export type HolderAction = 'send' | 'contacts' | 'receive'
 
 interface Props {
   onSelect: (assetId: string, balance: number) => void
@@ -492,10 +492,10 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
           }
         />
         <QuickActionButton
-          onClick={() => onAction?.('request', currentAsset?.assetId)}
-          label="Request"
+          onClick={() => onAction?.('contacts', currentAsset?.assetId)}
+          label="Contacts"
           icon={
-            <Plus className="h-[18px] w-[18px]" strokeWidth={1.9} />
+            <Users className="h-[18px] w-[18px]" strokeWidth={1.9} />
           }
         />
         <QuickActionButton
