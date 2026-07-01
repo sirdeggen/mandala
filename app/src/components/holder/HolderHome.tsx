@@ -1,28 +1,28 @@
 /**
- * HolderHome — Meridian accounts-first neobank layout.
+ * HolderHome — Meridian single-account neobank layout.
  *
  * Sections (top → bottom):
- *   1. Brand row  — BrandMark + notification bell + avatar chip
- *   2. Hero       — greeting, labelled balance, 7-day trend pill (real data or omitted)
+ *   1. Brand row  — BrandMark + currency switcher chip (corner) + notification bell + avatar chip
+ *   2. Hero       — greeting, labelled balance for CURRENT account
  *   3. Quick actions — Send | Request | Receive (wired to real tabs via onAction)
- *   4. ACCOUNTS list — per-asset rows with coloured badge, name, tabular balance
- *   5. RECENT activity — last 4 history rows, direction-coloured amount
+ *   4. RECENT activity — last 4 history rows for CURRENT account
  *
- * Hero total: shows the primary (largest non-zero) account's balance.
- * If holder has no assets, shows "—" with no trend pill.
- * Trend pill: net (received − sent) over the last 7 days for the primary asset;
- * omitted if not derivable.
+ * Currency switcher: a compact "$ USD ▾" chip in the top-right area; when >1 currency
+ * it is a dropdown to change which account is shown; when 1, a static chip.
+ * The accounts list is replaced by the switcher.
+ *
+ * Trend pill: omitted (no reliable wall-clock timestamps — honest).
  *
  * All data is real wallet data (no mocks).
  */
 
-import { useCallback, useEffect, useState } from 'react'
-import { Bell, Send, Download, Plus, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Bell, Send, Download, Plus, RefreshCw, ChevronDown } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { BASKET } from '../../lib/mandala/constants'
 import { decodeBalances } from '../../lib/mandala/tokens'
 import { resolveAssetMetadata } from '../../lib/mandala/metadata'
-import { formatCurrency, currencySymbol, formatAmount } from '../../lib/mandala/amount'
+import { currencySymbol, formatAmount } from '../../lib/mandala/amount'
 import { loadHistory, HistoryRow } from '../../lib/mandala/history'
 import { BrandMark } from '../ui/BrandMark'
 import { cn } from '@/lib/utils'
@@ -95,31 +95,6 @@ function shortCounterparty(cp: string): string {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function TrendPill({ amount, ticker, decimals }: { amount: number; ticker?: string; decimals: number }) {
-  const positive = amount >= 0
-  const symbol = currencySymbol(ticker)
-  const formatted = `${positive ? '+' : '−'}${symbol}${formatAmount(Math.abs(amount), decimals)}`
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-[4px] rounded-full px-[9px] py-[5px]',
-        'text-[12px] font-medium leading-none',
-        positive
-          ? 'bg-success/10 text-success'
-          : 'bg-destructive/10 text-destructive'
-      )}
-    >
-      {/* Up/down chevron */}
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-        {positive
-          ? <path d="M6 15l6-6 6 6" />
-          : <path d="M6 9l6 6 6-6" />}
-      </svg>
-      {formatted} this week
-    </span>
-  )
-}
-
 function QuickActionButton({
   icon,
   label,
@@ -146,61 +121,6 @@ function QuickActionButton({
     >
       {icon}
       {label}
-    </button>
-  )
-}
-
-function AccountRow({
-  asset,
-  onClick,
-}: {
-  asset: AssetRow
-  onClick: () => void
-}) {
-  const badge = badgeFor(asset.meta.ticker)
-  const symbol = asset.meta.ticker ? currencySymbol(asset.meta.ticker) : ''
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center gap-[13px] border-t border-separator py-[11px] transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      {/* Currency badge */}
-      <div
-        className={cn(
-          'flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px]',
-          'text-[15px] font-bold leading-none',
-          badge.bg,
-          badge.text,
-        )}
-        aria-hidden="true"
-      >
-        {badge.symbol}
-      </div>
-
-      {/* Name + sub-label */}
-      <div className="min-w-0 flex-1 text-left">
-        <div className="truncate text-[14px] font-semibold leading-[1.2]">
-          {asset.meta.label}
-        </div>
-        {asset.meta.ticker && (
-          <div className="mt-[2px] truncate text-[11.5px] leading-[1.2] text-subtle-foreground">
-            {asset.meta.ticker.toUpperCase()} account
-          </div>
-        )}
-      </div>
-
-      {/* Tabular balance */}
-      <div
-        className={cn(
-          'tabular text-[15px] font-medium leading-[1.2]',
-          asset.balance === 0 && 'text-subtle-foreground'
-        )}
-      >
-        {asset.balance === 0
-          ? `${symbol}0`
-          : formatCurrency(asset.balance, asset.meta.decimals, asset.meta.ticker)}
-      </div>
     </button>
   )
 }
@@ -263,16 +183,20 @@ export type HolderAction = 'send' | 'receive' | 'request'
 
 interface Props {
   onSelect: (assetId: string, balance: number) => void
-  onAction?: (action: HolderAction) => void
+  onAction?: (action: HolderAction, assetId?: string) => void
   identityKey?: string | null
 }
 
-export default function HolderHome({ onSelect, onAction, identityKey }: Props) {
+export default function HolderHome({ onSelect: _onSelect, onAction, identityKey }: Props) {
   const { wallet } = useWallet()
   const [assets, setAssets] = useState<AssetRow[]>([])
   const [history, setHistory] = useState<HistoryRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [trendAmount, setTrendAmount] = useState<number | null>(null)
+  // currentAssetId: the asset currently shown in the hero / activity sections
+  const [currentAssetId, setCurrentAssetId] = useState<string | null>(null)
+  // switcher dropdown open state
+  const [switcherOpen, setSwitcherOpen] = useState(false)
+  const switcherRef = useRef<HTMLDivElement>(null)
 
   // Derive greeting from local time
   const hour = new Date().getHours()
@@ -297,7 +221,7 @@ export default function HolderHome({ onSelect, onAction, identityKey }: Props) {
       )
       const balanceMap = new Map<string, number>(decoded.map(b => [b.assetId, b.amount]))
 
-      // 2. History (for zero-balance assets + recent activity + trend)
+      // 2. History (for zero-balance assets + recent activity)
       const historyRows = await loadHistory(wallet as any)
       const allAssetIds = new Set<string>([
         ...balanceMap.keys(),
@@ -332,27 +256,11 @@ export default function HolderHome({ onSelect, onAction, identityKey }: Props) {
       setAssets(rows)
       setHistory(historyRows)
 
-      // 4. Trend: compute net (received − sent) for primary asset over last 7 days.
-      // The SDK doesn't expose wall-clock timestamps (when === 0), so we can only
-      // compute an all-time net until timestamps are available. We omit the pill
-      // when when===0 to avoid fabricating data.
-      const primary = rows[0]
-      if (primary) {
-        const assetHistory = historyRows.filter(r => r.assetId === primary.assetId)
-        const hasTimestamps = assetHistory.some(r => r.when > 0)
-        if (hasTimestamps) {
-          const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
-          const weekRows = assetHistory.filter(r => r.when >= weekAgo)
-          const net = weekRows.reduce((acc, r) => {
-            const isCredit = r.direction === 'received' || r.direction === 'issued'
-            return acc + (isCredit ? r.amount : -r.amount)
-          }, 0)
-          setTrendAmount(net)
-        } else {
-          // No timestamps available — omit pill
-          setTrendAmount(null)
-        }
-      }
+      // Auto-select primary (first non-zero) if not yet set or previous selection gone
+      setCurrentAssetId(prev => {
+        if (prev && rows.some(r => r.assetId === prev)) return prev
+        return rows.find(a => a.balance > 0)?.assetId ?? rows[0]?.assetId ?? null
+      })
     } finally {
       setLoading(false)
     }
@@ -362,18 +270,33 @@ export default function HolderHome({ onSelect, onAction, identityKey }: Props) {
     void refresh()
   }, [refresh])
 
-  // Primary asset: first non-zero balance row (or first row if all zero)
-  const primaryAsset = assets.find(a => a.balance > 0) ?? assets[0] ?? null
+  // Close switcher on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (switcherRef.current && !switcherRef.current.contains(e.target as Node)) {
+        setSwitcherOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
-  // Recent: last 4 history rows (most recent first — history comes out oldest first
-  // when all when===0, so we just take the last slice)
-  const recentRows = history.slice(-4).reverse()
+  // Current account row
+  const currentAsset = assets.find(a => a.assetId === currentAssetId) ?? null
 
-  // Meta lookup for recent rows
-  const metaFor = (assetId: string): AssetMeta => {
-    const found = assets.find(a => a.assetId === assetId)
-    return found?.meta ?? { label: `${assetId.slice(0, 10)}…`, decimals: 0 }
-  }
+  // Recent: last 4 history rows for the current asset only
+  const recentRows = history
+    .filter(r => currentAsset && r.assetId === currentAsset.assetId)
+    .slice(-4)
+    .reverse()
+
+  // ── Currency switcher chip label ──────────────────────────────────────────
+  const switcherLabel = (() => {
+    if (!currentAsset) return '—'
+    const t = currentAsset.meta.ticker
+    const sym = t ? currencySymbol(t) : ''
+    return sym ? `${sym} ${t!.toUpperCase()}` : currentAsset.meta.label.slice(0, 6)
+  })()
 
   // -------------------------------------------------------------------------
   // Render
@@ -386,6 +309,103 @@ export default function HolderHome({ onSelect, onAction, identityKey }: Props) {
         <BrandMark wordmark size="sm" />
 
         <div className="flex items-center gap-[9px]">
+          {/* Currency switcher chip */}
+          <div className="relative" ref={switcherRef}>
+            <button
+              type="button"
+              onClick={() => assets.length > 1 && setSwitcherOpen(o => !o)}
+              aria-label="Switch currency"
+              aria-haspopup={assets.length > 1 ? 'listbox' : undefined}
+              aria-expanded={switcherOpen}
+              className={cn(
+                'flex items-center gap-[5px] rounded-full px-[10px] py-[5px]',
+                'text-[12px] font-semibold leading-none',
+                'border border-border bg-card text-foreground',
+                'transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                assets.length <= 1 && 'cursor-default'
+              )}
+            >
+              {loading && assets.length === 0 ? (
+                <RefreshCw className="h-[11px] w-[11px] animate-spin text-subtle-foreground" />
+              ) : (
+                switcherLabel
+              )}
+              {assets.length > 1 && (
+                <ChevronDown
+                  className={cn(
+                    'h-[11px] w-[11px] text-subtle-foreground transition-transform duration-150',
+                    switcherOpen && 'rotate-180'
+                  )}
+                  strokeWidth={2.2}
+                />
+              )}
+            </button>
+
+            {/* Dropdown */}
+            {switcherOpen && assets.length > 1 && (
+              <div
+                role="listbox"
+                className={cn(
+                  'absolute right-0 top-[calc(100%+6px)] z-50 min-w-[160px]',
+                  'rounded-[14px] border border-border bg-popover shadow-[var(--shadow-pop)]',
+                  'overflow-hidden py-[6px]'
+                )}
+              >
+                {assets.map(a => {
+                  const badge = badgeFor(a.meta.ticker)
+                  const isSelected = a.assetId === currentAssetId
+                  return (
+                    <button
+                      key={a.assetId}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => {
+                        setCurrentAssetId(a.assetId)
+                        setSwitcherOpen(false)
+                      }}
+                      className={cn(
+                        'flex w-full items-center gap-[10px] px-[13px] py-[9px]',
+                        'text-left text-[13px] font-medium leading-none',
+                        'transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                        isSelected && 'bg-muted/40'
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          'flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[7px]',
+                          'text-[11px] font-bold leading-none',
+                          badge.bg,
+                          badge.text
+                        )}
+                      >
+                        {badge.symbol}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate">{a.meta.label}</div>
+                        {a.meta.ticker && (
+                          <div className="mt-[2px] text-[10.5px] text-subtle-foreground">
+                            {a.meta.ticker.toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      {isSelected && (
+                        <svg
+                          width="13" height="13" viewBox="0 0 24 24"
+                          fill="none" stroke="currentColor"
+                          strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
+                          className="text-primary shrink-0"
+                        >
+                          <path d="M20 6L9 17l-5-5" />
+                        </svg>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Bell */}
           <button
             type="button"
@@ -412,19 +432,18 @@ export default function HolderHome({ onSelect, onAction, identityKey }: Props) {
           {greeting}
         </p>
 
-        {/* Tracked label */}
+        {/* Account label */}
         <p className="mt-[16px] text-[11px] font-medium uppercase leading-none tracking-[1.4px] text-faint-foreground">
-          {primaryAsset ? primaryAsset.meta.label : 'Balance'}
+          {currentAsset ? currentAsset.meta.label : 'Balance'}
         </p>
 
         {/* Big balance number */}
         {loading && assets.length === 0 ? (
           <div className="mt-[7px] h-12 w-44 animate-pulse rounded-full bg-muted" />
-        ) : primaryAsset ? (
+        ) : currentAsset ? (
           (() => {
-            // Split into whole + fractional for muted-cents rendering
-            const sym = currencySymbol(primaryAsset.meta.ticker)
-            const full = formatAmount(primaryAsset.balance, primaryAsset.meta.decimals)
+            const sym = currencySymbol(currentAsset.meta.ticker)
+            const full = formatAmount(currentAsset.balance, currentAsset.meta.decimals)
             const dotIdx = full.indexOf('.')
             const whole = dotIdx >= 0 ? full.slice(0, dotIdx) : full
             const frac = dotIdx >= 0 ? full.slice(dotIdx) : ''
@@ -447,20 +466,18 @@ export default function HolderHome({ onSelect, onAction, identityKey }: Props) {
           </div>
         )}
 
-        {/* Trend pill + account count */}
-        <div className="mt-[14px] flex items-center gap-[9px]">
-          {trendAmount !== null && primaryAsset && (
-            <TrendPill
-              amount={trendAmount}
-              ticker={primaryAsset.meta.ticker}
-              decimals={primaryAsset.meta.decimals}
-            />
-          )}
-          {assets.length > 1 && (
-            <span className="text-[12px] leading-none text-subtle-foreground">
-              across {assets.length} accounts
-            </span>
-          )}
+        {/* Refresh affordance — replaces the old "across N accounts" text */}
+        <div className="mt-[12px] flex items-center gap-[9px]">
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={loading}
+            aria-label="Refresh"
+            className="flex items-center gap-[5px] text-[12px] font-medium text-subtle-foreground transition-colors hover:text-foreground disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          >
+            <RefreshCw className={cn('h-[12px] w-[12px]', loading && 'animate-spin')} />
+            {loading ? 'Refreshing…' : 'Refresh'}
+          </button>
         </div>
       </div>
 
@@ -468,21 +485,21 @@ export default function HolderHome({ onSelect, onAction, identityKey }: Props) {
       <div className="flex gap-[9px] px-[24px] pt-[22px]">
         <QuickActionButton
           primary
-          onClick={() => onAction?.('send')}
+          onClick={() => onAction?.('send', currentAsset?.assetId)}
           label="Send"
           icon={
             <Send className="h-[18px] w-[18px]" strokeWidth={1.9} />
           }
         />
         <QuickActionButton
-          onClick={() => onAction?.('request')}
+          onClick={() => onAction?.('request', currentAsset?.assetId)}
           label="Request"
           icon={
             <Plus className="h-[18px] w-[18px]" strokeWidth={1.9} />
           }
         />
         <QuickActionButton
-          onClick={() => onAction?.('receive')}
+          onClick={() => onAction?.('receive', currentAsset?.assetId)}
           label="Receive"
           icon={
             <Download className="h-[18px] w-[18px]" strokeWidth={1.9} />
@@ -490,73 +507,26 @@ export default function HolderHome({ onSelect, onAction, identityKey }: Props) {
         />
       </div>
 
-      {/* ── Accounts ── */}
-      <div className="px-[26px] pt-[24px]">
-        <div className="flex items-center justify-between">
-          <p className="text-[11px] font-medium uppercase leading-none tracking-[1.2px] text-faint-foreground">
-            Accounts
-          </p>
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            disabled={loading}
-            aria-label="Refresh"
-            className="flex items-center gap-1 text-[11.5px] font-medium text-primary transition-colors hover:text-primary/80 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-          >
-            <RefreshCw className={cn('h-3 w-3', loading && 'animate-spin')} />
-          </button>
-        </div>
-
-        {/* Loading skeletons */}
-        {loading && assets.length === 0 && (
-          <div>
-            {[0, 1].map(i => (
-              <div key={i} className="flex items-center gap-[13px] border-t border-separator py-[11px]">
-                <div className="h-[38px] w-[38px] animate-pulse rounded-[11px] bg-muted" />
-                <div className="flex-1 space-y-[6px]">
-                  <div className="h-3 w-28 animate-pulse rounded-full bg-muted" />
-                  <div className="h-2.5 w-20 animate-pulse rounded-full bg-muted" />
-                </div>
-                <div className="h-4 w-16 animate-pulse rounded-full bg-muted" />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!loading && assets.length === 0 && (
+      {/* ── Empty state ── */}
+      {!loading && assets.length === 0 && (
+        <div className="px-[26px] pt-[24px]">
           <div className="border-t border-separator py-8 text-center text-[14px] text-muted-foreground">
-            No accounts yet — tokens you receive will appear here.
+            No tokens yet — tokens you receive will appear here.
           </div>
-        )}
+        </div>
+      )}
 
-        {assets.map(a => (
-          <AccountRow
-            key={a.assetId}
-            asset={a}
-            onClick={() => onSelect(a.assetId, a.balance)}
-          />
-        ))}
-      </div>
-
-      {/* ── Recent activity ── */}
+      {/* ── Recent activity (scoped to current asset) ── */}
       {recentRows.length > 0 && (
         <div className="px-[26px] pt-[22px] pb-[24px]">
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-medium uppercase leading-none tracking-[1.2px] text-faint-foreground">
               Recent
             </p>
-            {history.length > 4 && (
-              <button
-                type="button"
-                className="text-[11.5px] font-medium text-primary hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
-              >
-                See all
-              </button>
-            )}
           </div>
 
           {recentRows.map((row, i) => {
-            const meta = metaFor(row.assetId)
+            const meta = currentAsset?.meta ?? { label: '…', decimals: 0 }
             return (
               <RecentRow
                 key={`${row.txid}-${i}`}

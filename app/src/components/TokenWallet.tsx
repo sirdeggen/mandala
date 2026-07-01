@@ -10,7 +10,7 @@ interface SelectedAsset {
 interface Props {
   identityKey?: string | null
   /** Called when the user taps a quick action on the home screen */
-  onAction?: (action: HolderAction) => void
+  onAction?: (action: HolderAction, assetId?: string) => void
 }
 
 export default function TokenWallet({ identityKey, onAction }: Props) {

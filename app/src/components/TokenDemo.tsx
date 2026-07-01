@@ -73,6 +73,8 @@ function HolderTabBar({
 export default function TokenDemo() {
   const { isInitialized, error, isIssuer, identityKey } = useWallet()
   const [holderTab, setHolderTab] = useState<HolderTab>('home')
+  // assetId locked in the current send flow (set when user taps Send from home)
+  const [sendAssetId, setSendAssetId] = useState<string | undefined>(undefined)
 
   // ── Loading state ──
   if (!isInitialized) {
@@ -112,18 +114,29 @@ export default function TokenDemo() {
     return <IssuerDashboard />
   }
 
-  // ── Holder: Meridian accounts-first home + bottom tab bar ──
-  const handleAction = (action: HolderAction) => {
-    if (action === 'send') setHolderTab('send')
-    else if (action === 'receive') setHolderTab('receive')
-    // 'request' has no dedicated tab yet — could open receive or a future screen
-    else if (action === 'request') setHolderTab('receive')
+  // ── Holder: Meridian single-account home + bottom tab bar ──
+  // The tab bar is hidden when in the send flow (Direction 3: no bottom bar in send).
+  const handleAction = (action: HolderAction, assetId?: string) => {
+    if (action === 'send') {
+      setSendAssetId(assetId)
+      setHolderTab('send')
+    } else if (action === 'receive') {
+      setHolderTab('receive')
+    }
+    // 'request' has no dedicated tab yet — falls back to receive
+    else if (action === 'request') {
+      setHolderTab('receive')
+    }
   }
+
+  const goHome = () => setHolderTab('home')
+
+  const showTabBar = holderTab !== 'send'
 
   return (
     <div className="relative mx-auto flex min-h-screen max-w-[430px] flex-col bg-background">
       {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto pb-[82px]">
+      <div className={cn('flex-1 overflow-y-auto', showTabBar ? 'pb-[82px]' : 'pb-0')}>
         {holderTab === 'home' && (
           <TokenWallet
             identityKey={identityKey}
@@ -132,12 +145,13 @@ export default function TokenDemo() {
         )}
 
         {holderTab === 'send' && (
-          <div className="px-5 pt-8">
+          /* Full-screen send wizard — no bottom tab bar (Direction 3) */
+          <div className="flex min-h-screen flex-col px-5 pt-8">
             {/* Back-to-home header */}
             <div className="mb-6 flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setHolderTab('home')}
+                onClick={goHome}
                 className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Back to home"
               >
@@ -147,7 +161,7 @@ export default function TokenDemo() {
               </button>
               <h2 className="text-[17px] font-semibold tracking-[-0.01em]">Send</h2>
             </div>
-            <SendTokens />
+            <SendTokens lockedAssetId={sendAssetId} />
           </div>
         )}
 
@@ -156,7 +170,7 @@ export default function TokenDemo() {
             <div className="mb-6 flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setHolderTab('home')}
+                onClick={goHome}
                 className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Back to home"
               >
@@ -171,10 +185,12 @@ export default function TokenDemo() {
         )}
       </div>
 
-      {/* Meridian bottom tab bar — fixed at bottom */}
-      <div className="fixed bottom-0 left-1/2 w-full max-w-[430px] -translate-x-1/2">
-        <HolderTabBar active={holderTab} onChange={setHolderTab} />
-      </div>
+      {/* Meridian bottom tab bar — hidden in the send flow (Direction 3) */}
+      {showTabBar && (
+        <div className="fixed bottom-0 left-1/2 w-full max-w-[430px] -translate-x-1/2">
+          <HolderTabBar active={holderTab} onChange={setHolderTab} />
+        </div>
+      )}
     </div>
   )
 }
