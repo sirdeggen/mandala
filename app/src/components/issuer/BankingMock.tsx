@@ -187,7 +187,7 @@ export default function BankingMock() {
               <span className="text-[14px] font-semibold tabular-nums">{formatAmount(recon.netSupply, decimals)}</span>
             </div>
             {/* Drift */}
-            <div className={`flex justify-between items-center py-3 ${recon.drift !== 0 ? 'text-[#B4703A]' : 'text-success'}`}>
+            <div className={`flex justify-between items-center py-3 ${recon.drift !== 0 ? 'text-warning' : 'text-success'}`}>
               <span className="text-[13px]">Drift</span>
               <span className="text-[14px] font-semibold tabular-nums">
                 {recon.drift > 0 ? '+' : ''}{formatAmount(recon.drift, decimals)}
@@ -195,7 +195,7 @@ export default function BankingMock() {
             </div>
             {/* Amber callout */}
             {recon.drift !== 0 && (
-              <div className="bg-[rgba(180,112,58,.08)] rounded-[10px] px-[13px] py-[10px] text-[11.5px] text-[#8A6A3B] leading-[1.4]">
+              <div className="bg-warning/[0.08] rounded-[10px] px-[13px] py-[10px] text-[11.5px] text-warning leading-[1.4]">
                 Drift = {formatAmount(Math.abs(recon.drift), decimals)} received but not yet issued. Issue deposits to bring reserves and supply back in line.
               </div>
             )}

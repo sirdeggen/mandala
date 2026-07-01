@@ -53,8 +53,15 @@ function StatTile({
 
 // ── Status pill ────────────────────────────────────────────────────────────────
 
-function StatusPill({ paused }: { paused: boolean }) {
-  return paused ? (
+function StatusPill({ state }: { state: AssetAdminStateView | null }) {
+  if (state === null) {
+    return (
+      <span className="inline-flex items-center rounded-[6px] bg-muted px-[9px] py-1 text-[11px] font-medium text-muted-foreground">
+        Unavailable
+      </span>
+    )
+  }
+  return state.isPaused ? (
     <span className="inline-flex items-center rounded-[6px] bg-warning/14 px-[9px] py-1 text-[11px] font-medium text-warning">
       Paused
     </span>
@@ -153,7 +160,7 @@ export default function OverviewSection({ assets, onReload }: Props) {
           {allReserved && (
             <span className="inline-flex items-center gap-[6px] rounded-full bg-success/10 px-3 py-2 text-[12px] font-medium text-success">
               <span className="h-[7px] w-[7px] rounded-full bg-success" />
-              Reserves 100% backed
+              Reserves 100% (demo)
             </span>
           )}
           <button
@@ -193,7 +200,7 @@ export default function OverviewSection({ assets, onReload }: Props) {
           valueColor={totalSupply > 0 ? 'text-success' : undefined}
         />
         <StatTile
-          label="Reserve ratio"
+          label="Reserve ratio (demo)"
           value={loading ? '…' : reserveValue}
           sub="bank ↔ supply"
           valueColor={reserveColor}
@@ -284,7 +291,7 @@ export default function OverviewSection({ assets, onReload }: Props) {
 
               {/* STATUS */}
               <div>
-                <StatusPill paused={isPaused} />
+                <StatusPill state={state} />
               </div>
 
               {/* ACCESS */}

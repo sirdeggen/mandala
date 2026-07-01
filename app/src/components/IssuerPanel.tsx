@@ -591,12 +591,7 @@ export default function IssuerPanel() {
           <button
             onClick={() => void redeem()}
             disabled={busy || redeemAsset === '' || redeemAmount === ''}
-            className="w-full rounded-[11px] mt-auto py-[10px] px-4 text-[13.5px] font-medium transition-opacity disabled:opacity-40"
-            style={{
-              background: '#fff',
-              border: '1.5px solid rgba(180,83,74,.4)',
-              color: '#B4534A'
-            }}
+            className="w-full rounded-[11px] mt-auto py-[10px] px-4 text-[13.5px] font-medium transition-opacity disabled:opacity-40 bg-background border border-destructive/40 text-destructive"
           >
             Redeem (burn)
           </button>
@@ -606,10 +601,7 @@ export default function IssuerPanel() {
       {/* Recover: full-width card */}
       <div className="bg-card border border-border rounded-[14px] p-[18px]">
         <div className="flex items-center gap-3 mb-4">
-          <div
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px]"
-            style={{ background: 'rgba(138,109,59,.14)', color: '#8A6D3B' }}
-          >
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-accent text-accent-foreground">
             <ShieldAlert className="h-[18px] w-[18px]" />
           </div>
           <div>
@@ -666,8 +658,7 @@ export default function IssuerPanel() {
         <button
           onClick={() => void recover()}
           disabled={busy || recoverAsset === '' || recoverAmount === '' || recoverRecipient.trim() === ''}
-          className="mt-4 rounded-[11px] px-5 py-[10px] text-[13.5px] font-medium transition-opacity disabled:opacity-40"
-          style={{ background: '#8A6D3B', color: '#FDF8F0' }}
+          className="mt-4 rounded-[11px] px-5 py-[10px] text-[13.5px] font-medium transition-opacity disabled:opacity-40 bg-[var(--accent-foreground)] text-background"
         >
           Recover
         </button>

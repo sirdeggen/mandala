@@ -52,6 +52,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
 
   // Async state
   const [isSending, setIsSending] = useState(false)
+  const [sendError, setSendError] = useState('')
   const [sentTxid, setSentTxid] = useState('')
   const [balances, setBalances] = useState<TokenBalance[]>([])
   const [metas, setMetas] = useState<Record<string, { label: string, decimals: number, issuer?: string }>>({})
@@ -286,9 +287,12 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
       }
     })
 
-    // Return the txid for the Sent screen reference
-    const txHex = Buffer.from(signed.tx as number[]).toString('hex')
-    return txHex.slice(0, 64)
+    // Return the real txid for the Sent screen reference
+    try {
+      return Transaction.fromBEEF(signed.tx as number[]).id('hex')
+    } catch {
+      return ''
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -333,6 +337,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
     if (!assetId || !recipient || !sendAmount || sendAmount <= 0) return
     if (!selectedBalance || selectedBalance.amount < sendAmount) return
 
+    setSendError('')
     setIsSending(true)
     try {
       const txid = await transfer(assetId, sendAmount, recipient)
@@ -341,6 +346,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
       void loadBalances()
     } catch (e) {
       console.error('Send error:', e)
+      setSendError(e instanceof Error ? e.message : 'Send failed. Please try again.')
     } finally {
       setIsSending(false)
     }
@@ -356,13 +362,14 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
     setRecipientAvatarURL('')
     setPublicKeyInput('')
     setSentTxid('')
+    setSendError('')
     identitySearch.handleSelect(null as any, null)
   }
 
   const shareReceipt = async () => {
     const label = labelFor(assetId)
     const name = recipientName || recipient.slice(0, 16) + '…'
-    const text = `Sent ${formatAmount(sendAmount, decimals)} ${label} to ${name}\nRef: MND-${sentTxid.slice(0, 8).toUpperCase()}`
+    const text = `Sent ${formatAmount(sendAmount, decimals)} ${label} to ${name}${sentTxid ? `\nRef: ${sentTxid.slice(0, 8)}…${sentTxid.slice(-4)}` : ''}`
     try {
       await navigator.clipboard.writeText(text)
     } catch { /* ignore */ }
@@ -695,7 +702,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
       {/* Note field */}
       <div className="px-5 pt-[22px]">
         <div className="flex items-center gap-2.5 rounded-[12px] border border-border bg-card px-3.5 py-3">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8375" strokeWidth="1.9">
+          <svg className="text-muted-foreground" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
             <path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           <input
@@ -813,6 +820,13 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         </div>
       )}
 
+      {/* Send failure surface */}
+      {sendError && (
+        <div className="mx-5 mt-4 rounded-[--radius-md] bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
+          {sendError}
+        </div>
+      )}
+
       {/* Confirm CTA */}
       <div className="mt-auto px-5 pb-6 pt-4">
         <Button
@@ -849,7 +863,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         <div className="relative mb-7 flex justify-center">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[190px] w-[190px] rounded-full bg-[radial-gradient(circle,rgba(35,64,94,.16),rgba(35,64,94,0)_68%)]" />
           <div className="relative flex h-[90px] w-[90px] items-center justify-center rounded-full bg-primary shadow-[0_16px_34px_-10px_rgba(35,64,94,.55)]">
-            <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#C9A96A" strokeWidth="2.4">
+            <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--brass)" strokeWidth="2.4">
               <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
@@ -864,7 +878,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         </div>
         {sentTxid && (
           <div className="mt-4 text-[12px] text-subtle-foreground">
-            Ref MND-{sentTxid.slice(0, 8).toUpperCase()}
+            Ref {sentTxid.slice(0, 8)}…{sentTxid.slice(-4)}
           </div>
         )}
       </div>

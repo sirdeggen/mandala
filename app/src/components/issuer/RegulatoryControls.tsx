@@ -339,10 +339,11 @@ export default function RegulatoryControls({ assets, onActionComplete }: Props) 
           <button
             onClick={handlePauseToggle}
             disabled={busy || asset == null}
-            className="w-full rounded-[11px] py-3 text-[13px] font-semibold mt-[14px] flex items-center justify-center gap-2 disabled:opacity-50"
-            style={isPaused
-              ? { background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }
-              : { background: '#B4534A', color: '#fff' }}
+            className={`w-full rounded-[11px] py-3 text-[13px] font-semibold mt-[14px] flex items-center justify-center gap-2 disabled:opacity-50 ${
+              isPaused
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-destructive text-destructive-foreground'
+            }`}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
             {isPaused ? 'Unpause transfers' : 'Pause transfers'}
@@ -497,8 +498,7 @@ export default function RegulatoryControls({ assets, onActionComplete }: Props) 
             <button
               onClick={() => handleIdentityAction('blockIdentity')}
               disabled={busy || identityKeyEmpty || asset == null}
-              className="flex-1 rounded-[11px] py-[11px] text-[13px] font-semibold bg-card border disabled:opacity-50"
-              style={{ borderColor: 'rgba(180,83,74,.4)', color: '#B4534A' }}
+              className="flex-1 rounded-[11px] py-[11px] text-[13px] font-semibold bg-card border border-destructive/40 text-destructive disabled:opacity-50"
             >
               Block
             </button>
