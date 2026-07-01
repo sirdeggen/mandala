@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  LayoutDashboard, PlusCircle, ShieldCheck, Banknote, ClipboardList
+  LayoutDashboard, PlusCircle, ShieldCheck, Banknote, ChevronDown
 } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { listAdminAssets, AdminAsset } from '../../lib/mandala/assets'
@@ -10,9 +10,8 @@ import IssuerPanel from '../IssuerPanel'
 import OverviewSection from './OverviewSection'
 import RegulatoryControls from './RegulatoryControls'
 import BankingMock from './BankingMock'
-import AuditLog from './AuditLog'
 
-type Section = 'overview' | 'operations' | 'regulatory' | 'banking' | 'audit'
+type Section = 'overview' | 'operations' | 'regulatory' | 'banking'
 
 const NAV_ITEMS: Array<{
   id: Section
@@ -23,21 +22,92 @@ const NAV_ITEMS: Array<{
   { id: 'operations',  label: 'Operations',  icon: PlusCircle },
   { id: 'regulatory',  label: 'Regulatory',  icon: ShieldCheck },
   { id: 'banking',     label: 'Banking',     icon: Banknote },
-  { id: 'audit',       label: 'Audit log',   icon: ClipboardList },
 ]
+
+// ── AssetSwitcher ─────────────────────────────────────────────────────────────
+
+interface AssetSwitcherProps {
+  assets: AdminAsset[]
+  currentAssetId: string
+  onChange: (assetId: string) => void
+}
+
+function AssetBadge({ asset }: { asset: AdminAsset }) {
+  const ticker = String(asset.metadata?.ticker ?? asset.label.slice(0, 3)).toUpperCase()
+  const symbol = { USD: '$', EUR: '€', GBP: '£', CHF: 'Fr' }[ticker] ?? ticker.slice(0, 2)
+  return (
+    <div className="flex items-center gap-[9px]">
+      <div className="flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-[7px] bg-accent font-bold text-[12px] text-accent-foreground">
+        {symbol}
+      </div>
+      <div className="leading-tight">
+        <div className="text-[13px] font-semibold">{asset.label}</div>
+        {ticker && (
+          <div className="text-[10.5px] text-subtle-foreground">{ticker}</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function AssetSwitcher({ assets, currentAssetId, onChange }: AssetSwitcherProps) {
+  const current = assets.find(a => a.assetId === currentAssetId)
+
+  // Single asset: static chip
+  if (assets.length <= 1) {
+    return current != null ? (
+      <div className="inline-flex items-center rounded-[10px] border border-border bg-card px-[12px] py-[7px]">
+        <AssetBadge asset={current} />
+      </div>
+    ) : (
+      <div className="inline-flex items-center rounded-[10px] border border-border bg-card px-[12px] py-[7px] text-[13px] text-muted-foreground">
+        No assets
+      </div>
+    )
+  }
+
+  // Multiple assets: dropdown
+  return (
+    <div className="relative inline-block">
+      <select
+        value={currentAssetId}
+        onChange={e => onChange(e.target.value)}
+        className="appearance-none cursor-pointer inline-flex items-center rounded-[10px] border border-border bg-card px-[12px] py-[7px] pr-[32px] text-[13px] font-semibold focus:outline-none focus:ring-2 focus:ring-ring"
+        aria-label="Switch asset"
+      >
+        {assets.map(a => (
+          <option key={a.assetId} value={a.assetId}>{a.label}</option>
+        ))}
+      </select>
+      <ChevronDown
+        className="pointer-events-none absolute right-[10px] top-1/2 -translate-y-1/2 h-[14px] w-[14px] text-subtle-foreground"
+        strokeWidth={2}
+      />
+    </div>
+  )
+}
+
+// ── IssuerDashboard ───────────────────────────────────────────────────────────
 
 export default function IssuerDashboard() {
   const { wallet, identityKey } = useWallet()
   const [section, setSection] = useState<Section>('overview')
   const [assets, setAssets] = useState<AdminAsset[]>([])
+  const [currentAssetId, setCurrentAssetId] = useState('')
 
   const reloadAssets = useCallback(async () => {
     if (wallet == null) return
     const list = await listAdminAssets(wallet as any)
     setAssets(list)
-  }, [wallet])
+    // Default to first asset if nothing selected yet
+    if (list.length > 0 && currentAssetId === '') {
+      setCurrentAssetId(list[0].assetId)
+    }
+  }, [wallet, currentAssetId])
 
   useEffect(() => { void reloadAssets() }, [reloadAssets])
+
+  const currentAsset = assets.find(a => a.assetId === currentAssetId) ?? null
 
   // Derive issuer initials for the footer chip from identityKey (first 2 hex chars → uppercase)
   const initials = identityKey != null && identityKey.length >= 4
@@ -110,16 +180,36 @@ export default function IssuerDashboard() {
 
       {/* ── MAIN AREA ── */}
       <main className="flex-1 overflow-y-auto bg-background">
+        {/* Top bar with asset switcher */}
+        <div className="flex items-center justify-between border-b border-separator bg-background px-[30px] py-[14px]">
+          <AssetSwitcher
+            assets={assets}
+            currentAssetId={currentAssetId}
+            onChange={setCurrentAssetId}
+          />
+        </div>
+
         <div className="p-[26px_30px]">
           {section === 'overview' && (
-            <OverviewSection assets={assets} onReload={() => void reloadAssets()} />
+            <OverviewSection
+              assetId={currentAssetId}
+              asset={currentAsset}
+              onReload={() => void reloadAssets()}
+            />
           )}
-          {section === 'operations' && <IssuerPanel />}
+          {section === 'operations' && (
+            <IssuerPanel assetId={currentAssetId} />
+          )}
           {section === 'regulatory' && (
-            <RegulatoryControls assets={assets} onActionComplete={() => void reloadAssets()} />
+            <RegulatoryControls
+              assets={assets}
+              assetId={currentAssetId}
+              onActionComplete={() => void reloadAssets()}
+            />
           )}
-          {section === 'banking' && <BankingMock />}
-          {section === 'audit' && <AuditLog assets={assets} />}
+          {section === 'banking' && (
+            <BankingMock assetId={currentAssetId} />
+          )}
         </div>
       </main>
     </div>

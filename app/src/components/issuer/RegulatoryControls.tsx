@@ -12,9 +12,11 @@ import { formatAmount } from '../../lib/mandala/amount'
 interface Props {
   assets: AdminAsset[]
   onActionComplete?: () => void
+  /** Controlled mode: when set, use this assetId and hide the header asset-selector chip. */
+  assetId?: string
 }
 
-export default function RegulatoryControls({ assets, onActionComplete }: Props) {
+export default function RegulatoryControls({ assets, onActionComplete, assetId: controlledAssetId }: Props) {
   const { wallet, messageBoxClient, identityKey } = useWallet()
 
   // Selected asset
@@ -40,17 +42,20 @@ export default function RegulatoryControls({ assets, onActionComplete }: Props) 
   const [reissueRecipientPublicKey, setReissueRecipientPublicKey] = useState('')
   const [reissuePublicKeyInput, setReissuePublicKeyInput] = useState('')
 
-  const asset = assets.find(a => a.assetId === selectedAssetId) ?? null
+  // In controlled mode the active asset id comes from the prop; otherwise use internal state
+  const activeAssetId = controlledAssetId ?? selectedAssetId
+
+  const asset = assets.find(a => a.assetId === activeAssetId) ?? null
   const decimals = Number(asset?.metadata?.decimals) || 0
 
   const loadState = useCallback(async () => {
-    if (selectedAssetId === '') { setState(null); return }
-    const s = await resolveAssetState(selectedAssetId)
+    if (activeAssetId === '') { setState(null); return }
+    const s = await resolveAssetState(activeAssetId)
     setState(s)
     setNewAccessMode(s?.accessMode ?? 'denylist')
   }, [selectedAssetId])
 
-  useEffect(() => { void loadState() }, [loadState])
+  useEffect(() => { void loadState() }, [loadState, activeAssetId])
 
   // Pre-fill reissue amount when a frozen outpoint is selected
   useEffect(() => {
@@ -252,20 +257,22 @@ export default function RegulatoryControls({ assets, onActionComplete }: Props) 
             {asset != null ? ` for ${asset.label}` : ''}
           </p>
         </div>
-        {/* Asset selector chip */}
-        <div className="shrink-0 flex flex-col gap-[4px]">
-          <label className="text-[10.5px] text-subtle-foreground font-medium">Asset</label>
-          <Select
-            value={selectedAssetId}
-            onChange={e => { setSelectedAssetId(e.target.value) }}
-            className="bg-card border border-border rounded-[10px] px-3 py-[7px] text-[12px] font-medium"
-          >
-            <option value="">Select asset…</option>
-            {assets.map(a => (
-              <option key={a.assetId} value={a.assetId}>{a.label}</option>
-            ))}
-          </Select>
-        </div>
+        {/* Asset selector chip — suppressed in controlled mode */}
+        {controlledAssetId == null && (
+          <div className="shrink-0 flex flex-col gap-[4px]">
+            <label className="text-[10.5px] text-subtle-foreground font-medium">Asset</label>
+            <Select
+              value={selectedAssetId}
+              onChange={e => { setSelectedAssetId(e.target.value) }}
+              className="bg-card border border-border rounded-[10px] px-3 py-[7px] text-[12px] font-medium"
+            >
+              <option value="">Select asset…</option>
+              {assets.map(a => (
+                <option key={a.assetId} value={a.assetId}>{a.label}</option>
+              ))}
+            </Select>
+          </div>
+        )}
       </div>
 
       {/* Live state strip */}

@@ -6,19 +6,12 @@ import { resolveAdminHistory } from '../../lib/mandala/adminHistory'
 import { reconcile, seedDeposits } from '../../lib/mandala/banking'
 import { formatAmount } from '../../lib/mandala/amount'
 import { cn } from '@/lib/utils'
+import AuditLog from './AuditLog'
 
 interface Props {
-  assets: AdminAsset[]
-  onReload: () => void
-}
-
-interface AssetMetrics {
-  asset: AdminAsset
-  state: AssetAdminStateView | null
-  netSupply: number
-  drift: number
-  decimals: number
-  bankBalance: number
+  assetId: string
+  asset: AdminAsset | null
+  onReload?: () => void
 }
 
 // ── Stat tile ──────────────────────────────────────────────────────────────────
@@ -51,22 +44,25 @@ function StatTile({
   )
 }
 
-// ── Status pill ────────────────────────────────────────────────────────────────
+// ── Status / reserve pill ──────────────────────────────────────────────────────
 
 function StatusPill({ state }: { state: AssetAdminStateView | null }) {
   if (state === null) {
     return (
-      <span className="inline-flex items-center rounded-[6px] bg-muted px-[9px] py-1 text-[11px] font-medium text-muted-foreground">
+      <span className="inline-flex items-center gap-[5px] rounded-full bg-muted px-[10px] py-[5px] text-[11.5px] font-medium text-muted-foreground">
+        <span className="h-[6px] w-[6px] rounded-full bg-muted-foreground" />
         Unavailable
       </span>
     )
   }
   return state.isPaused ? (
-    <span className="inline-flex items-center rounded-[6px] bg-warning/14 px-[9px] py-1 text-[11px] font-medium text-warning">
+    <span className="inline-flex items-center gap-[5px] rounded-full bg-warning/14 px-[10px] py-[5px] text-[11.5px] font-medium text-warning">
+      <span className="h-[6px] w-[6px] rounded-full bg-warning" />
       Paused
     </span>
   ) : (
-    <span className="inline-flex items-center rounded-[6px] bg-success/12 px-[9px] py-1 text-[11px] font-medium text-success">
+    <span className="inline-flex items-center gap-[5px] rounded-full bg-success/12 px-[10px] py-[5px] text-[11.5px] font-medium text-success">
+      <span className="h-[6px] w-[6px] rounded-full bg-success" />
       Active
     </span>
   )
@@ -74,98 +70,87 @@ function StatusPill({ state }: { state: AssetAdminStateView | null }) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export default function OverviewSection({ assets, onReload }: Props) {
-  const [rows, setRows] = useState<AssetMetrics[]>([])
+export default function OverviewSection({ assetId, asset, onReload }: Props) {
+  const [state, setState] = useState<AssetAdminStateView | null>(null)
+  const [inCirculation, setInCirculation] = useState(0)
+  const [netIssued, setNetIssued] = useState(0)
+  const [reserveRatioPct, setReserveRatioPct] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
 
+  const decimals = Number(asset?.metadata?.decimals) || 0
+
   const load = useCallback(async () => {
-    if (assets.length === 0) { setRows([]); return }
+    if (assetId === '') return
     setLoading(true)
     const deposits = seedDeposits()
     const bankDepositAmounts = deposits.map(d => d.amount)
     try {
-      const metrics = await Promise.all(
-        assets.map(async (asset): Promise<AssetMetrics> => {
-          const decimals = Number(asset.metadata?.decimals) || 0
-          const [state, history] = await Promise.all([
-            resolveAssetState(asset.assetId),
-            resolveAdminHistory(asset.assetId),
-          ])
-          let totalIssued = 0
-          let totalRedeemed = 0
-          for (const row of history) {
-            if (row.actionDetails.kind === 'issue')
-              totalIssued += (row.actionDetails.amount as number) ?? 0
-            if (row.actionDetails.kind === 'redeem')
-              totalRedeemed += (row.actionDetails.amount as number) ?? 0
-          }
-          const netSupply = totalIssued - totalRedeemed
-          const recon = reconcile({
-            deposits: bankDepositAmounts,
-            withdrawals: [],
-            issued: totalIssued,
-            redeemed: totalRedeemed,
-          })
-          return { asset, state, netSupply, drift: recon.drift, decimals, bankBalance: recon.bankBalance }
-        })
-      )
-      setRows(metrics)
+      const [assetState, history] = await Promise.all([
+        resolveAssetState(assetId),
+        resolveAdminHistory(assetId),
+      ])
+      setState(assetState)
+
+      let totalIssued = 0
+      let totalRedeemed = 0
+      for (const row of history) {
+        if (row.actionDetails.kind === 'issue')
+          totalIssued += (row.actionDetails.amount as number) ?? 0
+        if (row.actionDetails.kind === 'redeem')
+          totalRedeemed += (row.actionDetails.amount as number) ?? 0
+      }
+      const circulation = totalIssued - totalRedeemed
+      setInCirculation(circulation)
+      setNetIssued(circulation)
+
+      const recon = reconcile({
+        deposits: bankDepositAmounts,
+        withdrawals: [],
+        issued: totalIssued,
+        redeemed: totalRedeemed,
+      })
+      const ratio =
+        circulation === 0
+          ? null
+          : Math.min(100, (recon.bankBalance / circulation) * 100)
+      setReserveRatioPct(ratio)
     } finally {
       setLoading(false)
     }
-  }, [assets])
+  }, [assetId])
 
   useEffect(() => { void load() }, [load])
 
-  // ── Derived KPIs ─────────────────────────────────────────────────────────────
+  // Restrictions tile: read from assetAdminState
+  const blockedCount = state?.blockedIdentities.length ?? 0
+  const frozenCount = state?.frozenOutpoints.length ?? 0
 
-  const totalSupply = rows.reduce((s, r) => s + r.netSupply, 0)
-  const totalDrift = rows.reduce((s, r) => s + r.drift, 0)
-  const needsAttention = rows.filter(r => (r.state?.isPaused ?? false) || r.drift !== 0).length
-
-  // Reserve ratio: sum per-asset bank balances from reconcile outputs
-  const totalBankBal = rows.reduce((s, r) => s + r.bankBalance, 0)
-  const reserveRatioPct =
-    totalSupply === 0
-      ? null
-      : Math.min(100, (totalBankBal / totalSupply) * 100)
-
+  // Reserve ratio display
   const reserveValue =
     reserveRatioPct == null
       ? '—'
-      : totalDrift !== 0
-      ? 'Has drift'
       : `${reserveRatioPct.toFixed(1)}%`
-  const reserveColor =
-    reserveRatioPct == null || totalDrift === 0 ? undefined : 'text-warning'
+  const reserveColor = reserveRatioPct != null && reserveRatioPct < 100 ? 'text-warning' : undefined
 
-  const hasAnyDrift = rows.some(r => r.drift !== 0)
-  const allReserved = !hasAnyDrift && rows.length > 0
+  const ticker = String(asset?.metadata?.ticker ?? asset?.label?.slice(0, 3) ?? '').toUpperCase()
 
   return (
     <div>
       {/* ── Page title row ── */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between mb-[22px]">
         <div>
-          <h1
-            className="text-[27px] font-semibold leading-none tracking-[-0.5px]"
-          >
-            Overview
-          </h1>
+          <h1 className="text-[27px] font-semibold leading-none tracking-[-0.5px]">Overview</h1>
           <div className="mt-2 text-[13px] text-subtle-foreground">
-            Live regulatory &amp; reserve state across {assets.length} asset{assets.length !== 1 ? 's' : ''}
+            {asset != null
+              ? `${asset.label}${ticker ? ` (${ticker})` : ''} stablecoin · live state & admin history`
+              : 'Live state & admin history'}
           </div>
         </div>
         <div className="flex items-center gap-[10px]">
-          {allReserved && (
-            <span className="inline-flex items-center gap-[6px] rounded-full bg-success/10 px-3 py-2 text-[12px] font-medium text-success">
-              <span className="h-[7px] w-[7px] rounded-full bg-success" />
-              Reserves 100% (demo)
-            </span>
-          )}
+          <StatusPill state={state} />
           <button
             type="button"
-            onClick={() => { onReload(); void load() }}
+            onClick={() => { onReload?.(); void load() }}
             disabled={loading}
             className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
@@ -174,30 +159,24 @@ export default function OverviewSection({ assets, onReload }: Props) {
         </div>
       </div>
 
-      {/* ── KPI stat tiles ── */}
-      <div className="mt-[22px] flex gap-[14px]">
+      {/* ── 4 KPI tiles ── */}
+      <div className="flex gap-[14px]">
         <StatTile
           label="In circulation"
-          value={
-            loading
-              ? '…'
-              : rows.length === 0
-              ? '—'
-              : formatAmount(totalSupply, 0)
-          }
-          sub="total base units across all assets"
+          value={loading ? '…' : assetId === '' ? '—' : formatAmount(inCirculation, decimals)}
+          sub={ticker ? ticker : 'issued − redeemed'}
         />
         <StatTile
           label="Net issued"
           value={
             loading
               ? '…'
-              : rows.length === 0
+              : assetId === ''
               ? '—'
-              : (totalSupply >= 0 ? '+' : '') + formatAmount(totalSupply, 0)
+              : (netIssued >= 0 ? '+' : '') + formatAmount(netIssued, decimals)
           }
-          sub="all history · issued − redeemed"
-          valueColor={totalSupply > 0 ? 'text-success' : undefined}
+          sub="all history"
+          valueColor={netIssued > 0 ? 'text-success' : undefined}
         />
         <StatTile
           label="Reserve ratio (demo)"
@@ -206,113 +185,21 @@ export default function OverviewSection({ assets, onReload }: Props) {
           valueColor={reserveColor}
         />
         <StatTile
-          label="Needs attention"
-          value={loading ? '…' : String(needsAttention)}
-          sub={
-            needsAttention === 0
-              ? 'all clear'
-              : `${rows.filter(r => r.state?.isPaused).length} paused · ${rows.filter(r => r.drift !== 0).length} drift`
-          }
-          valueColor={needsAttention > 0 ? 'text-warning' : undefined}
+          label="Restrictions"
+          value={loading ? '…' : assetId === '' ? '—' : `${blockedCount} · ${frozenCount}`}
+          sub={`blocked · frozen`}
+          valueColor={(blockedCount > 0 || frozenCount > 0) ? 'text-warning' : undefined}
         />
       </div>
 
-      {/* ── Assets table ── */}
-      <div className="mt-5 overflow-hidden rounded-[14px] border border-border bg-card">
-        {/* Table header */}
-        <div
-          className="grid items-center gap-3 border-b border-separator bg-muted px-[18px] py-[11px]"
-          style={{ gridTemplateColumns: '1.6fr 1fr 0.9fr 0.9fr 1fr' }}
-        >
-          {['ASSET', 'SUPPLY', 'STATUS', 'ACCESS', 'RESERVE'].map((col, i) => (
-            <div
-              key={col}
-              className={cn(
-                'text-[10px] font-medium tracking-[1px] text-faint-foreground',
-                i === 1 || i === 4 ? 'text-right' : ''
-              )}
-            >
-              {col}
-            </div>
-          ))}
+      {/* ── Audit log as the default dashboard ── */}
+      <div className="mt-[28px]">
+        <div className="mb-[14px]">
+          <div className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase">
+            Admin history
+          </div>
         </div>
-
-        {/* Loading / empty */}
-        {loading && rows.length === 0 && (
-          <div className="px-[18px] py-5 text-[13px] text-muted-foreground animate-pulse">
-            Loading assets…
-          </div>
-        )}
-        {!loading && rows.length === 0 && (
-          <div className="px-[18px] py-5 text-[13px] text-muted-foreground">
-            No assets registered yet.
-          </div>
-        )}
-
-        {/* Rows */}
-        {rows.map(({ asset, state, netSupply, drift, decimals }) => {
-          const isPaused = state?.isPaused ?? false
-          const accessMode = state?.accessMode ?? '—'
-          const hasDrift = drift !== 0
-
-          // Build a 1-2 letter badge from label (e.g. "US Dollar" → "$" or first letter)
-          const ticker = String(asset.metadata?.ticker ?? asset.label.slice(0, 2)).toUpperCase()
-          const symbol = { USD: '$', EUR: '€', GBP: '£', CHF: 'Fr' }[ticker] ?? ticker.slice(0, 2)
-
-          return (
-            <div
-              key={asset.assetId}
-              className={cn(
-                'grid items-center gap-3 border-t border-separator px-[18px] py-[13px]',
-                isPaused ? 'bg-warning/[0.04]' : ''
-              )}
-              style={{ gridTemplateColumns: '1.6fr 1fr 0.9fr 0.9fr 1fr' }}
-            >
-              {/* ASSET */}
-              <div className="flex items-center gap-[10px]">
-                <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-accent font-bold text-[13px] text-accent-foreground">
-                  {symbol}
-                </div>
-                <div>
-                  <div className="text-[13px] font-semibold leading-[1.1]">{asset.label}</div>
-                  <div className="mt-[2px] text-[10.5px] leading-[1.1] text-subtle-foreground">
-                    {String(asset.metadata?.ticker ?? asset.assetId.slice(0, 8) + '…')}
-                  </div>
-                </div>
-              </div>
-
-              {/* SUPPLY */}
-              <div
-                className="text-right text-[13px] font-medium"
-                style={{ fontVariantNumeric: 'tabular-nums' }}
-              >
-                {formatAmount(netSupply, decimals)}
-              </div>
-
-              {/* STATUS */}
-              <div>
-                <StatusPill state={state} />
-              </div>
-
-              {/* ACCESS */}
-              <div className="text-[12px] text-muted-foreground capitalize">
-                {accessMode === '—' ? '—' : accessMode === 'allowlist' ? 'Allowlist' : 'Denylist'}
-              </div>
-
-              {/* RESERVE */}
-              <div
-                className={cn(
-                  'text-right text-[12px] font-medium',
-                  hasDrift ? 'text-warning' : 'text-success'
-                )}
-              >
-                {hasDrift
-                  ? `${drift > 0 ? '+' : ''}${formatAmount(drift, decimals)} drift`
-                  : '100%'}
-              </div>
-            </div>
-          )
-        })}
+        <AuditLog assetId={assetId} />
       </div>
     </div>
   )

@@ -19,7 +19,12 @@ import { Input } from './ui/input'
 import { Select } from './ui/select'
 import { Button } from './ui/button'
 
-export default function IssuerPanel() {
+interface IssuerPanelProps {
+  /** When set, sync to issue/redeem/recover asset selection and hide per-section dropdowns. */
+  assetId?: string
+}
+
+export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelProps = {}) {
   const { wallet, messageBoxClient, identityKey } = useWallet()
   const [label, setLabel] = useState('')
   const [ticker, setTicker] = useState('')
@@ -43,6 +48,19 @@ export default function IssuerPanel() {
     if (wallet != null) setAssets(await listAdminAssets(wallet as any))
   }, [wallet])
   useEffect(() => { void reload() }, [reload])
+
+  // When controlled assetId changes, sync it into each section's selection
+  useEffect(() => {
+    if (controlledAssetId == null) return
+    setIssueAsset(controlledAssetId)
+    setRedeemAsset(controlledAssetId)
+    setRecoverAsset(controlledAssetId)
+  }, [controlledAssetId])
+
+  // Effective asset ids: controlled prop takes precedence over internal state
+  const effectiveIssueAsset = controlledAssetId ?? issueAsset
+  const effectiveRedeemAsset = controlledAssetId ?? redeemAsset
+  const effectiveRecoverAsset = controlledAssetId ?? recoverAsset
 
   // ---------------------------------------------------------------------------
   // Register: ONE tx, ONE output that both carries the public metadata blob and
@@ -109,7 +127,7 @@ export default function IssuerPanel() {
   // ---------------------------------------------------------------------------
   const issue = useCallback(async () => {
     if (wallet == null || identityKey == null) return
-    const asset = assets.find(a => a.assetId === issueAsset)
+    const asset = assets.find(a => a.assetId === effectiveIssueAsset)
     const amount = parseAmount(issueAmount, Number(asset?.metadata?.decimals) || 0)
     if (asset == null || !Number.isInteger(amount) || amount < 1) return
     setBusy(true)
@@ -209,7 +227,7 @@ export default function IssuerPanel() {
     } finally {
       setBusy(false)
     }
-  }, [wallet, identityKey, assets, issueAsset, issueAmount, reload])
+  }, [wallet, identityKey, assets, effectiveIssueAsset, issueAmount, reload])
 
   // ---------------------------------------------------------------------------
   // Redeem: burn FT tokens by spending FT inputs + prior auth outpoint.
@@ -217,7 +235,7 @@ export default function IssuerPanel() {
   // ---------------------------------------------------------------------------
   const redeem = useCallback(async () => {
     if (wallet == null || identityKey == null) return
-    const asset = assets.find(a => a.assetId === redeemAsset)
+    const asset = assets.find(a => a.assetId === effectiveRedeemAsset)
     const amount = parseAmount(redeemAmount, Number(asset?.metadata?.decimals) || 0)
     if (asset == null || !Number.isInteger(amount) || amount < 1) return
     setBusy(true)
@@ -248,7 +266,7 @@ export default function IssuerPanel() {
         if (gathered >= amount) break
         let d
         try { d = MandalaToken.decode(LockingScript.fromHex(o.lockingScript as string)) } catch { continue }
-        if (d.assetId !== redeemAsset) continue
+        if (d.assetId !== effectiveRedeemAsset) continue
         const ci = JSON.parse((o.customInstructions as string) ?? '{}')
         ftInputs.push({ outpoint: o.outpoint as string, unlockingScriptLength: 108, inputDescription: 'burn FT' })
         ftSpend.push({ keyID: ci.keyID, counterparty: ci.counterparty })
@@ -261,7 +279,7 @@ export default function IssuerPanel() {
       // Build next admin-auth locking script for the redeem action.
       const redeemDetails: MandalaActionDetails = {
         kind: 'redeem',
-        assetId: redeemAsset,
+        assetId: effectiveRedeemAsset,
         amount,
         priorOutpoint: asset.authOutpoint
       }
@@ -279,14 +297,14 @@ export default function IssuerPanel() {
           lockingScript: nextAuthLock.toHex(),
           outputDescription: 'redeem auth',
           basket: BASKET,
-          customInstructions: adminCustomInstructions(redeemAsset, asset.label, redeemDetails, asset.metadata)
+          customInstructions: adminCustomInstructions(effectiveRedeemAsset, asset.label, redeemDetails, asset.metadata)
         }
       ]
 
       let keyIDChange = ''
       if (change > 0) {
         keyIDChange = 'rchg-' + Date.now()
-        const ftChange = await new MandalaToken(wallet as any).lockBRC29(redeemAsset, change, FT_PROTOCOL, keyIDChange, identityKey)
+        const ftChange = await new MandalaToken(wallet as any).lockBRC29(effectiveRedeemAsset, change, FT_PROTOCOL, keyIDChange, identityKey)
         outputs.push({
           satoshis: 1,
           lockingScript: ftChange.toHex(),
@@ -347,7 +365,7 @@ export default function IssuerPanel() {
     } finally {
       setBusy(false)
     }
-  }, [wallet, identityKey, assets, redeemAsset, redeemAmount, reload])
+  }, [wallet, identityKey, assets, effectiveRedeemAsset, redeemAmount, reload])
 
   // ---------------------------------------------------------------------------
   // Recover: seize/re-issue tokens to a specified recipient identity key.
@@ -355,7 +373,7 @@ export default function IssuerPanel() {
   // ---------------------------------------------------------------------------
   const recover = useCallback(async () => {
     if (wallet == null || identityKey == null) return
-    const asset = assets.find(a => a.assetId === recoverAsset)
+    const asset = assets.find(a => a.assetId === effectiveRecoverAsset)
     const amount = parseAmount(recoverAmount, Number(asset?.metadata?.decimals) || 0)
     if (asset == null || !Number.isInteger(amount) || amount < 1 || recoverRecipient.trim() === '') return
     setBusy(true)
@@ -364,12 +382,12 @@ export default function IssuerPanel() {
       const recipient = recoverRecipient.trim()
 
       // Build FT locking script for the recovered tokens (to recipient).
-      const ftLock = await new MandalaToken(wallet as any).lockBRC29(recoverAsset, amount, FT_PROTOCOL, keyID, recipient)
+      const ftLock = await new MandalaToken(wallet as any).lockBRC29(effectiveRecoverAsset, amount, FT_PROTOCOL, keyID, recipient)
 
       // Build next admin-auth locking script.
       const recoverDetails: MandalaActionDetails = {
         kind: 'recover',
-        assetId: recoverAsset,
+        assetId: effectiveRecoverAsset,
         amount,
         priorOutpoint: asset.authOutpoint
       }
@@ -403,7 +421,7 @@ export default function IssuerPanel() {
             lockingScript: nextAuthLock.toHex(),
             outputDescription: 'recover auth',
             basket: BASKET,
-            customInstructions: adminCustomInstructions(recoverAsset, asset.label, recoverDetails, asset.metadata)
+            customInstructions: adminCustomInstructions(effectiveRecoverAsset, asset.label, recoverDetails, asset.metadata)
           }
         ],
         options: { randomizeOutputs: false }
@@ -437,7 +455,7 @@ export default function IssuerPanel() {
           recipient,
           messageBox: MESSAGEBOX,
           body: {
-            assetId: recoverAsset,
+            assetId: effectiveRecoverAsset,
             amount,
             transaction: signed.tx,
             keyID,
@@ -456,7 +474,7 @@ export default function IssuerPanel() {
     } finally {
       setBusy(false)
     }
-  }, [wallet, identityKey, assets, recoverAsset, recoverAmount, recoverRecipient, reload])
+  }, [wallet, identityKey, assets, effectiveRecoverAsset, recoverAmount, recoverRecipient, reload])
 
   const assetOptions = (
     <>
@@ -501,12 +519,14 @@ export default function IssuerPanel() {
           </div>
 
           <div className="space-y-3">
-            <div>
-              <label className={labelCls} htmlFor="issue-asset">Asset</label>
-              <Select id="issue-asset" value={issueAsset} onChange={e => setIssueAsset(e.target.value)} className={inputCls}>
-                {assetOptions}
-              </Select>
-            </div>
+            {controlledAssetId == null && (
+              <div>
+                <label className={labelCls} htmlFor="issue-asset">Asset</label>
+                <Select id="issue-asset" value={issueAsset} onChange={e => setIssueAsset(e.target.value)} className={inputCls}>
+                  {assetOptions}
+                </Select>
+              </div>
+            )}
             <div>
               <label className={labelCls} htmlFor="issue-amount">Amount</label>
               <Input
@@ -534,7 +554,7 @@ export default function IssuerPanel() {
 
           <Button
             onClick={() => void issue()}
-            disabled={busy || issueAsset === '' || issueAmount === ''}
+            disabled={busy || effectiveIssueAsset === '' || issueAmount === ''}
             className="w-full rounded-[11px] bg-primary text-primary-foreground mt-auto"
           >
             Issue mUSD
@@ -557,12 +577,14 @@ export default function IssuerPanel() {
           </div>
 
           <div className="space-y-3">
-            <div>
-              <label className={labelCls} htmlFor="redeem-asset">Asset</label>
-              <Select id="redeem-asset" value={redeemAsset} onChange={e => setRedeemAsset(e.target.value)} className={inputCls}>
-                {assetOptions}
-              </Select>
-            </div>
+            {controlledAssetId == null && (
+              <div>
+                <label className={labelCls} htmlFor="redeem-asset">Asset</label>
+                <Select id="redeem-asset" value={redeemAsset} onChange={e => setRedeemAsset(e.target.value)} className={inputCls}>
+                  {assetOptions}
+                </Select>
+              </div>
+            )}
             <div>
               <label className={labelCls} htmlFor="redeem-amount">Amount</label>
               <Input
@@ -590,7 +612,7 @@ export default function IssuerPanel() {
 
           <button
             onClick={() => void redeem()}
-            disabled={busy || redeemAsset === '' || redeemAmount === ''}
+            disabled={busy || effectiveRedeemAsset === '' || redeemAmount === ''}
             className="w-full rounded-[11px] mt-auto py-[10px] px-4 text-[13.5px] font-medium transition-opacity disabled:opacity-40 bg-background border border-destructive/40 text-destructive"
           >
             Redeem (burn)
@@ -613,12 +635,14 @@ export default function IssuerPanel() {
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-          <div>
-            <label className={labelCls} htmlFor="recover-asset">Asset</label>
-            <Select id="recover-asset" value={recoverAsset} onChange={e => setRecoverAsset(e.target.value)} className={inputCls}>
-              {assetOptions}
-            </Select>
-          </div>
+          {controlledAssetId == null && (
+            <div>
+              <label className={labelCls} htmlFor="recover-asset">Asset</label>
+              <Select id="recover-asset" value={recoverAsset} onChange={e => setRecoverAsset(e.target.value)} className={inputCls}>
+                {assetOptions}
+              </Select>
+            </div>
+          )}
           <div>
             <label className={labelCls} htmlFor="recover-amount">Amount</label>
             <Input
@@ -657,7 +681,7 @@ export default function IssuerPanel() {
 
         <button
           onClick={() => void recover()}
-          disabled={busy || recoverAsset === '' || recoverAmount === '' || recoverRecipient.trim() === ''}
+          disabled={busy || effectiveRecoverAsset === '' || recoverAmount === '' || recoverRecipient.trim() === ''}
           className="mt-4 rounded-[11px] px-5 py-[10px] text-[13.5px] font-medium transition-opacity disabled:opacity-40 bg-[var(--accent-foreground)] text-background"
         >
           Recover

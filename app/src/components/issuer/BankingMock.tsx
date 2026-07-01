@@ -14,7 +14,12 @@ interface IssuedDeposit {
   issuedAt: number
 }
 
-export default function BankingMock() {
+interface BankingMockProps {
+  /** Controlled mode: when set, use this assetId and hide the header asset selector. */
+  assetId?: string
+}
+
+export default function BankingMock({ assetId: controlledAssetId }: BankingMockProps = {}) {
   const { wallet, messageBoxClient, identityKey } = useWallet()
   const [assets, setAssets] = useState<AdminAsset[]>([])
   const [selectedAssetId, setSelectedAssetId] = useState('')
@@ -23,7 +28,10 @@ export default function BankingMock() {
   const [recon, setRecon] = useState<{ bankBalance: number, netSupply: number, drift: number } | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const asset = assets.find(a => a.assetId === selectedAssetId) ?? null
+  // In controlled mode the active asset id comes from the prop
+  const activeAssetId = controlledAssetId ?? selectedAssetId
+
+  const asset = assets.find(a => a.assetId === activeAssetId) ?? null
   const decimals = Number(asset?.metadata?.decimals) || 0
 
   const loadAssets = useCallback(async () => {
@@ -35,14 +43,14 @@ export default function BankingMock() {
   useEffect(() => { void loadAssets() }, [loadAssets])
 
   const computeReconciliation = useCallback(async () => {
-    if (wallet == null || selectedAssetId === '') { setRecon(null); return }
+    if (wallet == null || activeAssetId === '') { setRecon(null); return }
     try {
       // Sum amounts from received deposits (proxy for on-chain issue via bank)
       const bankDepositAmounts = deposits.map(d => d.amount)
       const bankWithdrawAmounts: number[] = []
 
       // Sum issued and redeemed from admin history
-      const history = await resolveAdminHistory(selectedAssetId)
+      const history = await resolveAdminHistory(activeAssetId)
       let totalIssued = 0
       let totalRedeemed = 0
       for (const row of history) {
@@ -60,7 +68,7 @@ export default function BankingMock() {
     } catch {
       setRecon(null)
     }
-  }, [wallet, selectedAssetId, deposits])
+  }, [wallet, activeAssetId, deposits])
 
   useEffect(() => { void computeReconciliation() }, [computeReconciliation])
 
@@ -109,17 +117,19 @@ export default function BankingMock() {
           <h1 className="text-[27px] font-semibold tracking-[-0.5px] leading-tight">Banking</h1>
           <p className="text-[13px] text-muted-foreground mt-[3px]">Plaid-sandbox deposit feed &amp; reserve reconciliation</p>
         </div>
-        <Select
-          id="bm-asset"
-          value={selectedAssetId}
-          onChange={e => setSelectedAssetId(e.target.value)}
-          className="w-auto text-[13px] rounded-full px-3 py-1.5 h-auto"
-        >
-          <option value="">Select asset…</option>
-          {assets.map(a => (
-            <option key={a.assetId} value={a.assetId}>{a.label}</option>
-          ))}
-        </Select>
+        {controlledAssetId == null && (
+          <Select
+            id="bm-asset"
+            value={selectedAssetId}
+            onChange={e => setSelectedAssetId(e.target.value)}
+            className="w-auto text-[13px] rounded-full px-3 py-1.5 h-auto"
+          >
+            <option value="">Select asset…</option>
+            {assets.map(a => (
+              <option key={a.assetId} value={a.assetId}>{a.label}</option>
+            ))}
+          </Select>
+        )}
       </div>
 
       {/* INCOMING DEPOSITS */}
@@ -159,7 +169,7 @@ export default function BankingMock() {
                 <button
                   className="bg-primary text-primary-foreground rounded-[10px] px-4 py-[10px] text-[12.5px] font-semibold whitespace-nowrap disabled:opacity-50"
                   onClick={() => void handleReceiveDeposit(dep)}
-                  disabled={busy || selectedAssetId === ''}
+                  disabled={busy || activeAssetId === ''}
                 >
                   Receive &amp; issue
                 </button>
