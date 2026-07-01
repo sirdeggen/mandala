@@ -20,6 +20,7 @@ import { loadHistory } from '../lib/mandala/history'
 import { deriveContacts, Contact } from '../lib/mandala/contacts'
 import { listContacts, StoredContact } from '../lib/mandala/contactsStore'
 import { resolveAssetState } from '../lib/mandala/adminState'
+import { useDevMode } from '../lib/devMode'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,6 +46,9 @@ const CONTACT_LIMIT = 12
 export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string } = {}) {
   const locked = lockedAssetId != null && lockedAssetId !== ''
   const { wallet, messageBoxClient, identityKey } = useWallet()
+  // Dev mode bypasses the frontend pause guard so a paused transfer actually
+  // reaches the overlay, proving the overlay (not the client) enforces the pause.
+  const devMode = useDevMode()
 
   // Wizard step
   const [step, setStep] = useState<Step>('recipient')
@@ -428,7 +432,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   }
 
   const handleConfirmAndSend = async () => {
-    if (isPaused) return
+    if (isPaused && !devMode) return // dev mode: let the overlay do the rejecting
     if (!assetId || !recipient || !sendAmount || sendAmount <= 0) return
     if (!selectedBalance || selectedBalance.amount < sendAmount) return
 
@@ -876,9 +880,15 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
       </div>
 
       {/* Pause guard */}
-      {isPaused && (
+      {isPaused && !devMode && (
         <div className="mx-5 mt-4 rounded-[--radius-md] bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
           Transfers are temporarily disabled by the issuer.
+        </div>
+      )}
+      {isPaused && devMode && (
+        <div className="mx-5 mt-4 rounded-[--radius-md] bg-warning/10 px-4 py-3 text-[13px] text-warning">
+          <span className="font-semibold">Developer mode:</span> frontend pause guard bypassed. This
+          asset is paused, so the overlay should reject the transfer server-side — send to verify.
         </div>
       )}
 
@@ -893,7 +903,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
       <div className="mt-auto px-5 pb-6 pt-4">
         <Button
           onClick={() => void handleConfirmAndSend()}
-          disabled={isSending || isPaused || wallet == null}
+          disabled={isSending || (isPaused && !devMode) || wallet == null}
           size="lg"
           className="w-full"
         >
