@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import * as Tabs from '@radix-ui/react-tabs'
-import { Wallet, Send, Download, ShieldCheck, Copy, Check, Loader2, AlertTriangle } from 'lucide-react'
+import { Wallet, Send, Download, ShieldCheck, Copy, Check, AlertTriangle } from 'lucide-react'
 import { useWallet } from '../context/WalletContext'
 import IssuerDashboard from './issuer/IssuerDashboard'
 import TokenWallet from './TokenWallet'
 import SendTokens from './SendTokens'
 import ReceiveTokens from './ReceiveTokens'
 import { cn } from '@/lib/utils'
+import { BrandMark } from './ui/BrandMark'
 
 const segTrigger = cn(
   'inline-flex flex-1 items-center justify-center gap-1.5 rounded-[7px] px-3 py-1.5',
@@ -50,9 +51,16 @@ export default function TokenDemo() {
   if (!isInitialized) {
     return (
       <div className="grid min-h-screen place-items-center">
-        <div className="flex flex-col items-center gap-3 text-muted-foreground animate-in">
-          <Loader2 className="h-7 w-7 animate-spin text-primary" />
-          <p className="text-[15px]">Connecting your wallet…</p>
+        <div className="flex flex-col items-center gap-4 animate-in">
+          {/* Meridian spinner: navy ring matching the brand knot */}
+          <div className="relative h-9 w-9">
+            <div className="absolute inset-0 rounded-full border-[2.5px] border-primary/15" />
+            <div
+              className="absolute inset-0 animate-spin rounded-full border-[2.5px] border-solid"
+              style={{ borderColor: 'var(--brass)', borderRightColor: 'transparent' }}
+            />
+          </div>
+          <p className="text-[14px] font-medium text-muted-foreground">Connecting your wallet…</p>
         </div>
       </div>
     )
@@ -62,11 +70,11 @@ export default function TokenDemo() {
     return (
       <div className="grid min-h-screen place-items-center px-6">
         <div className="flex max-w-sm flex-col items-center gap-3 text-center animate-in">
-          <div className="grid h-12 w-12 place-items-center rounded-full bg-destructive/10">
+          <div className="grid h-12 w-12 place-items-center rounded-[13px] bg-destructive/10">
             <AlertTriangle className="h-6 w-6 text-destructive" />
           </div>
-          <h2 className="text-[17px] font-semibold">Couldn’t connect</h2>
-          <p className="text-[14px] leading-relaxed text-muted-foreground">{error}</p>
+          <h2 className="text-[17px] font-semibold tracking-[-0.01em]">Couldn't connect</h2>
+          <p className="text-[13px] leading-relaxed text-muted-foreground">{error}</p>
         </div>
       </div>
     )
@@ -75,15 +83,7 @@ export default function TokenDemo() {
   return (
     <div className="mx-auto max-w-2xl px-5 pb-20 pt-8 sm:pt-12">
       <header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-[13px] bg-primary text-primary-foreground shadow-[var(--shadow-card)]">
-            <Wallet className="h-[22px] w-[22px]" />
-          </div>
-          <div>
-            <h1 className="text-[26px] font-bold leading-none tracking-[-0.02em]">Mandala</h1>
-            <p className="mt-1 text-[13px] text-muted-foreground">Token wallet</p>
-          </div>
-        </div>
+        <BrandMark wordmark size="sm" sublabel="TOKEN WALLET" />
         {identityKey && <IdentityChip identityKey={identityKey} />}
       </header>
 
