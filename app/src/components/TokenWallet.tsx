@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import AccountsOverview from './holder/AccountsOverview'
+import HolderHome, { type HolderAction } from './holder/HolderHome'
 import AssetAccount from './holder/AssetAccount'
 
 interface SelectedAsset {
@@ -7,7 +7,13 @@ interface SelectedAsset {
   balance: number
 }
 
-export default function TokenWallet() {
+interface Props {
+  identityKey?: string | null
+  /** Called when the user taps a quick action on the home screen */
+  onAction?: (action: HolderAction) => void
+}
+
+export default function TokenWallet({ identityKey, onAction }: Props) {
   const [selected, setSelected] = useState<SelectedAsset | null>(null)
 
   if (selected != null) {
@@ -21,8 +27,10 @@ export default function TokenWallet() {
   }
 
   return (
-    <AccountsOverview
+    <HolderHome
       onSelect={(assetId, balance) => setSelected({ assetId, balance })}
+      onAction={onAction}
+      identityKey={identityKey}
     />
   )
 }
