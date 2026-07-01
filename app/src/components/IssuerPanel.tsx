@@ -514,7 +514,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
             </div>
             <div>
               <p className="text-[15px] font-semibold leading-tight">Issue tokens</p>
-              <p className="text-[11.5px] text-subtle-foreground mt-0.5">Mint new mUSD into circulation</p>
+              <p className="text-[11.5px] text-subtle-foreground mt-0.5">Mint new tokens into circulation</p>
             </div>
           </div>
 
@@ -557,7 +557,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
             disabled={busy || effectiveIssueAsset === '' || issueAmount === ''}
             className="w-full rounded-[11px] bg-primary text-primary-foreground mt-auto"
           >
-            Issue mUSD
+            Issue Tokens
           </Button>
         </div>
 
@@ -572,7 +572,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
             </div>
             <div>
               <p className="text-[15px] font-semibold leading-tight">Redeem tokens</p>
-              <p className="text-[11.5px] text-subtle-foreground mt-0.5">Burn mUSD out of circulation</p>
+              <p className="text-[11.5px] text-subtle-foreground mt-0.5">Burn tokens out of circulation</p>
             </div>
           </div>
 
