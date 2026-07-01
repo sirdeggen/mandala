@@ -3,7 +3,7 @@ import { Transaction, Beef, LockingScript } from '@bsv/sdk'
 import { MandalaToken, MandalaAdmin } from '@bsv/templates'
 import { toast } from 'sonner'
 import { useWallet } from '../context/WalletContext'
-import { FT_PROTOCOL, BASKET, MESSAGEBOX } from '../lib/mandala/constants'
+import { FT_PROTOCOL, BASKET } from '../lib/mandala/constants'
 import { encodeLinkagePayload, MandalaActionDetails } from '../lib/mandala/encoding'
 import { submitToOverlay } from '../lib/mandala/overlay'
 import { outpoint, revealLinkage } from '../lib/mandala/tokens'
@@ -14,18 +14,18 @@ import {
   listAdminAssets,
   adminCustomInstructions
 } from '../lib/mandala/assets'
-import { Sparkles, Flame, ShieldAlert } from 'lucide-react'
+import { Sparkles, Flame } from 'lucide-react'
 import { Input } from './ui/input'
 import { Select } from './ui/select'
 import { Button } from './ui/button'
 
 interface IssuerPanelProps {
-  /** When set, sync to issue/redeem/recover asset selection and hide per-section dropdowns. */
+  /** When set, sync to issue/redeem asset selection and hide per-section dropdowns. */
   assetId?: string
 }
 
 export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelProps = {}) {
-  const { wallet, messageBoxClient, identityKey } = useWallet()
+  const { wallet, identityKey } = useWallet()
   const [label, setLabel] = useState('')
   const [ticker, setTicker] = useState('')
   const [decimals, setDecimals] = useState('0')
@@ -34,15 +34,11 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
   const [issueAmount, setIssueAmount] = useState('')
   const [redeemAsset, setRedeemAsset] = useState('')
   const [redeemAmount, setRedeemAmount] = useState('')
-  const [recoverAsset, setRecoverAsset] = useState('')
-  const [recoverAmount, setRecoverAmount] = useState('')
-  const [recoverRecipient, setRecoverRecipient] = useState('')
   const [busy, setBusy] = useState(false)
 
   // UI-only state (not passed to any core function)
   const [issueRef, setIssueRef] = useState('')
   const [redeemNote, setRedeemNote] = useState('')
-  const [recoverOutpoint, setRecoverOutpoint] = useState('')
 
   const reload = useCallback(async () => {
     if (wallet != null) setAssets(await listAdminAssets(wallet as any))
@@ -54,13 +50,11 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
     if (controlledAssetId == null) return
     setIssueAsset(controlledAssetId)
     setRedeemAsset(controlledAssetId)
-    setRecoverAsset(controlledAssetId)
   }, [controlledAssetId])
 
   // Effective asset ids: controlled prop takes precedence over internal state
   const effectiveIssueAsset = controlledAssetId ?? issueAsset
   const effectiveRedeemAsset = controlledAssetId ?? redeemAsset
-  const effectiveRecoverAsset = controlledAssetId ?? recoverAsset
 
   // ---------------------------------------------------------------------------
   // Register: ONE tx, ONE output that both carries the public metadata blob and
@@ -367,115 +361,6 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
     }
   }, [wallet, identityKey, assets, effectiveRedeemAsset, redeemAmount, reload])
 
-  // ---------------------------------------------------------------------------
-  // Recover: seize/re-issue tokens to a specified recipient identity key.
-  //   Output [0] = FT to recipient; Output [1] = next admin auth.
-  // ---------------------------------------------------------------------------
-  const recover = useCallback(async () => {
-    if (wallet == null || identityKey == null) return
-    const asset = assets.find(a => a.assetId === effectiveRecoverAsset)
-    const amount = parseAmount(recoverAmount, Number(asset?.metadata?.decimals) || 0)
-    if (asset == null || !Number.isInteger(amount) || amount < 1 || recoverRecipient.trim() === '') return
-    setBusy(true)
-    try {
-      const keyID = 'recover-' + Date.now()
-      const recipient = recoverRecipient.trim()
-
-      // Build FT locking script for the recovered tokens (to recipient).
-      const ftLock = await new MandalaToken(wallet as any).lockBRC29(effectiveRecoverAsset, amount, FT_PROTOCOL, keyID, recipient)
-
-      // Build next admin-auth locking script.
-      const recoverDetails: MandalaActionDetails = {
-        kind: 'recover',
-        assetId: effectiveRecoverAsset,
-        amount,
-        priorOutpoint: asset.authOutpoint
-      }
-      const nextAuthLock = await MandalaAdmin.lock({ wallet: wallet as any, data: recoverDetails })
-
-      // Fetch BEEF for the prior auth outpoint.
-      const listResult = await wallet.listOutputs({
-        basket: BASKET,
-        include: 'entire transactions',
-        limit: 1000
-      })
-      if (listResult.BEEF == null) throw new Error('listOutputs returned no BEEF')
-
-      const created = await wallet.createAction({
-        description: `Recover ${amount} ${asset.label}`,
-        labels: ['mandala', 'recover'],
-        inputBEEF: listResult.BEEF as number[],
-        inputs: [{
-          outpoint: asset.authOutpoint,
-          unlockingScriptLength: 108,
-          inputDescription: 'spend prior auth'
-        }],
-        outputs: [
-          {
-            satoshis: 1,
-            lockingScript: ftLock.toHex(),
-            outputDescription: 'recovered FT'
-          },
-          {
-            satoshis: 1,
-            lockingScript: nextAuthLock.toHex(),
-            outputDescription: 'recover auth',
-            basket: BASKET,
-            customInstructions: adminCustomInstructions(effectiveRecoverAsset, asset.label, recoverDetails, asset.metadata)
-          }
-        ],
-        options: { randomizeOutputs: false }
-      })
-
-      if (created.signableTransaction == null) throw new Error('recover: no signableTransaction returned')
-
-      // Sign the prior auth input.
-      const txToSign = Transaction.fromBEEF(created.signableTransaction.tx as number[])
-      txToSign.inputs[0].unlockingScriptTemplate = MandalaAdmin.unlock({ wallet: wallet as any, data: asset.authDetails })
-      await txToSign.sign()
-
-      const signed = await wallet.signAction({
-        reference: created.signableTransaction.reference,
-        spends: { '0': { unlockingScript: txToSign.inputs[0].unlockingScript!.toHex() } }
-      })
-
-      if (signed.tx == null || signed.txid == null) throw new Error('signAction: no tx returned')
-
-      // FT linkage for index 0 (recipient); admin at index 1.
-      const linkage = await revealLinkage(wallet as any, keyID, recipient)
-      const offChainValues = encodeLinkagePayload({
-        inputs: [],
-        outputs: [{ index: 0, linkage }],
-        admin: [{ index: 1, actionDetails: recoverDetails }]
-      })
-      await submitToOverlay(signed.tx as number[], offChainValues)
-
-      if (messageBoxClient != null) {
-        await messageBoxClient.sendMessage({
-          recipient,
-          messageBox: MESSAGEBOX,
-          body: {
-            assetId: effectiveRecoverAsset,
-            amount,
-            transaction: signed.tx,
-            keyID,
-            protocolID: FT_PROTOCOL,
-            sender: identityKey
-          }
-        })
-      }
-
-      toast.success(`Recovered ${formatAmount(amount, Number(asset.metadata?.decimals) || 0)} ${asset.label} to ${recipient.slice(0, 12)}…`)
-      setRecoverAmount('')
-      setRecoverRecipient('')
-      void reload()
-    } catch (e) {
-      toast.error(`Recover failed: ${String(e)}`)
-    } finally {
-      setBusy(false)
-    }
-  }, [wallet, identityKey, assets, effectiveRecoverAsset, recoverAmount, recoverRecipient, reload])
-
   const assetOptions = (
     <>
       <option value="">Select…</option>
@@ -497,7 +382,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
           Operations
         </h1>
         <p className="text-subtle-foreground text-[13.5px] mt-1">
-          Mint, redeem &amp; recover the US Dollar stablecoin
+          Mint &amp; redeem the US Dollar stablecoin
         </p>
       </div>
 
@@ -620,73 +505,10 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
         </div>
       </div>
 
-      {/* Recover: full-width card */}
-      <div className="bg-card border border-border rounded-[14px] p-[18px]">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-accent text-accent-foreground">
-            <ShieldAlert className="h-[18px] w-[18px]" />
-          </div>
-          <div>
-            <p className="text-[15px] font-semibold leading-tight">Recover tokens</p>
-            <p className="text-[11.5px] text-subtle-foreground mt-0.5">
-              Seize from a frozen output and re-issue the same amount to the rightful owner · net supply unchanged
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-          {controlledAssetId == null && (
-            <div>
-              <label className={labelCls} htmlFor="recover-asset">Asset</label>
-              <Select id="recover-asset" value={recoverAsset} onChange={e => setRecoverAsset(e.target.value)} className={inputCls}>
-                {assetOptions}
-              </Select>
-            </div>
-          )}
-          <div>
-            <label className={labelCls} htmlFor="recover-amount">Amount</label>
-            <Input
-              id="recover-amount"
-              type="number"
-              min="0"
-              step="any"
-              value={recoverAmount}
-              onChange={e => setRecoverAmount(e.target.value)}
-              className={inputCls}
-            />
-          </div>
-          <div>
-            <label className={labelCls} htmlFor="recover-outpoint">From frozen outpoint</label>
-            <Input
-              id="recover-outpoint"
-              type="text"
-              value={recoverOutpoint}
-              onChange={e => setRecoverOutpoint(e.target.value)}
-              placeholder="txid.vout"
-              className={`${inputCls} font-mono`}
-            />
-          </div>
-          <div>
-            <label className={labelCls} htmlFor="recover-recipient">To identity key</label>
-            <Input
-              id="recover-recipient"
-              type="text"
-              value={recoverRecipient}
-              onChange={e => setRecoverRecipient(e.target.value)}
-              placeholder="02abc…"
-              className={`${inputCls} font-mono`}
-            />
-          </div>
-        </div>
-
-        <button
-          onClick={() => void recover()}
-          disabled={busy || effectiveRecoverAsset === '' || recoverAmount === '' || recoverRecipient.trim() === ''}
-          className="mt-4 rounded-[11px] px-5 py-[10px] text-[13.5px] font-medium transition-opacity disabled:opacity-40 bg-[var(--accent-foreground)] text-background"
-        >
-          Recover
-        </button>
-      </div>
+      {/* Recovery of a frozen output lives in Regulatory → "Reissue from frozen
+          output": it ties the minted amount to the frozen row and the overlay
+          enforces conservation (reissue guard), so circulation can't drift. A
+          free-form "recover" mint here could not guarantee that, so it's gone. */}
 
       {/* Register: slim strip at bottom */}
       <div

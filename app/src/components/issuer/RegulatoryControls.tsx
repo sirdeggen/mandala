@@ -568,16 +568,21 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
               ))}
             </Select>
 
-            {/* Amount */}
+            {/* Amount — locked to the selected frozen output's value. The
+                overlay's reissue guard rejects any mismatch, so circulation is
+                conserved; keep the field read-only so it can't be understated. */}
             <input
               type="number"
-              min="0"
-              step="any"
               value={reissueAmount}
-              onChange={e => setReissueAmount(e.target.value)}
-              placeholder="Amount (prefilled from frozen output)"
-              className="bg-white border border-[rgba(27,30,36,.12)] rounded-[10px] px-[13px] py-[11px] font-mono text-[12px] text-foreground placeholder:text-subtle-foreground w-full mt-2 outline-none focus:border-[rgba(27,30,36,.3)]"
+              readOnly
+              aria-readonly="true"
+              tabIndex={-1}
+              placeholder="Select a frozen output"
+              className="bg-muted border border-[rgba(27,30,36,.12)] rounded-[10px] px-[13px] py-[11px] font-mono text-[12px] text-foreground w-full mt-2 outline-none cursor-not-allowed"
             />
+            <p className="text-[11px] text-subtle-foreground mt-1">
+              Locked to the frozen output's amount — reissuing a different value is rejected by the overlay, so circulation stays constant.
+            </p>
 
             {/* Recipient search */}
             <div className="mt-2">
