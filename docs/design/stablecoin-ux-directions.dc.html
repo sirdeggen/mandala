@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#E7E4DE;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .dv-turn{padding:44px 48px 40px;border-bottom:1px solid rgba(0,0,0,.08)}
+  .dv-thd{display:flex;align-items:baseline;gap:11px;margin:0 0 8px}
+  .dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}
+  .dv-tname{font:600 14px/1.3 'IBM Plex Sans',sans-serif;color:#1a1a1a}
+  .dv-tsub{font:400 13px/1.4 'IBM Plex Sans',sans-serif;color:rgba(0,0,0,.5);margin:0 0 26px;max-width:720px}
+  .dv-opts{display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start}
+  .dv-opt{flex:none;display:flex;flex-direction:column;gap:12px;scroll-margin-top:20px}
+  .dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.09);color:#1a1a1a;border-radius:5px;text-decoration:none}
+  .dv-olabel{display:flex;align-items:baseline;gap:9px;font:400 12.5px/1.4 'IBM Plex Sans',sans-serif;color:rgba(0,0,0,.6);max-width:560px}
+  .dv-olabel b{color:rgba(0,0,0,.9);font-weight:600}
+  .dv-opt:target .dv-oid{background:#2a78d6;color:#fff}
+  .dv-next{margin:30px 0 0;font:13px/1.6 'IBM Plex Sans',sans-serif;color:rgba(0,0,0,.5)}
+  .dv-next a{text-decoration:none}
+  @keyframes dvUp{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+  @keyframes glowPulse{0%,100%{opacity:.45}50%{opacity:.85}}
+</style>
+</helmet>
+<section class="dv-turn" id="t4">
+  <div class="dv-thd"><a class="dv-tid" href="#t4">4</a><span class="dv-tname">Issuer console — Operations, Regulatory &amp; Banking (desktop)</span></div>
+  <p class="dv-tsub">The remaining issuer tabs, scoped to the single mUSD asset (switch via the header dropdown). Audit log now lives inside <a class="dv-oid" href="#2b">2b</a> Overview, so it's dropped from the side nav. Meridian palette throughout.</p>
+  <div class="dv-opts">
+
+    <!-- 4A OPERATIONS -->
+    <div class="dv-opt" id="4a">
+      <div class="dv-olabel"><a class="dv-oid" href="#4a">4a</a><span><b>Operations</b> — issue, redeem &amp; recover mUSD. Registering another asset is the rare case, tucked into a slim strip at the bottom.</span></div>
+      <div style="width:1060px;border-radius:15px;overflow:hidden;box-shadow:0 40px 90px -34px rgba(40,34,20,.55),0 0 0 1px rgba(27,30,36,.1);flex:none;background:#F4EFE6">
+        <div style="height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;background:#EBE4D8;border-bottom:1px solid rgba(27,30,36,.09)"><div style="display:flex;gap:7px"><div style="width:11px;height:11px;border-radius:50%;background:#E0685C"></div><div style="width:11px;height:11px;border-radius:50%;background:#E6B34D"></div><div style="width:11px;height:11px;border-radius:50%;background:#5FB37E"></div></div><div style="flex:1;display:flex;justify-content:center"><div style="font:400 12px/1 'IBM Plex Mono';color:#8A8375;background:#F4EFE6;padding:6px 16px;border-radius:7px;border:1px solid rgba(27,30,36,.07)">mandala.money/issuer/operations</div></div></div>
+        <div style="display:flex;height:660px">
+          <div style="width:230px;background:#EDE6DA;border-right:1px solid rgba(27,30,36,.08);display:flex;flex-direction:column;padding:20px 14px">
+            <div style="display:flex;align-items:center;gap:10px;padding:0 8px 20px"><div style="width:30px;height:30px;border-radius:8px;background:#23405E;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 48 48" fill="none" stroke="#C9A96A" stroke-width="2.6" stroke-linejoin="round"><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(90 24 24)"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(180 24 24)"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(270 24 24)"/></svg></div><div><div style="font:600 16px/1 'IBM Plex Sans';letter-spacing:.3px">Mandala</div><div style="font:500 9px/1 'IBM Plex Sans';letter-spacing:1px;color:#A79F8D;margin-top:3px">ISSUER CONSOLE</div></div></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;color:#6E685B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span style="font:500 13px/1 'IBM Plex Sans'">Overview</span></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;background:#fff;color:#1B1E24;position:relative;box-shadow:0 1px 2px rgba(27,30,36,.06)"><div style="position:absolute;left:0;top:9px;bottom:9px;width:3px;background:#C9A96A;border-radius:0 3px 3px 0"></div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#23405E" stroke-width="1.9"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg><span style="font:600 13px/1 'IBM Plex Sans'">Operations</span></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;color:#6E685B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3l7 3v6c0 5-3 8-7 9-4-1-7-4-7-9V6z" stroke-linejoin="round"/></svg><span style="font:500 13px/1 'IBM Plex Sans'">Regulatory</span></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;color:#6E685B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20" stroke-linecap="round"/></svg><span style="font:500 13px/1 'IBM Plex Sans'">Banking</span></div>
+            <div style="margin-top:auto;display:flex;align-items:center;gap:10px;padding:12px 10px;background:#F4EFE6;border-radius:11px;border:1px solid rgba(27,30,36,.07)"><div style="width:30px;height:30px;border-radius:8px;background:#23405E;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Sans'">NT</div><div style="min-width:0"><div style="font:600 12px/1.1 'IBM Plex Sans'">Northwind Trust</div><div style="font:400 10px/1.1 'IBM Plex Sans';color:#8A8375;margin-top:2px">Verified issuer</div></div></div>
+          </div>
+          <div style="flex:1;padding:24px 30px;overflow:hidden;color:#1B1E24">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between">
+              <div><h1 style="font:600 27px/1 'IBM Plex Sans';letter-spacing:-.5px;margin:0">Operations</h1><div style="font:400 13px/1 'IBM Plex Sans';color:#8A8375;margin-top:8px">Mint, redeem &amp; recover the US Dollar stablecoin</div></div>
+              <div style="display:flex;align-items:center;gap:9px;padding:7px 11px;background:#fff;border:1px solid rgba(27,30,36,.12);border-radius:10px"><div style="width:22px;height:22px;border-radius:6px;background:#E7DEC9;color:#8A6D3B;display:flex;align-items:center;justify-content:center;font:700 11px 'IBM Plex Sans'">$</div><div style="line-height:1"><div style="font:600 12px 'IBM Plex Sans'">US Dollar</div><div style="font:400 9.5px 'IBM Plex Sans';color:#8A8375;margin-top:2px">mUSD</div></div><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8A8375" stroke-width="2.2"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px">
+              <div style="background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:14px;padding:18px">
+                <div style="display:flex;align-items:center;gap:12px"><div style="width:38px;height:38px;border-radius:10px;background:rgba(35,64,94,.1);color:#23405E;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 5.9L20 10l-5.8 2.1L12 18l-2.2-5.9L4 10l5.8-2.1z"/></svg></div><div><div style="font:600 15px/1 'IBM Plex Sans'">Issue tokens</div><div style="font:400 11.5px/1 'IBM Plex Sans';color:#8A8375;margin-top:4px">Mint new mUSD into circulation</div></div></div>
+                <div style="margin-top:16px"><div style="font:500 11px/1 'IBM Plex Sans';color:#8A8375;margin-bottom:7px">Amount</div><div style="background:#F4EFE6;border:1px solid rgba(27,30,36,.12);border-radius:10px;padding:11px 13px;font:400 13px 'IBM Plex Sans';color:#B4AC98">0.00</div></div>
+                <div style="margin-top:12px"><div style="font:500 11px/1 'IBM Plex Sans';color:#8A8375;margin-bottom:7px">Backed by <span style="color:#B4AC98">(optional)</span></div><div style="background:#F4EFE6;border:1px solid rgba(27,30,36,.12);border-radius:10px;padding:11px 13px;font:400 13px 'IBM Plex Sans';color:#B4AC98">Bank deposit ref · BR-…</div></div>
+                <div style="margin-top:16px;background:#23405E;color:#F4EFE6;border-radius:11px;padding:12px;text-align:center;font:600 13px 'IBM Plex Sans'">Issue mUSD</div>
+              </div>
+              <div style="background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:14px;padding:18px">
+                <div style="display:flex;align-items:center;gap:12px"><div style="width:38px;height:38px;border-radius:10px;background:rgba(180,112,58,.12);color:#B4703A;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3c3 4 5 6 5 9a5 5 0 01-10 0c0-1.4.6-2.7 1.4-3.8.4 1 1.3 1.8 2.1 1.8-.3-2.4.7-5.2 1.5-7z" stroke-linejoin="round"/></svg></div><div><div style="font:600 15px/1 'IBM Plex Sans'">Redeem tokens</div><div style="font:400 11.5px/1 'IBM Plex Sans';color:#8A8375;margin-top:4px">Burn mUSD out of circulation</div></div></div>
+                <div style="margin-top:16px"><div style="font:500 11px/1 'IBM Plex Sans';color:#8A8375;margin-bottom:7px">Amount</div><div style="background:#F4EFE6;border:1px solid rgba(27,30,36,.12);border-radius:10px;padding:11px 13px;font:400 13px 'IBM Plex Sans';color:#B4AC98">0.00</div></div>
+                <div style="margin-top:12px"><div style="font:500 11px/1 'IBM Plex Sans';color:#8A8375;margin-bottom:7px">Settlement note <span style="color:#B4AC98">(optional)</span></div><div style="background:#F4EFE6;border:1px solid rgba(27,30,36,.12);border-radius:10px;padding:11px 13px;font:400 13px 'IBM Plex Sans';color:#B4AC98">e.g. wire returned to holder</div></div>
+                <div style="margin-top:16px;background:#fff;border:1px solid rgba(180,83,74,.4);color:#B4534A;border-radius:11px;padding:12px;text-align:center;font:600 13px 'IBM Plex Sans'">Redeem (burn)</div>
+              </div>
+            </div>
+            <div style="background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:14px;padding:18px;margin-top:14px">
+              <div style="display:flex;align-items:center;gap:12px"><div style="width:38px;height:38px;border-radius:10px;background:rgba(138,109,59,.14);color:#8A6D3B;display:flex;align-items:center;justify-content:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3l7 3v6c0 5-3 8-7 9-4-1-7-4-7-9V6z" stroke-linejoin="round"/><path d="M12 9v3.5M12 15.5v.01" stroke-linecap="round"/></svg></div><div><div style="font:600 15px/1 'IBM Plex Sans'">Recover tokens</div><div style="font:400 11.5px/1 'IBM Plex Sans';color:#8A8375;margin-top:4px">Seize from a frozen output and re-issue the same amount to the rightful owner · net supply unchanged</div></div></div>
+              <div style="display:grid;grid-template-columns:0.7fr 1.3fr 1.3fr auto;gap:12px;align-items:end;margin-top:16px">
+                <div><div style="font:500 11px/1 'IBM Plex Sans';color:#8A8375;margin-bottom:7px">Amount</div><div style="background:#F4EFE6;border:1px solid rgba(27,30,36,.12);border-radius:10px;padding:11px 13px;font:400 13px 'IBM Plex Sans';color:#B4AC98">0.00</div></div>
+                <div><div style="font:500 11px/1 'IBM Plex Sans';color:#8A8375;margin-bottom:7px">From frozen outpoint</div><div style="background:#F4EFE6;border:1px solid rgba(27,30,36,.12);border-radius:10px;padding:11px 13px;font:400 12px 'IBM Plex Mono';color:#B4AC98">txid.vout</div></div>
+                <div><div style="font:500 11px/1 'IBM Plex Sans';color:#8A8375;margin-bottom:7px">To identity key</div><div style="background:#F4EFE6;border:1px solid rgba(27,30,36,.12);border-radius:10px;padding:11px 13px;font:400 12px 'IBM Plex Mono';color:#B4AC98">02ab…</div></div>
+                <div style="background:#8A6D3B;color:#F4EFE6;border-radius:11px;padding:12px 20px;text-align:center;font:600 13px 'IBM Plex Sans';white-space:nowrap">Recover</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;background:#EFE9DD;border:1px dashed rgba(27,30,36,.18);border-radius:12px;padding:14px 18px;margin-top:14px">
+              <div><div style="font:600 13px/1 'IBM Plex Sans'">Register a new asset</div><div style="font:400 11.5px/1 'IBM Plex Sans';color:#8A8375;margin-top:4px">Rare — most issuers run a single stablecoin</div></div>
+              <div style="display:flex;align-items:center;gap:7px;background:#fff;border:1px solid rgba(27,30,36,.14);border-radius:10px;padding:9px 14px;font:600 12.5px 'IBM Plex Sans';color:#23405E"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>Register asset</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4B REGULATORY -->
+    <div class="dv-opt" id="4b">
+      <div class="dv-olabel"><a class="dv-oid" href="#4b">4b</a><span><b>Regulatory</b> — a live state strip up top, then pause, access mode, freeze, block/allow, and reissue. Destructive actions in muted red.</span></div>
+      <div style="width:1060px;border-radius:15px;overflow:hidden;box-shadow:0 40px 90px -34px rgba(40,34,20,.55),0 0 0 1px rgba(27,30,36,.1);flex:none;background:#F4EFE6">
+        <div style="height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;background:#EBE4D8;border-bottom:1px solid rgba(27,30,36,.09)"><div style="display:flex;gap:7px"><div style="width:11px;height:11px;border-radius:50%;background:#E0685C"></div><div style="width:11px;height:11px;border-radius:50%;background:#E6B34D"></div><div style="width:11px;height:11px;border-radius:50%;background:#5FB37E"></div></div><div style="flex:1;display:flex;justify-content:center"><div style="font:400 12px/1 'IBM Plex Mono';color:#8A8375;background:#F4EFE6;padding:6px 16px;border-radius:7px;border:1px solid rgba(27,30,36,.07)">mandala.money/issuer/regulatory</div></div></div>
+        <div style="display:flex;height:660px">
+          <div style="width:230px;background:#EDE6DA;border-right:1px solid rgba(27,30,36,.08);display:flex;flex-direction:column;padding:20px 14px">
+            <div style="display:flex;align-items:center;gap:10px;padding:0 8px 20px"><div style="width:30px;height:30px;border-radius:8px;background:#23405E;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 48 48" fill="none" stroke="#C9A96A" stroke-width="2.6" stroke-linejoin="round"><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(90 24 24)"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(180 24 24)"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(270 24 24)"/></svg></div><div><div style="font:600 16px/1 'IBM Plex Sans';letter-spacing:.3px">Mandala</div><div style="font:500 9px/1 'IBM Plex Sans';letter-spacing:1px;color:#A79F8D;margin-top:3px">ISSUER CONSOLE</div></div></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;color:#6E685B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span style="font:500 13px/1 'IBM Plex Sans'">Overview</span></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;color:#6E685B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg><span style="font:500 13px/1 'IBM Plex Sans'">Operations</span></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;background:#fff;color:#1B1E24;position:relative;box-shadow:0 1px 2px rgba(27,30,36,.06)"><div style="position:absolute;left:0;top:9px;bottom:9px;width:3px;background:#C9A96A;border-radius:0 3px 3px 0"></div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#23405E" stroke-width="1.9"><path d="M12 3l7 3v6c0 5-3 8-7 9-4-1-7-4-7-9V6z" stroke-linejoin="round"/></svg><span style="font:600 13px/1 'IBM Plex Sans'">Regulatory</span></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;color:#6E685B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20" stroke-linecap="round"/></svg><span style="font:500 13px/1 'IBM Plex Sans'">Banking</span></div>
+            <div style="margin-top:auto;display:flex;align-items:center;gap:10px;padding:12px 10px;background:#F4EFE6;border-radius:11px;border:1px solid rgba(27,30,36,.07)"><div style="width:30px;height:30px;border-radius:8px;background:#23405E;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Sans'">NT</div><div style="min-width:0"><div style="font:600 12px/1.1 'IBM Plex Sans'">Northwind Trust</div><div style="font:400 10px/1.1 'IBM Plex Sans';color:#8A8375;margin-top:2px">Verified issuer</div></div></div>
+          </div>
+          <div style="flex:1;padding:24px 30px;overflow:hidden;color:#1B1E24">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between">
+              <div><h1 style="font:600 27px/1 'IBM Plex Sans';letter-spacing:-.5px;margin:0">Regulatory controls</h1><div style="font:400 13px/1 'IBM Plex Sans';color:#8A8375;margin-top:8px">Pause, freeze, block &amp; manage access for mUSD</div></div>
+              <div style="display:flex;align-items:center;gap:9px;padding:7px 11px;background:#fff;border:1px solid rgba(27,30,36,.12);border-radius:10px"><div style="width:22px;height:22px;border-radius:6px;background:#E7DEC9;color:#8A6D3B;display:flex;align-items:center;justify-content:center;font:700 11px 'IBM Plex Sans'">$</div><div style="line-height:1"><div style="font:600 12px 'IBM Plex Sans'">US Dollar</div><div style="font:400 9.5px 'IBM Plex Sans';color:#8A8375;margin-top:2px">mUSD</div></div><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8A8375" stroke-width="2.2"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            </div>
+            <div style="display:flex;gap:30px;background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:12px;padding:14px 20px;margin-top:18px">
+              <div><div style="font:400 10.5px/1 'IBM Plex Sans';color:#8A8375">Status</div><div style="display:flex;align-items:center;gap:6px;margin-top:7px"><span style="width:7px;height:7px;border-radius:50%;background:#3E7D5A"></span><span style="font:600 13px/1 'IBM Plex Sans'">Active</span></div></div>
+              <div style="width:1px;background:rgba(27,30,36,.08)"></div>
+              <div><div style="font:400 10.5px/1 'IBM Plex Sans';color:#8A8375">Access mode</div><div style="font:600 13px/1 'IBM Plex Sans';margin-top:7px">Denylist</div></div>
+              <div style="width:1px;background:rgba(27,30,36,.08)"></div>
+              <div><div style="font:400 10.5px/1 'IBM Plex Sans';color:#8A8375">Frozen outputs</div><div style="font:600 13px/1 'IBM Plex Sans';margin-top:7px;font-variant-numeric:tabular-nums">0</div></div>
+              <div style="width:1px;background:rgba(27,30,36,.08)"></div>
+              <div><div style="font:400 10.5px/1 'IBM Plex Sans';color:#8A8375">Blocked</div><div style="font:600 13px/1 'IBM Plex Sans';margin-top:7px;font-variant-numeric:tabular-nums">1</div></div>
+              <div style="width:1px;background:rgba(27,30,36,.08)"></div>
+              <div><div style="font:400 10.5px/1 'IBM Plex Sans';color:#8A8375">Allowed</div><div style="font:600 13px/1 'IBM Plex Sans';margin-top:7px;font-variant-numeric:tabular-nums">0</div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+              <div style="background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:14px;padding:16px 18px">
+                <div style="font:600 13.5px/1 'IBM Plex Sans'">Transfers</div>
+                <div style="font:400 11.5px/1.4 'IBM Plex Sans';color:#8A8375;margin-top:6px">Peer transfers are currently enabled. Pausing stops all holder transfers; admin actions still work.</div>
+                <div style="margin-top:14px;background:#B4534A;color:#fff;border-radius:11px;padding:12px;text-align:center;font:600 13px 'IBM Plex Sans'">Pause transfers</div>
+              </div>
+              <div style="background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:14px;padding:16px 18px">
+                <div style="font:600 13.5px/1 'IBM Plex Sans'">Access mode</div>
+                <div style="font:400 11.5px/1.4 'IBM Plex Sans';color:#8A8375;margin-top:6px">Denylist = anyone except blocked. Allowlist = only allowed identities.</div>
+                <div style="display:flex;background:#F4EFE6;border-radius:9px;padding:3px;margin-top:13px"><div style="flex:1;text-align:center;padding:8px;background:#fff;border-radius:7px;font:600 12px 'IBM Plex Sans';box-shadow:0 1px 2px rgba(27,30,36,.08)">Denylist</div><div style="flex:1;text-align:center;padding:8px;font:500 12px 'IBM Plex Sans';color:#8A8375">Allowlist</div></div>
+                <div style="margin-top:12px;background:#23405E;color:#F4EFE6;border-radius:11px;padding:11px;text-align:center;font:600 13px 'IBM Plex Sans'">Apply access mode</div>
+              </div>
+              <div style="background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:14px;padding:16px 18px">
+                <div style="font:600 13.5px/1 'IBM Plex Sans'">Freeze output</div>
+                <div style="margin-top:12px"><div style="background:#F4EFE6;border:1px solid rgba(27,30,36,.12);border-radius:10px;padding:11px 13px;font:400 12px 'IBM Plex Mono';color:#B4AC98">txid.vout</div></div>
+                <div style="display:flex;gap:10px;margin-top:12px"><div style="flex:1;background:#23405E;color:#F4EFE6;border-radius:11px;padding:11px;text-align:center;font:600 13px 'IBM Plex Sans'">Freeze</div><div style="flex:1;background:#fff;border:1px solid rgba(27,30,36,.16);color:#6E685B;border-radius:11px;padding:11px;text-align:center;font:600 13px 'IBM Plex Sans'">Unfreeze</div></div>
+              </div>
+              <div style="background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:14px;padding:16px 18px">
+                <div style="font:600 13.5px/1 'IBM Plex Sans'">Block / allow identity</div>
+                <div style="margin-top:12px"><div style="display:flex;align-items:center;gap:9px;background:#F4EFE6;border:1px solid rgba(27,30,36,.12);border-radius:10px;padding:10px 13px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A79F8D" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg><span style="font:400 12.5px 'IBM Plex Sans';color:#B4AC98">Search identity, or paste key</span></div></div>
+                <div style="display:flex;gap:10px;margin-top:12px"><div style="flex:1;background:#fff;border:1px solid rgba(180,83,74,.4);color:#B4534A;border-radius:11px;padding:11px;text-align:center;font:600 13px 'IBM Plex Sans'">Block</div><div style="flex:1;background:#23405E;color:#F4EFE6;border-radius:11px;padding:11px;text-align:center;font:600 13px 'IBM Plex Sans'">Allow</div></div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;background:#EFE9DD;border:1px dashed rgba(27,30,36,.18);border-radius:12px;padding:14px 18px;margin-top:14px">
+              <div><div style="font:600 13px/1 'IBM Plex Sans'">Reissue from frozen output</div><div style="font:400 11.5px/1 'IBM Plex Sans';color:#8A8375;margin-top:4px">No frozen outputs available — freeze one above to reissue to a rightful owner.</div></div>
+              <div style="font:500 12.5px 'IBM Plex Sans';color:#B4AC98">Nothing to reissue</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4C BANKING -->
+    <div class="dv-opt" id="4c">
+      <div class="dv-olabel"><a class="dv-oid" href="#4c">4c</a><span><b>Banking</b> — Plaid-sandbox deposit feed; "Receive &amp; issue" mints against a deposit. Reconciliation ties the +$300 drift to the two unissued deposits.</span></div>
+      <div style="width:1060px;border-radius:15px;overflow:hidden;box-shadow:0 40px 90px -34px rgba(40,34,20,.55),0 0 0 1px rgba(27,30,36,.1);flex:none;background:#F4EFE6">
+        <div style="height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;background:#EBE4D8;border-bottom:1px solid rgba(27,30,36,.09)"><div style="display:flex;gap:7px"><div style="width:11px;height:11px;border-radius:50%;background:#E0685C"></div><div style="width:11px;height:11px;border-radius:50%;background:#E6B34D"></div><div style="width:11px;height:11px;border-radius:50%;background:#5FB37E"></div></div><div style="flex:1;display:flex;justify-content:center"><div style="font:400 12px/1 'IBM Plex Mono';color:#8A8375;background:#F4EFE6;padding:6px 16px;border-radius:7px;border:1px solid rgba(27,30,36,.07)">mandala.money/issuer/banking</div></div></div>
+        <div style="display:flex;height:660px">
+          <div style="width:230px;background:#EDE6DA;border-right:1px solid rgba(27,30,36,.08);display:flex;flex-direction:column;padding:20px 14px">
+            <div style="display:flex;align-items:center;gap:10px;padding:0 8px 20px"><div style="width:30px;height:30px;border-radius:8px;background:#23405E;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 48 48" fill="none" stroke="#C9A96A" stroke-width="2.6" stroke-linejoin="round"><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(90 24 24)"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(180 24 24)"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(270 24 24)"/></svg></div><div><div style="font:600 16px/1 'IBM Plex Sans';letter-spacing:.3px">Mandala</div><div style="font:500 9px/1 'IBM Plex Sans';letter-spacing:1px;color:#A79F8D;margin-top:3px">ISSUER CONSOLE</div></div></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;color:#6E685B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span style="font:500 13px/1 'IBM Plex Sans'">Overview</span></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;color:#6E685B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg><span style="font:500 13px/1 'IBM Plex Sans'">Operations</span></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;color:#6E685B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3l7 3v6c0 5-3 8-7 9-4-1-7-4-7-9V6z" stroke-linejoin="round"/></svg><span style="font:500 13px/1 'IBM Plex Sans'">Regulatory</span></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;background:#fff;color:#1B1E24;position:relative;box-shadow:0 1px 2px rgba(27,30,36,.06)"><div style="position:absolute;left:0;top:9px;bottom:9px;width:3px;background:#C9A96A;border-radius:0 3px 3px 0"></div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#23405E" stroke-width="1.9"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20" stroke-linecap="round"/></svg><span style="font:600 13px/1 'IBM Plex Sans'">Banking</span></div>
+            <div style="margin-top:auto;display:flex;align-items:center;gap:10px;padding:12px 10px;background:#F4EFE6;border-radius:11px;border:1px solid rgba(27,30,36,.07)"><div style="width:30px;height:30px;border-radius:8px;background:#23405E;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Sans'">NT</div><div style="min-width:0"><div style="font:600 12px/1.1 'IBM Plex Sans'">Northwind Trust</div><div style="font:400 10px/1.1 'IBM Plex Sans';color:#8A8375;margin-top:2px">Verified issuer</div></div></div>
+          </div>
+          <div style="flex:1;padding:24px 30px;overflow:hidden;color:#1B1E24">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between">
+              <div><h1 style="font:600 27px/1 'IBM Plex Sans';letter-spacing:-.5px;margin:0">Banking</h1><div style="font:400 13px/1 'IBM Plex Sans';color:#8A8375;margin-top:8px">Plaid-sandbox deposit feed &amp; reserve reconciliation</div></div>
+              <div style="display:flex;align-items:center;gap:9px;padding:7px 11px;background:#fff;border:1px solid rgba(27,30,36,.12);border-radius:10px"><div style="width:22px;height:22px;border-radius:6px;background:#E7DEC9;color:#8A6D3B;display:flex;align-items:center;justify-content:center;font:700 11px 'IBM Plex Sans'">$</div><div style="line-height:1"><div style="font:600 12px 'IBM Plex Sans'">US Dollar</div><div style="font:400 9.5px 'IBM Plex Sans';color:#8A8375;margin-top:2px">Issue against mUSD</div></div><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8A8375" stroke-width="2.2"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            </div>
+            <div style="font:500 11px/1 'IBM Plex Sans';letter-spacing:1.2px;color:#A79F8D;margin:22px 0 10px">INCOMING DEPOSITS</div>
+            <div style="background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:14px;overflow:hidden">
+              <div style="display:flex;align-items:center;gap:14px;padding:15px 18px">
+                <div style="width:40px;height:40px;border-radius:11px;background:rgba(35,64,94,.1);color:#23405E;display:flex;align-items:center;justify-content:center;flex:none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <div style="flex:1;min-width:0"><div style="font:600 14px/1.2 'IBM Plex Sans'">ACME Payroll</div><div style="font:400 11.5px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:3px">BR-1001 · ACH · 27 May 2026, 15:26</div></div>
+                <div style="font:600 15px/1 'IBM Plex Sans';font-variant-numeric:tabular-nums">$250.00</div>
+                <div style="background:#23405E;color:#F4EFE6;border-radius:10px;padding:10px 16px;font:600 12.5px 'IBM Plex Sans';white-space:nowrap">Receive &amp; issue</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:14px;padding:15px 18px;border-top:1px solid rgba(27,30,36,.07)">
+                <div style="width:40px;height:40px;border-radius:11px;background:rgba(35,64,94,.1);color:#23405E;display:flex;align-items:center;justify-content:center;flex:none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <div style="flex:1;min-width:0"><div style="font:600 14px/1.2 'IBM Plex Sans'">Jane Doe</div><div style="font:400 11.5px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:3px">BR-1002 · Wire · 28 May 2026, 14:26</div></div>
+                <div style="font:600 15px/1 'IBM Plex Sans';font-variant-numeric:tabular-nums">$50.00</div>
+                <div style="background:#23405E;color:#F4EFE6;border-radius:10px;padding:10px 16px;font:600 12.5px 'IBM Plex Sans';white-space:nowrap">Receive &amp; issue</div>
+              </div>
+            </div>
+            <div style="font:500 11px/1 'IBM Plex Sans';letter-spacing:1.2px;color:#A79F8D;margin:20px 0 10px">RECONCILIATION</div>
+            <div style="background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:14px;padding:6px 18px 14px">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(27,30,36,.07)"><span style="font:400 13px 'IBM Plex Sans';color:#6E685B">Bank balance</span><span style="font:600 14px 'IBM Plex Sans';font-variant-numeric:tabular-nums">$4,204,300</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(27,30,36,.07)"><span style="font:400 13px 'IBM Plex Sans';color:#6E685B">Net supply · issued − redeemed</span><span style="font:600 14px 'IBM Plex Sans';font-variant-numeric:tabular-nums">$4,204,000</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0"><span style="font:600 13px 'IBM Plex Sans';color:#B4703A">Drift</span><span style="font:600 14px 'IBM Plex Sans';color:#B4703A;font-variant-numeric:tabular-nums">+$300</span></div>
+              <div style="background:rgba(180,112,58,.08);border-radius:10px;padding:10px 13px;font:400 11.5px/1.4 'IBM Plex Sans';color:#8A6A3B">Drift = $300 received in the two deposits above, not yet issued. Issue them to bring reserves and supply back in line.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">Try next: "add confirm dialogs for destructive actions" · "wire it all into a clickable prototype" · "add holder alert states (paused / frozen balance)"</p>
+</section>
+<section class="dv-turn" id="t3">
+  <div class="dv-thd"><a class="dv-tid" href="#t3">3</a><span class="dv-tname">Send flow — Mandala holder (from <a class="dv-oid" href="#2a">2a</a>'s Send)</span></div>
+  <p class="dv-tsub">Four steps, no blockchain in sight: pick a person (recent + contacts, identity lookup), enter an amount with a note, review, done. "Make another payment" and "Share receipt" close the loop. No bottom bar — the browser owns that edge.</p>
+  <div class="dv-opts">
+
+    <!-- 3A RECIPIENT -->
+    <div class="dv-opt" id="3a">
+      <div class="dv-olabel"><a class="dv-oid" href="#3a">3a</a><span><b>Pick recipient</b> — search by name / @handle / email, recent people, contacts. "Identity key" tucked at the bottom for the rare raw-key case.</span></div>
+      <div data-screen-label="Send · Recipient" style="position:relative;width:390px;height:844px;background:#0c0c0e;border-radius:52px;padding:11px;box-shadow:0 40px 80px -24px rgba(40,34,20,.5),0 0 0 1px rgba(0,0,0,.7),inset 0 0 0 2px rgba(255,255,255,.06);flex:none">
+        <div style="position:relative;width:100%;height:100%;border-radius:42px;overflow:hidden;background:#F4EFE6">
+          <div style="position:absolute;top:12px;left:50%;transform:translateX(-50%);width:94px;height:27px;background:#0c0c0e;border-radius:16px;z-index:30"></div>
+          <div style="height:54px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 8px;color:#1B1E24">
+            <span style="font:600 14px/1 'IBM Plex Sans';letter-spacing:.3px">9:41</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect y="7.5" width="3" height="3.5" rx="1"/><rect x="4.7" y="4.8" width="3" height="6.2" rx="1"/><rect x="9.4" y="2.2" width="3" height="8.8" rx="1"/><rect x="14" width="3" height="11" rx="1"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3.7C3.7 1.2 12.3 1.2 15 3.7M3.2 6.1c2-1.8 7.6-1.8 9.6 0M5.6 8.5c1.2-1 3.6-1 4.8 0" stroke-linecap="round"/></svg>
+              <div style="display:flex;align-items:center;gap:1.5px"><div style="width:22px;height:11px;border:1.3px solid currentColor;border-radius:3.2px;padding:1.5px;opacity:.9"><div style="width:72%;height:100%;background:currentColor;border-radius:1.3px"></div></div><div style="width:1.5px;height:4px;background:currentColor;border-radius:1px;opacity:.5"></div></div>
+            </div>
+          </div>
+          <div style="position:absolute;top:54px;left:0;right:0;bottom:0;overflow:hidden;color:#1B1E24">
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 20px 0">
+              <div style="width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid rgba(27,30,36,.1);display:flex;align-items:center;justify-content:center;flex:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1B1E24" stroke-width="2"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div style="font:600 19px/1 'IBM Plex Sans'">Send money</div>
+            </div>
+            <div style="padding:16px 20px 0">
+              <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid rgba(27,30,36,.1);border-radius:14px;padding:13px 14px">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#A79F8D" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg>
+                <span style="font:400 13.5px 'IBM Plex Sans';color:#A79F8D">Name, @handle or email</span>
+              </div>
+            </div>
+            <div style="padding:22px 20px 0">
+              <div style="font:500 11px/1 'IBM Plex Sans';letter-spacing:1.2px;color:#A79F8D;margin-bottom:14px">RECENT</div>
+              <div style="display:flex;gap:12px">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:62px"><div style="width:52px;height:52px;border-radius:50%;background:#23405E;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 16px 'IBM Plex Sans'">MR</div><span style="font:400 11.5px 'IBM Plex Sans';color:#6E685B">Marcus</span></div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:62px"><div style="width:52px;height:52px;border-radius:50%;background:#6E5A7A;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 16px 'IBM Plex Sans'">PN</div><span style="font:400 11.5px 'IBM Plex Sans';color:#6E685B">Priya</span></div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:62px"><div style="width:52px;height:52px;border-radius:50%;background:#4B6B4E;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 16px 'IBM Plex Sans'">SK</div><span style="font:400 11.5px 'IBM Plex Sans';color:#6E685B">Sam</span></div>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px;width:62px"><div style="width:52px;height:52px;border-radius:50%;background:#8A6D3B;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 16px 'IBM Plex Sans'">CL</div><span style="font:400 11.5px 'IBM Plex Sans';color:#6E685B">Café</span></div>
+              </div>
+            </div>
+            <div style="padding:24px 20px 0">
+              <div style="font:500 11px/1 'IBM Plex Sans';letter-spacing:1.2px;color:#A79F8D;margin-bottom:4px">ALL CONTACTS</div>
+              <div style="display:flex;align-items:center;gap:13px;padding:11px 0;border-top:1px solid rgba(27,30,36,.08)">
+                <div style="width:40px;height:40px;border-radius:50%;background:#23405E;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 13px 'IBM Plex Sans';flex:none">MR</div>
+                <div style="flex:1;min-width:0"><div style="font:600 14px/1.2 'IBM Plex Sans'">Marcus Reid</div><div style="font:400 11.5px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:2px">@marcusreid</div></div>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#C4BCAD" stroke-width="2"><path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div style="display:flex;align-items:center;gap:13px;padding:11px 0;border-top:1px solid rgba(27,30,36,.08)">
+                <div style="width:40px;height:40px;border-radius:50%;background:#6E5A7A;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 13px 'IBM Plex Sans';flex:none">PN</div>
+                <div style="flex:1;min-width:0"><div style="font:600 14px/1.2 'IBM Plex Sans'">Priya Natarajan</div><div style="font:400 11.5px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:2px">priya@lumen.co</div></div>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#C4BCAD" stroke-width="2"><path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <div style="display:flex;align-items:center;gap:13px;padding:11px 0;border-top:1px solid rgba(27,30,36,.08)">
+                <div style="width:40px;height:40px;border-radius:50%;background:#8A6D3B;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 13px 'IBM Plex Sans';flex:none">CL</div>
+                <div style="flex:1;min-width:0"><div style="font:600 14px/1.2 'IBM Plex Sans'">Café Lisbon</div><div style="font:400 11.5px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:2px">Merchant · paid before</div></div>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#C4BCAD" stroke-width="2"><path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+            <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 20px 48px;background:linear-gradient(to top,#F4EFE6 72%,rgba(244,239,230,0))">
+              <div style="display:flex;align-items:center;justify-content:center;gap:9px;padding:13px;border:1px dashed rgba(27,30,36,.2);border-radius:13px;color:#6E685B"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20 20v.01M17 20v.01M20 17v.01" stroke-linecap="round"/></svg><span style="font:500 12.5px 'IBM Plex Sans'">Send to an identity key</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3B AMOUNT -->
+    <div class="dv-opt" id="3b">
+      <div class="dv-olabel"><a class="dv-oid" href="#3b">3b</a><span><b>Enter amount</b> — big, tactile keypad, available balance + Max, and an optional note. Clear, single-purpose.</span></div>
+      <div data-screen-label="Send · Amount" style="position:relative;width:390px;height:844px;background:#0c0c0e;border-radius:52px;padding:11px;box-shadow:0 40px 80px -24px rgba(40,34,20,.5),0 0 0 1px rgba(0,0,0,.7),inset 0 0 0 2px rgba(255,255,255,.06);flex:none">
+        <div style="position:relative;width:100%;height:100%;border-radius:42px;overflow:hidden;background:#F4EFE6">
+          <div style="position:absolute;top:12px;left:50%;transform:translateX(-50%);width:94px;height:27px;background:#0c0c0e;border-radius:16px;z-index:30"></div>
+          <div style="height:54px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 8px;color:#1B1E24">
+            <span style="font:600 14px/1 'IBM Plex Sans';letter-spacing:.3px">9:41</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect y="7.5" width="3" height="3.5" rx="1"/><rect x="4.7" y="4.8" width="3" height="6.2" rx="1"/><rect x="9.4" y="2.2" width="3" height="8.8" rx="1"/><rect x="14" width="3" height="11" rx="1"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3.7C3.7 1.2 12.3 1.2 15 3.7M3.2 6.1c2-1.8 7.6-1.8 9.6 0M5.6 8.5c1.2-1 3.6-1 4.8 0" stroke-linecap="round"/></svg>
+              <div style="display:flex;align-items:center;gap:1.5px"><div style="width:22px;height:11px;border:1.3px solid currentColor;border-radius:3.2px;padding:1.5px;opacity:.9"><div style="width:72%;height:100%;background:currentColor;border-radius:1.3px"></div></div><div style="width:1.5px;height:4px;background:currentColor;border-radius:1px;opacity:.5"></div></div>
+            </div>
+          </div>
+          <div style="position:absolute;top:54px;left:0;right:0;bottom:0;overflow:hidden;color:#1B1E24;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 20px 0">
+              <div style="width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid rgba(27,30,36,.1);display:flex;align-items:center;justify-content:center;flex:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1B1E24" stroke-width="2"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div style="display:flex;align-items:center;gap:9px"><div style="width:28px;height:28px;border-radius:50%;background:#23405E;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Sans'">MR</div><div><div style="font:400 10.5px/1 'IBM Plex Sans';color:#8A8375">To</div><div style="font:600 14px/1.1 'IBM Plex Sans';margin-top:2px">Marcus Reid</div></div></div>
+            </div>
+            <div style="text-align:center;padding:36px 24px 0">
+              <div style="font:500 11px/1 'IBM Plex Sans';letter-spacing:1.6px;color:#A79F8D">SENDING · USD</div>
+              <div style="margin-top:14px;font:600 56px/1 'IBM Plex Sans';letter-spacing:-2px">$240<span style="display:inline-block;width:3px;height:46px;background:#23405E;vertical-align:-7px;margin-left:3px;border-radius:2px"></span></div>
+              <div style="margin-top:18px;display:inline-flex;align-items:center;gap:10px"><span style="font:400 12px/1 'IBM Plex Sans';color:#8A8375">$12,480.50 available</span><span style="font:600 11px/1 'IBM Plex Sans';color:#23405E;border:1px solid rgba(35,64,94,.3);padding:5px 10px;border-radius:20px">Max</span></div>
+            </div>
+            <div style="padding:22px 24px 0">
+              <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid rgba(27,30,36,.1);border-radius:12px;padding:12px 14px">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A8375" stroke-width="1.9"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span style="font:400 13px 'IBM Plex Sans'">Split dinner</span>
+              </div>
+            </div>
+            <div style="margin-top:auto;padding:12px 30px 48px">
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);text-align:center;color:#1B1E24">
+                <div style="padding:11px 0;font:500 23px 'IBM Plex Sans'">1</div><div style="padding:11px 0;font:500 23px 'IBM Plex Sans'">2</div><div style="padding:11px 0;font:500 23px 'IBM Plex Sans'">3</div>
+                <div style="padding:11px 0;font:500 23px 'IBM Plex Sans'">4</div><div style="padding:11px 0;font:500 23px 'IBM Plex Sans'">5</div><div style="padding:11px 0;font:500 23px 'IBM Plex Sans'">6</div>
+                <div style="padding:11px 0;font:500 23px 'IBM Plex Sans'">7</div><div style="padding:11px 0;font:500 23px 'IBM Plex Sans'">8</div><div style="padding:11px 0;font:500 23px 'IBM Plex Sans'">9</div>
+                <div style="padding:11px 0;font:500 23px 'IBM Plex Sans'">.</div><div style="padding:11px 0;font:500 23px 'IBM Plex Sans'">0</div><div style="padding:11px 0;display:flex;justify-content:center;align-items:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1B1E24" stroke-width="1.8"><path d="M21 5H8l-6 7 6 7h13a1 1 0 001-1V6a1 1 0 00-1-1z" stroke-linejoin="round"/><path d="M15 9l-4 6M11 9l4 6" stroke-linecap="round"/></svg></div>
+              </div>
+              <div style="margin-top:12px;background:#23405E;color:#F4EFE6;border-radius:14px;padding:16px;text-align:center;font:600 15px 'IBM Plex Sans'">Review</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3C REVIEW -->
+    <div class="dv-opt" id="3c">
+      <div class="dv-olabel"><a class="dv-oid" href="#3c">3c</a><span><b>Review</b> — recipient, amount, source account, note, and a plain "Free · Instant" fee line. One clear confirm.</span></div>
+      <div data-screen-label="Send · Review" style="position:relative;width:390px;height:844px;background:#0c0c0e;border-radius:52px;padding:11px;box-shadow:0 40px 80px -24px rgba(40,34,20,.5),0 0 0 1px rgba(0,0,0,.7),inset 0 0 0 2px rgba(255,255,255,.06);flex:none">
+        <div style="position:relative;width:100%;height:100%;border-radius:42px;overflow:hidden;background:#F4EFE6">
+          <div style="position:absolute;top:12px;left:50%;transform:translateX(-50%);width:94px;height:27px;background:#0c0c0e;border-radius:16px;z-index:30"></div>
+          <div style="height:54px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 8px;color:#1B1E24">
+            <span style="font:600 14px/1 'IBM Plex Sans';letter-spacing:.3px">9:41</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect y="7.5" width="3" height="3.5" rx="1"/><rect x="4.7" y="4.8" width="3" height="6.2" rx="1"/><rect x="9.4" y="2.2" width="3" height="8.8" rx="1"/><rect x="14" width="3" height="11" rx="1"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3.7C3.7 1.2 12.3 1.2 15 3.7M3.2 6.1c2-1.8 7.6-1.8 9.6 0M5.6 8.5c1.2-1 3.6-1 4.8 0" stroke-linecap="round"/></svg>
+              <div style="display:flex;align-items:center;gap:1.5px"><div style="width:22px;height:11px;border:1.3px solid currentColor;border-radius:3.2px;padding:1.5px;opacity:.9"><div style="width:72%;height:100%;background:currentColor;border-radius:1.3px"></div></div><div style="width:1.5px;height:4px;background:currentColor;border-radius:1px;opacity:.5"></div></div>
+            </div>
+          </div>
+          <div style="position:absolute;top:54px;left:0;right:0;bottom:0;overflow:hidden;color:#1B1E24">
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 20px 0">
+              <div style="width:36px;height:36px;border-radius:50%;background:#fff;border:1px solid rgba(27,30,36,.1);display:flex;align-items:center;justify-content:center;flex:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1B1E24" stroke-width="2"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div style="font:600 19px/1 'IBM Plex Sans'">Review</div>
+            </div>
+            <div style="padding:22px 20px 0">
+              <div style="background:#fff;border:1px solid rgba(27,30,36,.09);border-radius:18px;overflow:hidden;box-shadow:0 8px 24px -18px rgba(40,34,20,.5)">
+                <div style="display:flex;align-items:center;gap:13px;padding:16px 18px">
+                  <div style="width:44px;height:44px;border-radius:50%;background:#23405E;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 15px 'IBM Plex Sans'">MR</div>
+                  <div style="flex:1;min-width:0"><div style="font:600 15px/1.2 'IBM Plex Sans'">Marcus Reid</div><div style="font:400 12px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:3px">@marcusreid</div></div>
+                  <span style="display:inline-flex;align-items:center;gap:4px;font:500 10.5px/1 'IBM Plex Sans';color:#3E7D5A;background:rgba(62,125,90,.1);padding:4px 8px;border-radius:6px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>Verified</span>
+                </div>
+                <div style="padding:2px 18px 10px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid rgba(27,30,36,.07)"><span style="font:400 12.5px 'IBM Plex Sans';color:#8A8375">Amount</span><span style="font:600 17px 'IBM Plex Sans';font-variant-numeric:tabular-nums">$240.00</span></div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid rgba(27,30,36,.07)"><span style="font:400 12.5px 'IBM Plex Sans';color:#8A8375">From</span><span style="font:600 13.5px 'IBM Plex Sans'">US Dollar account</span></div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid rgba(27,30,36,.07)"><span style="font:400 12.5px 'IBM Plex Sans';color:#8A8375">Note</span><span style="font:600 13.5px 'IBM Plex Sans'">Split dinner</span></div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid rgba(27,30,36,.07)"><span style="font:400 12.5px 'IBM Plex Sans';color:#8A8375">Fee</span><span style="font:600 13.5px 'IBM Plex Sans';color:#3E7D5A">Free · Instant</span></div>
+                </div>
+              </div>
+            </div>
+            <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 20px 48px">
+              <div style="background:#23405E;color:#F4EFE6;border-radius:14px;padding:16px;text-align:center;font:600 15px 'IBM Plex Sans';display:flex;align-items:center;justify-content:center;gap:8px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>Send $240.00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3D SENT -->
+    <div class="dv-opt" id="3d">
+      <div class="dv-olabel"><a class="dv-oid" href="#3d">3d</a><span><b>Sent</b> — calm confirmation with reference, then "Make another payment" &amp; "Share receipt".</span></div>
+      <div data-screen-label="Send · Sent" style="position:relative;width:390px;height:844px;background:#0c0c0e;border-radius:52px;padding:11px;box-shadow:0 40px 80px -24px rgba(40,34,20,.5),0 0 0 1px rgba(0,0,0,.7),inset 0 0 0 2px rgba(255,255,255,.06);flex:none">
+        <div style="position:relative;width:100%;height:100%;border-radius:42px;overflow:hidden;background:#F4EFE6">
+          <div style="position:absolute;top:12px;left:50%;transform:translateX(-50%);width:94px;height:27px;background:#0c0c0e;border-radius:16px;z-index:30"></div>
+          <div style="height:54px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 8px;color:#1B1E24">
+            <span style="font:600 14px/1 'IBM Plex Sans';letter-spacing:.3px">9:41</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect y="7.5" width="3" height="3.5" rx="1"/><rect x="4.7" y="4.8" width="3" height="6.2" rx="1"/><rect x="9.4" y="2.2" width="3" height="8.8" rx="1"/><rect x="14" width="3" height="11" rx="1"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3.7C3.7 1.2 12.3 1.2 15 3.7M3.2 6.1c2-1.8 7.6-1.8 9.6 0M5.6 8.5c1.2-1 3.6-1 4.8 0" stroke-linecap="round"/></svg>
+              <div style="display:flex;align-items:center;gap:1.5px"><div style="width:22px;height:11px;border:1.3px solid currentColor;border-radius:3.2px;padding:1.5px;opacity:.9"><div style="width:72%;height:100%;background:currentColor;border-radius:1.3px"></div></div><div style="width:1.5px;height:4px;background:currentColor;border-radius:1px;opacity:.5"></div></div>
+            </div>
+          </div>
+          <div style="position:absolute;top:54px;left:0;right:0;bottom:0;overflow:hidden;color:#1B1E24">
+            <div style="position:absolute;inset:0;padding:0 34px 210px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+              <div style="position:relative;display:flex;justify-content:center;margin-bottom:28px">
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:190px;height:190px;border-radius:50%;background:radial-gradient(circle,rgba(35,64,94,.16),rgba(35,64,94,0) 68%)"></div>
+                <div style="position:relative;width:90px;height:90px;border-radius:50%;background:#23405E;display:flex;align-items:center;justify-content:center;box-shadow:0 16px 34px -10px rgba(35,64,94,.55)"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#C9A96A" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              </div>
+              <div style="font:500 11px/1 'IBM Plex Sans';letter-spacing:2px;color:#A79F8D">SENT</div>
+              <div style="font:600 44px/1 'IBM Plex Sans';letter-spacing:-1.5px;margin-top:12px;font-variant-numeric:tabular-nums">$240.00</div>
+              <div style="font:400 14px/1.3 'IBM Plex Sans';color:#5C574C;margin-top:10px">to Marcus Reid · @marcusreid</div>
+              <div style="font:400 12px/1 'IBM Plex Sans';color:#A79F8D;margin-top:16px">Today, 09:41 · Ref MND-4821</div>
+            </div>
+            <div style="position:absolute;bottom:0;left:0;right:0;padding:0 20px 48px;display:flex;flex-direction:column;gap:10px">
+              <div style="background:#23405E;color:#F4EFE6;border-radius:14px;padding:16px;text-align:center;font:600 15px 'IBM Plex Sans'">Done</div>
+              <div style="background:#fff;border:1px solid rgba(27,30,36,.12);border-radius:14px;padding:15px;text-align:center;font:600 14px 'IBM Plex Sans';color:#23405E" data-comment-anchor="55f4bf7b46-div">Make another payment</div>
+              <div style="text-align:center;padding:6px;font:500 13px 'IBM Plex Sans';color:#8A8375">Share receipt</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">Try next: "add paused &amp; frozen-balance alert states" · "build issuer Regulatory &amp; Banking screens" · "add a Request-money flow" · "animate the <a class="dv-oid" href="#3d">3d</a> success check"</p>
+</section>
+<section class="dv-turn" id="t2">
+  <div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Mandala — evolved from <a class="dv-oid" href="#1a">1a</a> (Meridian wins), with your structural notes</span></div>
+  <p class="dv-tsub">Keeping the <b>Mandala</b> name with a Celtic-knot (triquetra) mark. Holder now defaults to a single USD account — other currencies live in the corner switcher. Issuer assumes one asset (switch via the header dropdown), keeps the KPIs, and makes the <b>audit log the default dashboard</b> underneath.</p>
+  <div class="dv-opts">
+
+    <!-- ===== 2A · HOLDER (single account) ===== -->
+    <div class="dv-opt" id="2a">
+      <div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a><span><b>Holder</b> — one USD account by default. Balance, 7-day trend, quick actions, recent activity. Other currencies hidden behind the corner <b>USD ▾</b> switcher.</span></div>
+      <div style="position:relative;width:390px;height:844px;background:#0c0c0e;border-radius:52px;padding:11px;box-shadow:0 40px 80px -24px rgba(40,34,20,.5),0 0 0 1px rgba(0,0,0,.7),inset 0 0 0 2px rgba(255,255,255,.06);flex:none">
+        <div style="position:relative;width:100%;height:100%;border-radius:42px;overflow:hidden;background:#F4EFE6">
+          <div style="position:absolute;top:12px;left:50%;transform:translateX(-50%);width:94px;height:27px;background:#0c0c0e;border-radius:16px;z-index:30"></div>
+          <div style="height:54px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 8px;color:#1B1E24">
+            <span style="font:600 14px/1 'IBM Plex Sans';letter-spacing:.3px">9:41</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect y="7.5" width="3" height="3.5" rx="1"/><rect x="4.7" y="4.8" width="3" height="6.2" rx="1"/><rect x="9.4" y="2.2" width="3" height="8.8" rx="1"/><rect x="14" width="3" height="11" rx="1"/></svg>
+              <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3.7C3.7 1.2 12.3 1.2 15 3.7M3.2 6.1c2-1.8 7.6-1.8 9.6 0M5.6 8.5c1.2-1 3.6-1 4.8 0" stroke-linecap="round"/></svg>
+              <div style="display:flex;align-items:center;gap:1.5px"><div style="width:22px;height:11px;border:1.3px solid currentColor;border-radius:3.2px;padding:1.5px;opacity:.9"><div style="width:72%;height:100%;background:currentColor;border-radius:1.3px"></div></div><div style="width:1.5px;height:4px;background:currentColor;border-radius:1px;opacity:.5"></div></div>
+            </div>
+          </div>
+          <div style="position:absolute;top:54px;left:0;right:0;bottom:0;overflow:hidden;color:#1B1E24">
+            <!-- brand row -->
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 22px 0">
+              <div style="display:flex;align-items:center;gap:9px">
+                <div style="width:28px;height:28px;border-radius:8px;background:#23405E;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 48 48" fill="none" stroke="#C9A96A" stroke-width="2.6" stroke-linejoin="round"><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(90 24 24)"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(180 24 24)"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(270 24 24)"/></svg></div>
+                <span style="font:600 18px/1 'IBM Plex Sans';letter-spacing:.3px">Mandala</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:9px">
+                <div style="display:flex;align-items:center;gap:6px;padding:5px 9px 5px 6px;background:#fff;border:1px solid rgba(27,30,36,.1);border-radius:20px"><span style="width:18px;height:18px;border-radius:50%;background:#E7DEC9;color:#8A6D3B;display:flex;align-items:center;justify-content:center;font:700 10px 'IBM Plex Sans'">$</span><span style="font:600 12px/1 'IBM Plex Sans'">USD</span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8A8375" stroke-width="2.4"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <div style="width:32px;height:32px;border-radius:50%;background:#23405E;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 12px 'IBM Plex Sans'">EC</div>
+              </div>
+            </div>
+            <!-- hero: single USD account -->
+            <div style="padding:20px 26px 0">
+              <div style="display:flex;align-items:center;gap:7px">
+                <span style="font:500 11px/1 'IBM Plex Sans';letter-spacing:1.3px;color:#A79F8D">US DOLLAR · MAIN ACCOUNT</span>
+              </div>
+              <div style="display:flex;align-items:baseline;gap:2px;margin-top:12px">
+                <span style="font:600 47px/.95 'IBM Plex Sans';letter-spacing:-1.5px">$12,480</span>
+                <span style="font:600 24px/1 'IBM Plex Sans';letter-spacing:-.3px;color:#8A8375">.50</span>
+              </div>
+              <svg width="100%" height="38" viewBox="0 0 300 38" preserveAspectRatio="none" style="margin-top:12px;display:block"><path d="M0 29 L40 24 L76 27 L120 16 L166 19 L210 10 L256 13 L300 5 L300 38 L0 38Z" fill="rgba(35,64,94,.07)"/><path d="M0 29 L40 24 L76 27 L120 16 L166 19 L210 10 L256 13 L300 5" fill="none" stroke="#23405E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <div style="display:flex;align-items:center;gap:9px;margin-top:10px">
+                <span style="display:inline-flex;align-items:center;gap:4px;font:500 12px/1 'IBM Plex Sans';color:#3E7D5A;background:rgba(62,125,90,.1);padding:5px 9px;border-radius:20px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 15l6-6 6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>$418</span>
+                <span style="font:400 12px/1 'IBM Plex Sans';color:#8A8375">past 7 days</span>
+              </div>
+            </div>
+            <!-- quick actions -->
+            <div style="display:flex;gap:9px;padding:22px 24px 0">
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;padding:13px 0;background:#23405E;border-radius:14px;color:#F4EFE6"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font:500 11.5px/1 'IBM Plex Sans'">Send</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;padding:13px 0;background:#fff;border:1px solid rgba(27,30,36,.1);border-radius:14px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#23405E" stroke-width="1.9"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg><span style="font:500 11.5px/1 'IBM Plex Sans'">Request</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;padding:13px 0;background:#fff;border:1px solid rgba(27,30,36,.1);border-radius:14px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#23405E" stroke-width="1.9"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20" stroke-linecap="round"/></svg><span style="font:500 11.5px/1 'IBM Plex Sans'">Add cash</span></div>
+            </div>
+            <!-- recent -->
+            <div style="padding:22px 26px 0">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                <div style="font:500 11px/1 'IBM Plex Sans';letter-spacing:1.2px;color:#A79F8D">RECENT ACTIVITY</div>
+                <div style="font:500 11.5px/1 'IBM Plex Sans';color:#23405E">See all</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid rgba(27,30,36,.08)">
+                <div style="width:34px;height:34px;border-radius:50%;background:rgba(62,125,90,.12);display:flex;align-items:center;justify-content:center;flex:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3E7D5A" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <div style="flex:1;min-width:0"><div style="font:600 13px/1.2 'IBM Plex Sans'">Northwind Payroll</div><div style="font:400 11px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:2px">Today · 09:24</div></div>
+                <div style="font:500 13.5px/1.2 'IBM Plex Sans';color:#3E7D5A;font-variant-numeric:tabular-nums">+$2,400.00</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid rgba(27,30,36,.08)">
+                <div style="width:34px;height:34px;border-radius:50%;background:rgba(27,30,36,.06);display:flex;align-items:center;justify-content:center;flex:none;font:600 11px 'IBM Plex Sans';color:#6E685B">CL</div>
+                <div style="flex:1;min-width:0"><div style="font:600 13px/1.2 'IBM Plex Sans'">Café Lisbon</div><div style="font:400 11px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:2px">Yesterday · 18:02</div></div>
+                <div style="font:500 13.5px/1.2 'IBM Plex Sans';font-variant-numeric:tabular-nums">−$18.40</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid rgba(27,30,36,.08)">
+                <div style="width:34px;height:34px;border-radius:50%;background:rgba(27,30,36,.06);display:flex;align-items:center;justify-content:center;flex:none;font:600 11px 'IBM Plex Sans';color:#6E685B">MR</div>
+                <div style="flex:1;min-width:0"><div style="font:600 13px/1.2 'IBM Plex Sans'">Marcus Reid</div><div style="font:400 11px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:2px">Mon · Split dinner</div></div>
+                <div style="font:500 13.5px/1.2 'IBM Plex Sans';font-variant-numeric:tabular-nums">−$60.00</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid rgba(27,30,36,.08)">
+                <div style="width:34px;height:34px;border-radius:50%;background:rgba(62,125,90,.12);display:flex;align-items:center;justify-content:center;flex:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3E7D5A" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <div style="flex:1;min-width:0"><div style="font:600 13px/1.2 'IBM Plex Sans'">Refund · Lumen Store</div><div style="font:400 11px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:2px">Sun · 14:41</div></div>
+                <div style="font:500 13.5px/1.2 'IBM Plex Sans';color:#3E7D5A;font-variant-numeric:tabular-nums">+$24.00</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid rgba(27,30,36,.08)">
+                <div style="width:34px;height:34px;border-radius:50%;background:rgba(27,30,36,.06);display:flex;align-items:center;justify-content:center;flex:none;font:600 11px 'IBM Plex Sans';color:#6E685B">SC</div>
+                <div style="flex:1;min-width:0"><div style="font:600 13px/1.2 'IBM Plex Sans'">Sunrise Coffee</div><div style="font:400 11px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:2px">Sat · 08:12</div></div>
+                <div style="font:500 13.5px/1.2 'IBM Plex Sans';font-variant-numeric:tabular-nums">−$4.60</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid rgba(27,30,36,.08)">
+                <div style="width:34px;height:34px;border-radius:50%;background:rgba(62,125,90,.12);display:flex;align-items:center;justify-content:center;flex:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3E7D5A" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <div style="flex:1;min-width:0"><div style="font:600 13px/1.2 'IBM Plex Sans'">Priya Natarajan</div><div style="font:400 11px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:2px">Fri · Concert split</div></div>
+                <div style="font:500 13.5px/1.2 'IBM Plex Sans';color:#3E7D5A;font-variant-numeric:tabular-nums">+$45.00</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 2B · ISSUER (single asset + audit-log dashboard) ===== -->
+    <div class="dv-opt" id="2b">
+      <div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a><span><b>Issuer</b> — one asset assumed (switch via header dropdown). KPI stats on top; the <b>audit log</b> is the default dashboard, exportable &amp; provable on-chain.</span></div>
+      <div style="width:1060px;border-radius:15px;overflow:hidden;box-shadow:0 40px 90px -34px rgba(40,34,20,.55),0 0 0 1px rgba(27,30,36,.1);flex:none;background:#F4EFE6">
+        <div style="height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;background:#EBE4D8;border-bottom:1px solid rgba(27,30,36,.09)">
+          <div style="display:flex;gap:7px"><div style="width:11px;height:11px;border-radius:50%;background:#E0685C"></div><div style="width:11px;height:11px;border-radius:50%;background:#E6B34D"></div><div style="width:11px;height:11px;border-radius:50%;background:#5FB37E"></div></div>
+          <div style="flex:1;display:flex;justify-content:center"><div style="font:400 12px/1 'IBM Plex Mono';color:#8A8375;background:#F4EFE6;padding:6px 16px;border-radius:7px;border:1px solid rgba(27,30,36,.07)">mandala.money/issuer</div></div>
+        </div>
+        <div style="display:flex;height:660px">
+          <!-- nav -->
+          <div style="width:230px;background:#EDE6DA;border-right:1px solid rgba(27,30,36,.08);display:flex;flex-direction:column;padding:20px 14px">
+            <div style="display:flex;align-items:center;gap:10px;padding:0 8px 20px">
+              <div style="width:30px;height:30px;border-radius:8px;background:#23405E;display:flex;align-items:center;justify-content:center"><svg width="21" height="21" viewBox="0 0 48 48" fill="none" stroke="#C9A96A" stroke-width="2.6" stroke-linejoin="round"><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(90 24 24)"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(180 24 24)"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(270 24 24)"/></svg></div>
+              <div><div style="font:600 16px/1 'IBM Plex Sans';letter-spacing:.3px">Mandala</div><div style="font:500 9px/1 'IBM Plex Sans';letter-spacing:1px;color:#A79F8D;margin-top:3px">ISSUER CONSOLE</div></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;background:#fff;color:#1B1E24;position:relative;box-shadow:0 1px 2px rgba(27,30,36,.06)"><div style="position:absolute;left:0;top:9px;bottom:9px;width:3px;background:#C9A96A;border-radius:0 3px 3px 0"></div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#23405E" stroke-width="1.9"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span style="font:600 13px/1 'IBM Plex Sans'">Overview</span></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;color:#6E685B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg><span style="font:500 13px/1 'IBM Plex Sans'">Operations</span></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;color:#6E685B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3l7 3v6c0 5-3 8-7 9-4-1-7-4-7-9V6z" stroke-linejoin="round"/></svg><span style="font:500 13px/1 'IBM Plex Sans'">Regulatory</span></div>
+            <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;color:#6E685B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20" stroke-linecap="round"/></svg><span style="font:500 13px/1 'IBM Plex Sans'">Banking</span></div>
+            
+            <div style="margin-top:auto;display:flex;align-items:center;gap:10px;padding:12px 10px;background:#F4EFE6;border-radius:11px;border:1px solid rgba(27,30,36,.07)">
+              <div style="width:30px;height:30px;border-radius:8px;background:#23405E;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Sans'">NT</div>
+              <div style="min-width:0"><div style="font:600 12px/1.1 'IBM Plex Sans'">Northwind Trust</div><div style="font:400 10px/1.1 'IBM Plex Sans';color:#8A8375;margin-top:2px">Verified issuer</div></div>
+            </div>
+          </div>
+          <!-- main -->
+          <div style="flex:1;padding:24px 30px;overflow:hidden;color:#1B1E24">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between">
+              <div><h1 style="font:600 27px/1 'IBM Plex Sans';letter-spacing:-.5px;margin:0">Overview</h1><div style="font:400 13px/1 'IBM Plex Sans';color:#8A8375;margin-top:8px">US Dollar stablecoin · live state &amp; admin history</div></div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <div style="display:flex;align-items:center;gap:9px;padding:7px 11px;background:#fff;border:1px solid rgba(27,30,36,.12);border-radius:10px"><div style="width:22px;height:22px;border-radius:6px;background:#E7DEC9;color:#8A6D3B;display:flex;align-items:center;justify-content:center;font:700 11px 'IBM Plex Sans'">$</div><div style="line-height:1"><div style="font:600 12px 'IBM Plex Sans'">US Dollar</div><div style="font:400 9.5px 'IBM Plex Sans';color:#8A8375;margin-top:2px">mUSD</div></div><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8A8375" stroke-width="2.2"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;font:500 12px/1 'IBM Plex Sans';color:#3E7D5A;background:rgba(62,125,90,.1);padding:9px 12px;border-radius:20px"><span style="width:7px;height:7px;border-radius:50%;background:#3E7D5A"></span>Reserves 100% backed</span>
+              </div>
+            </div>
+            <!-- stat tiles -->
+            <div style="display:flex;gap:14px;margin-top:20px">
+              <div style="flex:1;background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:13px;padding:15px 16px"><div style="font:400 11px/1 'IBM Plex Sans';color:#8A8375">In circulation</div><div style="font:600 24px/1 'IBM Plex Sans';letter-spacing:-.3px;margin-top:10px;font-variant-numeric:tabular-nums">$4.20M</div><div style="font:400 10.5px/1 'IBM Plex Sans';color:#A79F8D;margin-top:6px">4,204,000 mUSD</div></div>
+              <div style="flex:1;background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:13px;padding:15px 16px"><div style="font:400 11px/1 'IBM Plex Sans';color:#8A8375">Net flow · 24h</div><div style="font:600 24px/1 'IBM Plex Sans';letter-spacing:-.3px;margin-top:10px;color:#3E7D5A;font-variant-numeric:tabular-nums">+$54K</div><div style="font:400 10.5px/1 'IBM Plex Sans';color:#A79F8D;margin-top:6px">issued − redeemed</div></div>
+              <div style="flex:1;background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:13px;padding:15px 16px"><div style="font:400 11px/1 'IBM Plex Sans';color:#8A8375">Reserve ratio</div><div style="font:600 24px/1 'IBM Plex Sans';letter-spacing:-.3px;margin-top:10px;font-variant-numeric:tabular-nums">100.0%</div><div style="font:400 10.5px/1 'IBM Plex Sans';color:#A79F8D;margin-top:6px">bank ↔ supply</div></div>
+              <div style="flex:1;background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:13px;padding:15px 16px"><div style="font:400 11px/1 'IBM Plex Sans';color:#8A8375">Holders</div><div style="font:600 24px/1 'IBM Plex Sans';letter-spacing:-.3px;margin-top:10px;font-variant-numeric:tabular-nums">1,284</div><div style="font:400 10.5px/1 'IBM Plex Sans';color:#A79F8D;margin-top:6px">active identities</div></div>
+            </div>
+            <!-- audit log = default dashboard -->
+            <div style="background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:14px;margin-top:18px;overflow:hidden">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid rgba(27,30,36,.07)">
+                <div><div style="font:600 14px/1 'IBM Plex Sans'">Audit log</div><div style="font:400 11px/1 'IBM Plex Sans';color:#8A8375;margin-top:4px">Every admin action, ordered by block height · provable on-chain</div></div>
+                <div style="display:flex;align-items:center;gap:8px"><span style="display:inline-flex;align-items:center;gap:5px;font:500 11.5px/1 'IBM Plex Sans';color:#23405E;border:1px solid rgba(27,30,36,.14);padding:7px 11px;border-radius:8px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke-linecap="round" stroke-linejoin="round"/></svg>Export report</span></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:13px;padding:11px 18px;border-bottom:1px solid rgba(27,30,36,.05)">
+                <div style="width:34px;height:34px;border-radius:9px;background:rgba(62,125,90,.12);color:#3E7D5A;display:flex;align-items:center;justify-content:center;flex:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 5.9L20 10l-5.8 2.1L12 18l-2.2-5.9L4 10l5.8-2.1z"/></svg></div>
+                <div style="flex:1;min-width:0"><div style="font:600 13px/1.2 'IBM Plex Sans'">Issued 250,000 mUSD</div><div style="font:400 11.5px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:3px">Against ACME Payroll deposit · BR-1001 · by E. Castro</div></div>
+                <div style="text-align:right;flex:none"><div style="font:400 11px/1 'IBM Plex Sans';color:#8A8375">Today · 15:26</div><div style="margin-top:6px"><span style="display:inline-flex;align-items:center;gap:4px;font:500 10px/1 'IBM Plex Sans';color:#3E7D5A;background:rgba(62,125,90,.1);padding:3px 7px;border-radius:5px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>On-chain</span></div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:13px;padding:11px 18px;border-bottom:1px solid rgba(27,30,36,.05)">
+                <div style="width:34px;height:34px;border-radius:9px;background:rgba(35,64,94,.1);color:#23405E;display:flex;align-items:center;justify-content:center;flex:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                <div style="flex:1;min-width:0"><div style="font:600 13px/1.2 'IBM Plex Sans'">Bank deposit received · $50,000</div><div style="font:400 11.5px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:3px">Jane Doe (wire) · BR-1002 · awaiting issuance</div></div>
+                <div style="text-align:right;flex:none"><div style="font:400 11px/1 'IBM Plex Sans';color:#8A8375">Today · 14:26</div><div style="margin-top:6px"><span style="font:500 10px/1 'IBM Plex Sans';color:#B4703A;background:rgba(180,112,58,.12);padding:3px 7px;border-radius:5px">Pending</span></div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:13px;padding:11px 18px;border-bottom:1px solid rgba(27,30,36,.05)">
+                <div style="width:34px;height:34px;border-radius:9px;background:rgba(138,109,59,.12);color:#8A6D3B;display:flex;align-items:center;justify-content:center;flex:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3l7 3v6c0 5-3 8-7 9-4-1-7-4-7-9V6z" stroke-linejoin="round"/></svg></div>
+                <div style="flex:1;min-width:0"><div style="font:600 13px/1.2 'IBM Plex Sans'">Access mode set → Denylist</div><div style="font:400 11.5px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:3px">Anyone except blocked identities · by E. Castro</div></div>
+                <div style="text-align:right;flex:none"><div style="font:400 11px/1 'IBM Plex Sans';color:#8A8375">Yesterday · 11:02</div><div style="margin-top:6px"><span style="display:inline-flex;align-items:center;gap:4px;font:500 10px/1 'IBM Plex Sans';color:#3E7D5A;background:rgba(62,125,90,.1);padding:3px 7px;border-radius:5px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>On-chain</span></div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:13px;padding:11px 18px;border-bottom:1px solid rgba(27,30,36,.05)">
+                <div style="width:34px;height:34px;border-radius:9px;background:rgba(180,83,74,.12);color:#B4534A;display:flex;align-items:center;justify-content:center;flex:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8" stroke-linecap="round"/></svg></div>
+                <div style="flex:1;min-width:0"><div style="font:600 13px/1.2 'IBM Plex Sans'">Identity blocked</div><div style="font:400 11.5px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:3px"><span style="font-family:'IBM Plex Mono'">02ab…c9f4</span> · sanctions match · by Compliance</div></div>
+                <div style="text-align:right;flex:none"><div style="font:400 11px/1 'IBM Plex Sans';color:#8A8375">2 days ago</div><div style="margin-top:6px"><span style="display:inline-flex;align-items:center;gap:4px;font:500 10px/1 'IBM Plex Sans';color:#3E7D5A;background:rgba(62,125,90,.1);padding:3px 7px;border-radius:5px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>On-chain</span></div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:13px;padding:11px 18px">
+                <div style="width:34px;height:34px;border-radius:9px;background:rgba(180,112,58,.12);color:#B4703A;display:flex;align-items:center;justify-content:center;flex:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3c3 4 5 6 5 9a5 5 0 01-10 0c0-1.4.6-2.7 1.4-3.8.4 1 1.3 1.8 2.1 1.8-.3-2.4.7-5.2 1.5-7z" stroke-linejoin="round"/></svg></div>
+                <div style="flex:1;min-width:0"><div style="font:600 13px/1.2 'IBM Plex Sans'">Redeemed 50,000 mUSD</div><div style="font:400 11.5px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:3px">Burned from circulation · settled to bank · by E. Castro</div></div>
+                <div style="text-align:right;flex:none"><div style="font:400 11px/1 'IBM Plex Sans';color:#8A8375">4 days ago</div><div style="margin-top:6px"><span style="display:inline-flex;align-items:center;gap:4px;font:500 10px/1 'IBM Plex Sans';color:#3E7D5A;background:rgba(62,125,90,.1);padding:3px 7px;border-radius:5px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>On-chain</span></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 2C · LOGO MOTIFS ===== -->
+    <div class="dv-opt" id="2c">
+      <div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a><span><b>Mandala mark</b> — Celtic knotwork options (navy + brass). Applied option is <b>ii</b> (quaternary); the triquetra and ornate orbit remain alternatives.</span></div>
+      <div style="display:flex;gap:16px;align-items:stretch">
+        <div style="width:158px;background:#F4EFE6;border:1px solid rgba(27,30,36,.1);border-radius:16px;padding:18px;display:flex;flex-direction:column;align-items:center;gap:14px">
+          <svg width="88" height="88" viewBox="0 0 72 72" fill="none"><circle cx="36" cy="36" r="32" stroke="#C9A96A" stroke-width="2.4"/><g stroke="#23405E" stroke-width="3" stroke-linejoin="round"><path d="M36 11C23 20 23 33 36 40C49 33 49 20 36 11Z"/><path d="M36 11C23 20 23 33 36 40C49 33 49 20 36 11Z" transform="rotate(120 36 36)"/><path d="M36 11C23 20 23 33 36 40C49 33 49 20 36 11Z" transform="rotate(240 36 36)"/></g></svg>
+          <div style="text-align:center"><div style="font:600 12.5px/1 'IBM Plex Sans'">i · Triquetra</div><div style="font:400 10.5px/1.3 'IBM Plex Sans';color:#8A8375;margin-top:5px">Trinity knot + ring · alternative</div></div>
+        </div>
+        <div style="width:158px;background:#F4EFE6;border:1px solid rgba(27,30,36,.1);border-radius:16px;padding:18px;display:flex;flex-direction:column;align-items:center;gap:14px">
+          <svg width="88" height="88" viewBox="0 0 72 72" fill="none"><circle cx="36" cy="36" r="32" stroke="#C9A96A" stroke-width="2.4"/><g stroke="#23405E" stroke-width="3" stroke-linejoin="round"><path d="M36 12C25 20 25 32 36 39C47 32 47 20 36 12Z"/><path d="M36 12C25 20 25 32 36 39C47 32 47 20 36 12Z" transform="rotate(90 36 36)"/><path d="M36 12C25 20 25 32 36 39C47 32 47 20 36 12Z" transform="rotate(180 36 36)"/><path d="M36 12C25 20 25 32 36 39C47 32 47 20 36 12Z" transform="rotate(270 36 36)"/></g></svg>
+          <div style="text-align:center"><div style="font:600 12.5px/1 'IBM Plex Sans'">ii · Quaternary</div><div style="font:400 10.5px/1.3 'IBM Plex Sans';color:#8A8375;margin-top:5px">4-fold knot · applied</div></div>
+        </div>
+        <div style="width:158px;background:#F4EFE6;border:1px solid rgba(27,30,36,.1);border-radius:16px;padding:18px;display:flex;flex-direction:column;align-items:center;gap:14px">
+          <svg width="88" height="88" viewBox="0 0 72 72" fill="none"><circle cx="36" cy="36" r="32" stroke="#C9A96A" stroke-width="2.4"/><circle cx="36" cy="36" r="26" stroke="#C9A96A" stroke-width="1.2" opacity=".6"/><g stroke="#23405E" stroke-width="3" stroke-linejoin="round"><path d="M36 14C25 22 25 33 36 39C47 33 47 22 36 14Z"/><path d="M36 14C25 22 25 33 36 39C47 33 47 22 36 14Z" transform="rotate(120 36 36)"/><path d="M36 14C25 22 25 33 36 39C47 33 47 22 36 14Z" transform="rotate(240 36 36)"/></g><circle cx="36" cy="61" r="2.2" fill="#C9A96A"/><circle cx="14.4" cy="23.5" r="2.2" fill="#C9A96A"/><circle cx="57.6" cy="23.5" r="2.2" fill="#C9A96A"/></svg>
+          <div style="text-align:center"><div style="font:600 12.5px/1 'IBM Plex Sans'">iii · Orbit</div><div style="font:400 10.5px/1.3 'IBM Plex Sans';color:#8A8375;margin-top:5px">Ornate double-ring + dots</div></div>
+        </div>
+        <div style="align-self:center;display:flex;flex-direction:column;gap:14px;padding-left:6px">
+          <div style="display:flex;align-items:center;gap:11px"><div style="width:44px;height:44px;border-radius:12px;background:#23405E;display:flex;align-items:center;justify-content:center"><svg width="30" height="30" viewBox="0 0 48 48" fill="none" stroke="#C9A96A" stroke-width="2.6" stroke-linejoin="round"><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(90 24 24)"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(180 24 24)"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(270 24 24)"/></svg></div><span style="font:600 28px/1 'IBM Plex Sans';letter-spacing:-.3px;color:#1B1E24">Mandala</span></div>
+          <div style="display:flex;align-items:center;gap:9px;background:#1B1E24;padding:12px 16px;border-radius:12px"><svg width="24" height="24" viewBox="0 0 48 48" fill="none" stroke="#C9A96A" stroke-width="2.6" stroke-linejoin="round"><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(90 24 24)"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(180 24 24)"/><path d="M24 8C16 14 16 24 24 30C32 24 32 14 24 8Z" transform="rotate(270 24 24)"/></svg><span style="font:600 22px/1 'IBM Plex Sans';letter-spacing:-.2px;color:#F4EFE6">Mandala</span></div>
+          <div style="font:400 11px/1.4 'IBM Plex Sans';color:#8A8375;max-width:200px">Reversed lockup on ink. Mark reads down to 16px.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">Try next: "build the Send flow for <a class="dv-oid" href="#2a">2a</a>" · "add paused &amp; frozen-balance alert states" · "use the quaternary knot <a class="dv-oid" href="#2c">2c</a>" · "show Regulatory &amp; Banking screens"</p>
+</section>
+<section class="dv-turn" id="t1">
+  <div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Three directions — new brand, holder mobile app + issuer desktop console</span></div>
+  <p class="dv-tsub">Each direction is a complete aesthetic + a proposed name, shown on the two surfaces that define the product. Blockchain fully hidden; realistic USD/EUR/GBP/CHF stablecoins. Mix &amp; match — you can take one direction's palette with another's layout.</p>
+  <div class="dv-opts">
+
+    <!-- ============ OPTION 1A · MERIDIAN ============ -->
+    <div class="dv-opt" id="1a">
+      <div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a><span><b>Meridian</b> — private-bank calm. Warm ivory + ink, refined all-sans type (IBM Plex), brass micro-accents. Reads trustworthy &amp; regulator-friendly.</span></div>
+      <div style="display:flex;gap:28px;align-items:flex-start">
+
+        <!-- PHONE -->
+        <div style="position:relative;width:390px;height:844px;background:#0c0c0e;border-radius:52px;padding:11px;box-shadow:0 40px 80px -24px rgba(40,34,20,.5),0 0 0 1px rgba(0,0,0,.7),inset 0 0 0 2px rgba(255,255,255,.06);flex:none">
+          <div style="position:relative;width:100%;height:100%;border-radius:42px;overflow:hidden;background:#F4EFE6">
+            <div style="position:absolute;top:12px;left:50%;transform:translateX(-50%);width:94px;height:27px;background:#0c0c0e;border-radius:16px;z-index:30"></div>
+            <!-- status bar -->
+            <div style="height:54px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 8px;color:#1B1E24">
+              <span style="font:600 14px/1 'IBM Plex Sans';letter-spacing:.3px">9:41</span>
+              <div style="display:flex;align-items:center;gap:6px">
+                <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect y="7.5" width="3" height="3.5" rx="1"/><rect x="4.7" y="4.8" width="3" height="6.2" rx="1"/><rect x="9.4" y="2.2" width="3" height="8.8" rx="1"/><rect x="14" width="3" height="11" rx="1"/></svg>
+                <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3.7C3.7 1.2 12.3 1.2 15 3.7M3.2 6.1c2-1.8 7.6-1.8 9.6 0M5.6 8.5c1.2-1 3.6-1 4.8 0" stroke-linecap="round"/></svg>
+                <div style="display:flex;align-items:center;gap:1.5px"><div style="width:22px;height:11px;border:1.3px solid currentColor;border-radius:3.2px;padding:1.5px;opacity:.9"><div style="width:72%;height:100%;background:currentColor;border-radius:1.3px"></div></div><div style="width:1.5px;height:4px;background:currentColor;border-radius:1px;opacity:.5"></div></div>
+              </div>
+            </div>
+            <!-- content -->
+            <div style="position:absolute;top:54px;left:0;right:0;bottom:0;overflow:hidden;color:#1B1E24">
+              <!-- brand row -->
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 24px 0">
+                <div style="display:flex;align-items:center;gap:9px">
+                  <div style="width:28px;height:28px;border-radius:8px;background:#23405E;display:flex;align-items:center;justify-content:center"><div style="width:11px;height:11px;border:1.6px solid #C9A96A;border-radius:50%;border-right-color:transparent;transform:rotate(-45deg)"></div></div>
+                  <span style="font:600 18px/1 'IBM Plex Sans';letter-spacing:.3px">Meridian</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#6E685B" stroke-width="1.7"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke-linecap="round"/><path d="M13.7 21a2 2 0 01-3.4 0" stroke-linecap="round"/></svg>
+                  <div style="width:32px;height:32px;border-radius:50%;background:#23405E;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 12px 'IBM Plex Sans'">EC</div>
+                </div>
+              </div>
+              <!-- hero -->
+              <div style="padding:20px 26px 0">
+                <div style="font:400 13px/1 'IBM Plex Sans';color:#8A8375">Good afternoon, Elena</div>
+                <div style="font:500 11px/1 'IBM Plex Sans';letter-spacing:1.4px;color:#A79F8D;margin-top:16px">TOTAL BALANCE</div>
+                <div style="display:flex;align-items:baseline;gap:2px;margin-top:7px">
+                  <span style="font:600 47px/.95 'IBM Plex Sans';letter-spacing:-1.5px">$30,181</span>
+                  <span style="font:600 24px/1 'IBM Plex Sans';letter-spacing:-.3px;color:#8A8375">.24</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:9px;margin-top:14px">
+                  <span style="display:inline-flex;align-items:center;gap:4px;font:500 12px/1 'IBM Plex Sans';color:#3E7D5A;background:rgba(62,125,90,.1);padding:5px 9px;border-radius:20px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 15l6-6 6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>$418 this week</span>
+                  <span style="font:400 12px/1 'IBM Plex Sans';color:#8A8375">across 4 accounts</span>
+                </div>
+              </div>
+              <!-- quick actions -->
+              <div style="display:flex;gap:9px;padding:22px 24px 0">
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;padding:13px 0;background:#23405E;border-radius:14px;color:#F4EFE6"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font:500 11.5px/1 'IBM Plex Sans'">Move money</span></div>
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;padding:13px 0;background:#fff;border:1px solid rgba(27,30,36,.1);border-radius:14px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#23405E" stroke-width="1.9"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg><span style="font:500 11.5px/1 'IBM Plex Sans'">Request</span></div>
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;padding:13px 0;background:#fff;border:1px solid rgba(27,30,36,.1);border-radius:14px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#23405E" stroke-width="1.9"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20" stroke-linecap="round"/></svg><span style="font:500 11.5px/1 'IBM Plex Sans'">Add cash</span></div>
+              </div>
+              <!-- accounts -->
+              <div style="padding:24px 26px 0">
+                <div style="font:500 11px/1 'IBM Plex Sans';letter-spacing:1.2px;color:#A79F8D;margin-bottom:2px">ACCOUNTS</div>
+                <div style="display:flex;align-items:center;gap:13px;padding:11px 0;border-top:1px solid rgba(27,30,36,.08)">
+                  <div style="width:38px;height:38px;border-radius:11px;background:#E7DEC9;color:#8A6D3B;display:flex;align-items:center;justify-content:center;font:700 15px 'IBM Plex Sans';flex:none">$</div>
+                  <div style="flex:1;min-width:0"><div style="font:600 14px/1.2 'IBM Plex Sans'">US Dollar</div><div style="font:400 11.5px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:2px">Main account</div></div>
+                  <div style="font:500 15px/1.2 'IBM Plex Sans';font-variant-numeric:tabular-nums">$12,480.50</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:13px;padding:11px 0;border-top:1px solid rgba(27,30,36,.08)">
+                  <div style="width:38px;height:38px;border-radius:11px;background:#D7E0EA;color:#23405E;display:flex;align-items:center;justify-content:center;font:700 15px 'IBM Plex Sans';flex:none">€</div>
+                  <div style="flex:1;min-width:0"><div style="font:600 14px/1.2 'IBM Plex Sans'">Euro</div><div style="font:400 11.5px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:2px">EUR account</div></div>
+                  <div style="font:500 15px/1.2 'IBM Plex Sans';font-variant-numeric:tabular-nums">€8,240.00</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:13px;padding:11px 0;border-top:1px solid rgba(27,30,36,.08)">
+                  <div style="width:38px;height:38px;border-radius:11px;background:#E3DCEA;color:#5B4B7A;display:flex;align-items:center;justify-content:center;font:700 15px 'IBM Plex Sans';flex:none">£</div>
+                  <div style="flex:1;min-width:0"><div style="font:600 14px/1.2 'IBM Plex Sans'">British Pound</div><div style="font:400 11.5px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:2px">GBP account</div></div>
+                  <div style="font:500 15px/1.2 'IBM Plex Sans';font-variant-numeric:tabular-nums">£3,150.75</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:13px;padding:11px 0;border-top:1px solid rgba(27,30,36,.08)">
+                  <div style="width:38px;height:38px;border-radius:11px;background:#E1E7DE;color:#4B6B4E;display:flex;align-items:center;justify-content:center;font:600 12px 'IBM Plex Sans';flex:none">Fr</div>
+                  <div style="flex:1;min-width:0"><div style="font:600 14px/1.2 'IBM Plex Sans'">Swiss Franc</div><div style="font:400 11.5px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:2px">CHF account</div></div>
+                  <div style="font:500 15px/1.2 'IBM Plex Sans';font-variant-numeric:tabular-nums">CHF 5,600.00</div>
+                </div>
+              </div>
+              <!-- activity -->
+              <div style="padding:18px 26px 0">
+                <div style="font:500 11px/1 'IBM Plex Sans';letter-spacing:1.2px;color:#A79F8D;margin-bottom:8px">RECENT</div>
+                <div style="display:flex;align-items:center;gap:12px;padding-bottom:9px">
+                  <div style="width:34px;height:34px;border-radius:50%;background:rgba(62,125,90,.12);display:flex;align-items:center;justify-content:center;flex:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3E7D5A" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                  <div style="flex:1;min-width:0"><div style="font:600 13px/1.2 'IBM Plex Sans'">Northwind Payroll</div><div style="font:400 11px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:2px">Today · 09:24</div></div>
+                  <div style="font:500 13.5px/1.2 'IBM Plex Sans';color:#3E7D5A;font-variant-numeric:tabular-nums">+$2,400.00</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;padding-top:9px;border-top:1px solid rgba(27,30,36,.08)">
+                  <div style="width:34px;height:34px;border-radius:50%;background:rgba(27,30,36,.06);display:flex;align-items:center;justify-content:center;flex:none;font:600 11px 'IBM Plex Sans';color:#6E685B">CL</div>
+                  <div style="flex:1;min-width:0"><div style="font:600 13px/1.2 'IBM Plex Sans'">Café Lisbon</div><div style="font:400 11px/1.2 'IBM Plex Sans';color:#8A8375;margin-top:2px">Yesterday · 18:02</div></div>
+                  <div style="font:500 13.5px/1.2 'IBM Plex Sans';font-variant-numeric:tabular-nums">−€18.40</div>
+                </div>
+              </div>
+            </div>
+            <!-- tab bar -->
+            <div style="position:absolute;bottom:0;left:0;right:0;height:74px;background:rgba(244,239,230,.92);backdrop-filter:blur(14px);border-top:1px solid rgba(27,30,36,.08);display:flex;align-items:center;justify-content:space-around;padding:0 26px 16px">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#23405E" stroke-width="1.9"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z" stroke-linejoin="round"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B4AC98" stroke-width="1.9"><path d="M3 12h4l2 6 4-14 2 8h6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <div style="width:46px;height:46px;border-radius:50%;background:#23405E;display:flex;align-items:center;justify-content:center;margin-top:-18px;box-shadow:0 8px 18px -4px rgba(35,64,94,.5)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F4EFE6" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B4AC98" stroke-width="1.9"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20" stroke-linecap="round"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#B4AC98" stroke-width="1.9"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- DESKTOP -->
+        <div style="width:1060px;border-radius:15px;overflow:hidden;box-shadow:0 40px 90px -34px rgba(40,34,20,.55),0 0 0 1px rgba(27,30,36,.1);flex:none;background:#F4EFE6">
+          <div style="height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;background:#EBE4D8;border-bottom:1px solid rgba(27,30,36,.09)">
+            <div style="display:flex;gap:7px"><div style="width:11px;height:11px;border-radius:50%;background:#E0685C"></div><div style="width:11px;height:11px;border-radius:50%;background:#E6B34D"></div><div style="width:11px;height:11px;border-radius:50%;background:#5FB37E"></div></div>
+            <div style="flex:1;display:flex;justify-content:center"><div style="font:400 12px/1 'IBM Plex Mono';color:#8A8375;background:#F4EFE6;padding:6px 16px;border-radius:7px;border:1px solid rgba(27,30,36,.07)">meridian.finance/issuer/overview</div></div>
+          </div>
+          <div style="display:flex;height:660px">
+            <!-- nav -->
+            <div style="width:230px;background:#EDE6DA;border-right:1px solid rgba(27,30,36,.08);display:flex;flex-direction:column;padding:20px 14px">
+              <div style="display:flex;align-items:center;gap:10px;padding:0 8px 20px">
+                <div style="width:30px;height:30px;border-radius:8px;background:#23405E;display:flex;align-items:center;justify-content:center"><div style="width:12px;height:12px;border:1.7px solid #C9A96A;border-radius:50%;border-right-color:transparent;transform:rotate(-45deg)"></div></div>
+                <div><div style="font:600 16px/1 'IBM Plex Sans';letter-spacing:.3px">Meridian</div><div style="font:500 9px/1 'IBM Plex Sans';letter-spacing:1px;color:#A79F8D;margin-top:3px">ISSUER CONSOLE</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;background:#fff;color:#1B1E24;position:relative;box-shadow:0 1px 2px rgba(27,30,36,.06)"><div style="position:absolute;left:0;top:9px;bottom:9px;width:3px;background:#C9A96A;border-radius:0 3px 3px 0"></div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#23405E" stroke-width="1.9"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span style="font:600 13px/1 'IBM Plex Sans'">Overview</span></div>
+              <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;color:#6E685B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg><span style="font:500 13px/1 'IBM Plex Sans'">Operations</span></div>
+              <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;color:#6E685B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3l7 3v6c0 5-3 8-7 9-4-1-7-4-7-9V6z" stroke-linejoin="round"/></svg><span style="font:500 13px/1 'IBM Plex Sans'">Regulatory</span></div>
+              <div style="display:flex;align-items:center;gap:11px;padding:10px 12px;color:#6E685B"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20" stroke-linecap="round"/></svg><span style="font:500 13px/1 'IBM Plex Sans'">Banking</span></div>
+              
+              <div style="margin-top:auto;display:flex;align-items:center;gap:10px;padding:12px 10px;background:#F4EFE6;border-radius:11px;border:1px solid rgba(27,30,36,.07)">
+                <div style="width:30px;height:30px;border-radius:8px;background:#23405E;color:#F4EFE6;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Sans'">NT</div>
+                <div style="min-width:0"><div style="font:600 12px/1.1 'IBM Plex Sans'">Northwind Trust</div><div style="font:400 10px/1.1 'IBM Plex Sans';color:#8A8375;margin-top:2px">Verified issuer</div></div>
+              </div>
+            </div>
+            <!-- main -->
+            <div style="flex:1;padding:26px 30px;overflow:hidden;color:#1B1E24">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between">
+                <div><h1 style="font:600 27px/1 'IBM Plex Sans';letter-spacing:-.5px;margin:0">Overview</h1><div style="font:400 13px/1 'IBM Plex Sans';color:#8A8375;margin-top:8px">Live regulatory &amp; reserve state across 4 assets</div></div>
+                <div style="display:flex;align-items:center;gap:10px"><span style="display:inline-flex;align-items:center;gap:6px;font:500 12px/1 'IBM Plex Sans';color:#3E7D5A;background:rgba(62,125,90,.1);padding:8px 12px;border-radius:20px"><span style="width:7px;height:7px;border-radius:50%;background:#3E7D5A"></span>Reserves 100% backed</span></div>
+              </div>
+              <!-- stat tiles -->
+              <div style="display:flex;gap:14px;margin-top:22px">
+                <div style="flex:1;background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:13px;padding:15px 16px"><div style="font:400 11px/1 'IBM Plex Sans';color:#8A8375">In circulation</div><div style="font:600 24px/1 'IBM Plex Sans';letter-spacing:-.3px;margin-top:10px;font-variant-numeric:tabular-nums">$9.12M</div><div style="font:400 10.5px/1 'IBM Plex Sans';color:#A79F8D;margin-top:6px">USD-equivalent</div></div>
+                <div style="flex:1;background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:13px;padding:15px 16px"><div style="font:400 11px/1 'IBM Plex Sans';color:#8A8375">Net flow · 24h</div><div style="font:600 24px/1 'IBM Plex Sans';letter-spacing:-.3px;margin-top:10px;color:#3E7D5A;font-variant-numeric:tabular-nums">+$54K</div><div style="font:400 10.5px/1 'IBM Plex Sans';color:#A79F8D;margin-top:6px">issued − redeemed</div></div>
+                <div style="flex:1;background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:13px;padding:15px 16px"><div style="font:400 11px/1 'IBM Plex Sans';color:#8A8375">Reserve ratio</div><div style="font:600 24px/1 'IBM Plex Sans';letter-spacing:-.3px;margin-top:10px;font-variant-numeric:tabular-nums">100.0%</div><div style="font:400 10.5px/1 'IBM Plex Sans';color:#A79F8D;margin-top:6px">bank ↔ supply</div></div>
+                <div style="flex:1;background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:13px;padding:15px 16px"><div style="font:400 11px/1 'IBM Plex Sans';color:#8A8375">Needs attention</div><div style="font:600 24px/1 'IBM Plex Sans';letter-spacing:-.3px;margin-top:10px;color:#B4703A;font-variant-numeric:tabular-nums">2</div><div style="font:400 10.5px/1 'IBM Plex Sans';color:#A79F8D;margin-top:6px">1 paused · 1 drift</div></div>
+              </div>
+              <!-- assets table -->
+              <div style="background:#fff;border:1px solid rgba(27,30,36,.08);border-radius:14px;margin-top:20px;overflow:hidden">
+                <div style="display:grid;grid-template-columns:1.6fr 1fr .9fr .9fr 1fr;gap:12px;padding:11px 18px;background:#F4EFE6;font:500 10px/1 'IBM Plex Sans';letter-spacing:1px;color:#A79F8D">
+                  <div>ASSET</div><div style="text-align:right">SUPPLY</div><div>STATUS</div><div>ACCESS</div><div style="text-align:right">RESERVE</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1.6fr 1fr .9fr .9fr 1fr;gap:12px;padding:13px 18px;align-items:center;border-top:1px solid rgba(27,30,36,.06)">
+                  <div style="display:flex;align-items:center;gap:10px"><div style="width:30px;height:30px;border-radius:8px;background:#E7DEC9;color:#8A6D3B;display:flex;align-items:center;justify-content:center;font:700 13px 'IBM Plex Sans'">$</div><div><div style="font:600 13px/1.1 'IBM Plex Sans'">US Dollar</div><div style="font:400 10.5px/1.1 'IBM Plex Sans';color:#8A8375;margin-top:2px">mUSD</div></div></div>
+                  <div style="text-align:right;font:500 13px/1 'IBM Plex Sans';font-variant-numeric:tabular-nums">4,204,000</div>
+                  <div><span style="font:500 11px/1 'IBM Plex Sans';color:#3E7D5A;background:rgba(62,125,90,.12);padding:4px 9px;border-radius:6px">Active</span></div>
+                  <div style="font:400 12px/1 'IBM Plex Sans';color:#6E685B">Denylist</div>
+                  <div style="text-align:right;font:500 12px/1 'IBM Plex Sans';color:#3E7D5A">100%</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1.6fr 1fr .9fr .9fr 1fr;gap:12px;padding:13px 18px;align-items:center;border-top:1px solid rgba(27,30,36,.06)">
+                  <div style="display:flex;align-items:center;gap:10px"><div style="width:30px;height:30px;border-radius:8px;background:#D7E0EA;color:#23405E;display:flex;align-items:center;justify-content:center;font:700 13px 'IBM Plex Sans'">€</div><div><div style="font:600 13px/1.1 'IBM Plex Sans'">Euro</div><div style="font:400 10.5px/1.1 'IBM Plex Sans';color:#8A8375;margin-top:2px">mEUR</div></div></div>
+                  <div style="text-align:right;font:500 13px/1 'IBM Plex Sans';font-variant-numeric:tabular-nums">2,850,000</div>
+                  <div><span style="font:500 11px/1 'IBM Plex Sans';color:#3E7D5A;background:rgba(62,125,90,.12);padding:4px 9px;border-radius:6px">Active</span></div>
+                  <div style="font:400 12px/1 'IBM Plex Sans';color:#6E685B">Denylist</div>
+                  <div style="text-align:right;font:500 12px/1 'IBM Plex Sans';color:#B4703A">+€300 drift</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1.6fr 1fr .9fr .9fr 1fr;gap:12px;padding:13px 18px;align-items:center;border-top:1px solid rgba(27,30,36,.06)">
+                  <div style="display:flex;align-items:center;gap:10px"><div style="width:30px;height:30px;border-radius:8px;background:#E3DCEA;color:#5B4B7A;display:flex;align-items:center;justify-content:center;font:700 13px 'IBM Plex Sans'">£</div><div><div style="font:600 13px/1.1 'IBM Plex Sans'">British Pound</div><div style="font:400 10.5px/1.1 'IBM Plex Sans';color:#8A8375;margin-top:2px">mGBP</div></div></div>
+                  <div style="text-align:right;font:500 13px/1 'IBM Plex Sans';font-variant-numeric:tabular-nums">940,000</div>
+                  <div><span style="font:500 11px/1 'IBM Plex Sans';color:#3E7D5A;background:rgba(62,125,90,.12);padding:4px 9px;border-radius:6px">Active</span></div>
+                  <div style="font:400 12px/1 'IBM Plex Sans';color:#6E685B">Allowlist</div>
+                  <div style="text-align:right;font:500 12px/1 'IBM Plex Sans';color:#3E7D5A">100%</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1.6fr 1fr .9fr .9fr 1fr;gap:12px;padding:13px 18px;align-items:center;border-top:1px solid rgba(27,30,36,.06);background:rgba(180,112,58,.04)">
+                  <div style="display:flex;align-items:center;gap:10px"><div style="width:30px;height:30px;border-radius:8px;background:#E1E7DE;color:#4B6B4E;display:flex;align-items:center;justify-content:center;font:600 11px 'IBM Plex Sans'">Fr</div><div><div style="font:600 13px/1.1 'IBM Plex Sans'">Swiss Franc</div><div style="font:400 10.5px/1.1 'IBM Plex Sans';color:#8A8375;margin-top:2px">mCHF</div></div></div>
+                  <div style="text-align:right;font:500 13px/1 'IBM Plex Sans';font-variant-numeric:tabular-nums">1,100,000</div>
+                  <div><span style="font:500 11px/1 'IBM Plex Sans';color:#B4703A;background:rgba(180,112,58,.14);padding:4px 9px;border-radius:6px">Paused</span></div>
+                  <div style="font:400 12px/1 'IBM Plex Sans';color:#6E685B">Denylist</div>
+                  <div style="text-align:right;font:500 12px/1 'IBM Plex Sans';color:#3E7D5A">100%</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    
+    <!-- ============ OPTION 1B · HALO ============ -->
+    <div class="dv-opt" id="1b">
+      <div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a><span><b>Halo</b> — warm, human neobank. Cream + coral/honey, rounded Bricolage Grotesque, gradient hero, colour-coded accounts. Delightful &amp; approachable.</span></div>
+      <div style="display:flex;gap:28px;align-items:flex-start">
+
+        <!-- PHONE -->
+        <div style="position:relative;width:390px;height:844px;background:#0c0c0e;border-radius:52px;padding:11px;box-shadow:0 40px 80px -24px rgba(150,90,40,.4),0 0 0 1px rgba(0,0,0,.7),inset 0 0 0 2px rgba(255,255,255,.06);flex:none">
+          <div style="position:relative;width:100%;height:100%;border-radius:42px;overflow:hidden;background:#FFF9F0">
+            <div style="position:absolute;top:12px;left:50%;transform:translateX(-50%);width:94px;height:27px;background:#0c0c0e;border-radius:16px;z-index:30"></div>
+            <div style="height:54px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 8px;color:#2B2019">
+              <span style="font:700 14px/1 'Manrope';letter-spacing:.2px">9:41</span>
+              <div style="display:flex;align-items:center;gap:6px">
+                <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect y="7.5" width="3" height="3.5" rx="1"/><rect x="4.7" y="4.8" width="3" height="6.2" rx="1"/><rect x="9.4" y="2.2" width="3" height="8.8" rx="1"/><rect x="14" width="3" height="11" rx="1"/></svg>
+                <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3.7C3.7 1.2 12.3 1.2 15 3.7M3.2 6.1c2-1.8 7.6-1.8 9.6 0M5.6 8.5c1.2-1 3.6-1 4.8 0" stroke-linecap="round"/></svg>
+                <div style="display:flex;align-items:center;gap:1.5px"><div style="width:22px;height:11px;border:1.3px solid currentColor;border-radius:3.2px;padding:1.5px;opacity:.9"><div style="width:72%;height:100%;background:currentColor;border-radius:1.3px"></div></div><div style="width:1.5px;height:4px;background:currentColor;border-radius:1px;opacity:.5"></div></div>
+              </div>
+            </div>
+            <div style="position:absolute;top:54px;left:0;right:0;bottom:0;overflow:hidden;color:#2B2019">
+              <!-- top row -->
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 22px 0">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#FF7A45,#FFB84D);display:flex;align-items:center;justify-content:center"><div style="width:11px;height:11px;border:2.2px solid #fff;border-radius:50%"></div></div>
+                  <span style="font:800 19px/1 'Bricolage Grotesque';letter-spacing:-.3px">Halo</span>
+                </div>
+                <div style="width:34px;height:34px;border-radius:50%;background:#FF6A3D;color:#fff;display:flex;align-items:center;justify-content:center;font:800 12px 'Manrope'">EC</div>
+              </div>
+              <div style="padding:16px 22px 0"><div style="font:800 25px/1 'Bricolage Grotesque';letter-spacing:-.5px">Hey, Elena</div></div>
+              <!-- hero gradient card -->
+              <div style="margin:16px 20px 0;border-radius:24px;padding:18px 20px;background:linear-gradient(135deg,#FF7A45,#FF9E3D 58%,#FFBB4D);box-shadow:0 16px 34px -14px rgba(255,120,60,.6);color:#fff;position:relative;overflow:hidden">
+                <div style="position:absolute;right:-30px;top:-30px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,.14)"></div>
+                <div style="font:600 12px/1 'Manrope';opacity:.9">Total balance</div>
+                <div style="font:800 38px/1 'Manrope';margin-top:9px;letter-spacing:-1px;font-variant-numeric:tabular-nums">$30,181<span style="font-size:22px;opacity:.85">.24</span></div>
+                <div style="display:inline-flex;align-items:center;gap:5px;margin-top:11px;font:700 11.5px/1 'Manrope';background:rgba(255,255,255,.22);padding:5px 10px;border-radius:20px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M6 15l6-6 6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>1.4% this week</div>
+                <div style="display:flex;gap:10px;margin-top:16px">
+                  <div style="flex:1;text-align:center;padding:11px 0;background:#fff;color:#E8542A;border-radius:14px;font:800 13px 'Manrope'">Add money</div>
+                  <div style="flex:1;text-align:center;padding:11px 0;background:rgba(255,255,255,.22);color:#fff;border-radius:14px;font:800 13px 'Manrope'">Send</div>
+                </div>
+              </div>
+              <!-- accounts grid -->
+              <div style="padding:20px 20px 0"><div style="font:800 14px/1 'Bricolage Grotesque';margin-bottom:11px">Accounts</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
+                  <div style="background:#fff;border-radius:18px;padding:13px;box-shadow:0 6px 16px -10px rgba(120,80,40,.28)"><div style="width:32px;height:32px;border-radius:50%;background:#E9F6EF;color:#1FA971;display:flex;align-items:center;justify-content:center;font:800 14px 'Manrope'">$</div><div style="font:700 12px 'Manrope';margin-top:11px;color:#8B7D70">US Dollar</div><div style="font:800 18px 'Manrope';margin-top:1px;font-variant-numeric:tabular-nums">$12,480<span style="font-size:13px;color:#B7A99B">.50</span></div></div>
+                  <div style="background:#fff;border-radius:18px;padding:13px;box-shadow:0 6px 16px -10px rgba(120,80,40,.28)"><div style="width:32px;height:32px;border-radius:50%;background:#E8F1FA;color:#3B82C4;display:flex;align-items:center;justify-content:center;font:800 14px 'Manrope'">€</div><div style="font:700 12px 'Manrope';margin-top:11px;color:#8B7D70">Euro</div><div style="font:800 18px 'Manrope';margin-top:1px;font-variant-numeric:tabular-nums">€8,240<span style="font-size:13px;color:#B7A99B">.00</span></div></div>
+                  <div style="background:#fff;border-radius:18px;padding:13px;box-shadow:0 6px 16px -10px rgba(120,80,40,.28)"><div style="width:32px;height:32px;border-radius:50%;background:#EFEBFA;color:#7C6AC4;display:flex;align-items:center;justify-content:center;font:800 14px 'Manrope'">£</div><div style="font:700 12px 'Manrope';margin-top:11px;color:#8B7D70">British Pound</div><div style="font:800 18px 'Manrope';margin-top:1px;font-variant-numeric:tabular-nums">£3,150<span style="font-size:13px;color:#B7A99B">.75</span></div></div>
+                  <div style="background:#fff;border-radius:18px;padding:13px;box-shadow:0 6px 16px -10px rgba(120,80,40,.28)"><div style="width:32px;height:32px;border-radius:50%;background:#FCEAED;color:#E5566B;display:flex;align-items:center;justify-content:center;font:800 11px 'Manrope'">Fr</div><div style="font:700 12px 'Manrope';margin-top:11px;color:#8B7D70">Swiss Franc</div><div style="font:800 18px 'Manrope';margin-top:1px;font-variant-numeric:tabular-nums">5,600<span style="font-size:13px;color:#B7A99B">.00</span></div></div>
+                </div>
+              </div>
+              <!-- activity -->
+              <div style="padding:18px 22px 0"><div style="font:800 14px/1 'Bricolage Grotesque';margin-bottom:10px">Recent</div>
+                <div style="display:flex;align-items:center;gap:12px;padding-bottom:11px">
+                  <div style="width:36px;height:36px;border-radius:12px;background:#E9F6EF;display:flex;align-items:center;justify-content:center;flex:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1FA971" stroke-width="2.2"><path d="M12 19V5M5 12l7-7 7 7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                  <div style="flex:1;min-width:0"><div style="font:700 13.5px/1.2 'Manrope'">You got paid</div><div style="font:500 11.5px/1.2 'Manrope';color:#9B8B7C;margin-top:2px">Northwind Payroll · today</div></div>
+                  <div style="font:800 14px/1.2 'Manrope';color:#1FA971;font-variant-numeric:tabular-nums">+$2,400</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;padding-top:11px;border-top:1px solid rgba(43,32,25,.07)">
+                  <div style="width:36px;height:36px;border-radius:12px;background:#FCEAED;color:#E5566B;display:flex;align-items:center;justify-content:center;flex:none;font:800 11px 'Manrope'">CL</div>
+                  <div style="flex:1;min-width:0"><div style="font:700 13.5px/1.2 'Manrope'">Café Lisbon</div><div style="font:500 11.5px/1.2 'Manrope';color:#9B8B7C;margin-top:2px">Yesterday · 18:02</div></div>
+                  <div style="font:800 14px/1.2 'Manrope';font-variant-numeric:tabular-nums">−€18.40</div>
+                </div>
+              </div>
+            </div>
+            <!-- floating tab bar -->
+            <div style="position:absolute;bottom:14px;left:16px;right:16px;height:62px;background:#fff;border-radius:22px;box-shadow:0 12px 30px -8px rgba(120,80,40,.32);display:flex;align-items:center;justify-content:space-around;padding:0 16px">
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="#FF6A3D" stroke="#FF6A3D" stroke-width="1.6"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z" stroke-linejoin="round"/></svg>
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#C3B4A5" stroke-width="2"><path d="M3 12h4l2 6 4-14 2 8h6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#FF7A45,#FFA83E);display:flex;align-items:center;justify-content:center;margin-top:-16px;box-shadow:0 10px 20px -5px rgba(255,120,60,.6)"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg></div>
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#C3B4A5" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20" stroke-linecap="round"/></svg>
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#C3B4A5" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- DESKTOP -->
+        <div style="width:1060px;border-radius:15px;overflow:hidden;box-shadow:0 40px 90px -34px rgba(150,90,40,.4),0 0 0 1px rgba(43,32,25,.08);flex:none;background:#FFFCF7">
+          <div style="height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;background:#FFF1E2;border-bottom:1px solid rgba(43,32,25,.07)">
+            <div style="display:flex;gap:7px"><div style="width:11px;height:11px;border-radius:50%;background:#FF6A5C"></div><div style="width:11px;height:11px;border-radius:50%;background:#FFB93B"></div><div style="width:11px;height:11px;border-radius:50%;background:#4FC97E"></div></div>
+            <div style="flex:1;display:flex;justify-content:center"><div style="font:500 12px/1 'Manrope';color:#9B8B7C;background:#FFFCF7;padding:6px 16px;border-radius:7px;border:1px solid rgba(43,32,25,.06)">halo.money/issuer</div></div>
+          </div>
+          <!-- top nav -->
+          <div style="height:60px;background:#fff;border-bottom:1px solid rgba(43,32,25,.07);display:flex;align-items:center;gap:20px;padding:0 24px">
+            <div style="display:flex;align-items:center;gap:9px"><div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#FF7A45,#FFB84D);display:flex;align-items:center;justify-content:center"><div style="width:11px;height:11px;border:2.2px solid #fff;border-radius:50%"></div></div><span style="font:800 17px/1 'Bricolage Grotesque'">Halo</span><span style="font:600 10px/1 'Manrope';color:#9B8B7C;background:#FFF1E2;padding:4px 8px;border-radius:6px;margin-left:2px">Issuer</span></div>
+            <div style="display:flex;align-items:center;gap:4px;margin-left:12px">
+              <span style="font:700 12.5px/1 'Manrope';color:#E8542A;background:#FFEDE4;padding:8px 13px;border-radius:9px">Overview</span>
+              <span style="font:600 12.5px/1 'Manrope';color:#7A6C5E;padding:8px 13px">Operations</span>
+              <span style="font:600 12.5px/1 'Manrope';color:#7A6C5E;padding:8px 13px">Regulatory</span>
+              <span style="font:600 12.5px/1 'Manrope';color:#7A6C5E;padding:8px 13px">Banking</span>
+              <span style="font:600 12.5px/1 'Manrope';color:#7A6C5E;padding:8px 13px">Audit</span>
+            </div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:12px"><span style="display:inline-flex;align-items:center;gap:6px;font:700 11.5px/1 'Manrope';color:#1FA971;background:#E9F6EF;padding:7px 12px;border-radius:20px"><span style="width:7px;height:7px;border-radius:50%;background:#1FA971"></span>All reconciled</span><div style="width:32px;height:32px;border-radius:50%;background:#FF6A3D;color:#fff;display:flex;align-items:center;justify-content:center;font:800 11px 'Manrope'">NT</div></div>
+          </div>
+          <!-- content -->
+          <div style="height:556px;padding:24px 28px;overflow:hidden;color:#2B2019;background:#FFFCF7">
+            <div style="display:flex;align-items:flex-end;justify-content:space-between">
+              <div><h1 style="font:800 27px/1 'Bricolage Grotesque';margin:0;letter-spacing:-.5px">Overview</h1><div style="font:500 13px/1 'Manrope';color:#9B8B7C;margin-top:8px">4 stablecoins in circulation · everything's healthy</div></div>
+            </div>
+            <div style="display:flex;gap:14px;margin-top:20px">
+              <div style="flex:1;background:#fff;border-radius:16px;padding:16px;box-shadow:0 6px 18px -12px rgba(120,80,40,.28)"><div style="font:600 11.5px/1 'Manrope';color:#9B8B7C">In circulation</div><div style="font:800 25px/1 'Manrope';margin-top:10px;font-variant-numeric:tabular-nums">$9.12M</div><div style="font:600 10.5px/1 'Manrope';color:#B7A99B;margin-top:6px">across 4 assets</div></div>
+              <div style="flex:1;background:linear-gradient(135deg,#FF7A45,#FFA23E);border-radius:16px;padding:16px;color:#fff;box-shadow:0 10px 22px -12px rgba(255,120,60,.6)"><div style="font:600 11.5px/1 'Manrope';opacity:.92">Issued today</div><div style="font:800 25px/1 'Manrope';margin-top:10px;font-variant-numeric:tabular-nums">+$142K</div><div style="font:600 10.5px/1 'Manrope';opacity:.8;margin-top:6px">2 bank deposits</div></div>
+              <div style="flex:1;background:#fff;border-radius:16px;padding:16px;box-shadow:0 6px 18px -12px rgba(120,80,40,.28)"><div style="font:600 11.5px/1 'Manrope';color:#9B8B7C">Reserve ratio</div><div style="font:800 25px/1 'Manrope';margin-top:10px;color:#1FA971;font-variant-numeric:tabular-nums">100%</div><div style="font:600 10.5px/1 'Manrope';color:#B7A99B;margin-top:6px">fully backed</div></div>
+              <div style="flex:1;background:#fff;border-radius:16px;padding:16px;box-shadow:0 6px 18px -12px rgba(120,80,40,.28)"><div style="font:600 11.5px/1 'Manrope';color:#9B8B7C">Needs a look</div><div style="font:800 25px/1 'Manrope';margin-top:10px;color:#E8542A;font-variant-numeric:tabular-nums">1</div><div style="font:600 10.5px/1 'Manrope';color:#B7A99B;margin-top:6px">CHF paused</div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px">
+              <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 6px 18px -12px rgba(120,80,40,.28)"><div style="height:5px;background:#1FA971"></div><div style="padding:15px 16px;display:flex;align-items:center;gap:13px"><div style="width:40px;height:40px;border-radius:12px;background:#E9F6EF;color:#1FA971;display:flex;align-items:center;justify-content:center;font:800 17px 'Manrope'">$</div><div style="flex:1"><div style="font:700 14px 'Manrope'">US Dollar <span style="color:#B7A99B;font-weight:600">mUSD</span></div><div style="font:800 19px 'Manrope';margin-top:2px;font-variant-numeric:tabular-nums">4,204,000</div></div><div style="text-align:right"><span style="font:700 10.5px 'Manrope';color:#1FA971;background:#E9F6EF;padding:4px 9px;border-radius:6px">Active</span><div style="font:600 11px 'Manrope';color:#9B8B7C;margin-top:8px">Reserve 100%</div></div></div></div>
+              <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 6px 18px -12px rgba(120,80,40,.28)"><div style="height:5px;background:#3B82C4"></div><div style="padding:15px 16px;display:flex;align-items:center;gap:13px"><div style="width:40px;height:40px;border-radius:12px;background:#E8F1FA;color:#3B82C4;display:flex;align-items:center;justify-content:center;font:800 17px 'Manrope'">€</div><div style="flex:1"><div style="font:700 14px 'Manrope'">Euro <span style="color:#B7A99B;font-weight:600">mEUR</span></div><div style="font:800 19px 'Manrope';margin-top:2px;font-variant-numeric:tabular-nums">2,850,000</div></div><div style="text-align:right"><span style="font:700 10.5px 'Manrope';color:#1FA971;background:#E9F6EF;padding:4px 9px;border-radius:6px">Active</span><div style="font:600 11px 'Manrope';color:#E8542A;margin-top:8px">+€300 drift</div></div></div></div>
+              <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 6px 18px -12px rgba(120,80,40,.28)"><div style="height:5px;background:#7C6AC4"></div><div style="padding:15px 16px;display:flex;align-items:center;gap:13px"><div style="width:40px;height:40px;border-radius:12px;background:#EFEBFA;color:#7C6AC4;display:flex;align-items:center;justify-content:center;font:800 17px 'Manrope'">£</div><div style="flex:1"><div style="font:700 14px 'Manrope'">British Pound <span style="color:#B7A99B;font-weight:600">mGBP</span></div><div style="font:800 19px 'Manrope';margin-top:2px;font-variant-numeric:tabular-nums">940,000</div></div><div style="text-align:right"><span style="font:700 10.5px 'Manrope';color:#1FA971;background:#E9F6EF;padding:4px 9px;border-radius:6px">Active</span><div style="font:600 11px 'Manrope';color:#9B8B7C;margin-top:8px">Allowlist</div></div></div></div>
+              <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 6px 18px -12px rgba(120,80,40,.28)"><div style="height:5px;background:#E5566B"></div><div style="padding:15px 16px;display:flex;align-items:center;gap:13px"><div style="width:40px;height:40px;border-radius:12px;background:#FCEAED;color:#E5566B;display:flex;align-items:center;justify-content:center;font:800 14px 'Manrope'">Fr</div><div style="flex:1"><div style="font:700 14px 'Manrope'">Swiss Franc <span style="color:#B7A99B;font-weight:600">mCHF</span></div><div style="font:800 19px 'Manrope';margin-top:2px;font-variant-numeric:tabular-nums">1,100,000</div></div><div style="text-align:right"><span style="font:700 10.5px 'Manrope';color:#E8542A;background:#FFEDE4;padding:4px 9px;border-radius:6px">Paused</span><div style="font:600 11px 'Manrope';color:#9B8B7C;margin-top:8px">Reserve 100%</div></div></div></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    
+    <!-- ============ OPTION 1C · VESPER ============ -->
+    <div class="dv-opt" id="1c">
+      <div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a><span><b>Vesper</b> — premium after-dark. Cool near-black glass, iced-violet glow, Space Grotesk. Evolves your current dark theme into something high-end &amp; distinctive.</span></div>
+      <div style="display:flex;gap:28px;align-items:flex-start">
+
+        <!-- PHONE -->
+        <div style="position:relative;width:390px;height:844px;background:#050608;border-radius:52px;padding:11px;box-shadow:0 40px 90px -22px rgba(90,70,200,.4),0 0 0 1px rgba(0,0,0,.8),inset 0 0 0 2px rgba(255,255,255,.05);flex:none">
+          <div style="position:relative;width:100%;height:100%;border-radius:42px;overflow:hidden;background:#0B0D12">
+            <div style="position:absolute;top:12px;left:50%;transform:translateX(-50%);width:94px;height:27px;background:#050608;border-radius:16px;z-index:30"></div>
+            <div style="height:54px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 8px;color:#F1F0F6">
+              <span style="font:500 14px/1 'Space Grotesk';letter-spacing:.3px">9:41</span>
+              <div style="display:flex;align-items:center;gap:6px">
+                <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect y="7.5" width="3" height="3.5" rx="1"/><rect x="4.7" y="4.8" width="3" height="6.2" rx="1"/><rect x="9.4" y="2.2" width="3" height="8.8" rx="1"/><rect x="14" width="3" height="11" rx="1"/></svg>
+                <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 3.7C3.7 1.2 12.3 1.2 15 3.7M3.2 6.1c2-1.8 7.6-1.8 9.6 0M5.6 8.5c1.2-1 3.6-1 4.8 0" stroke-linecap="round"/></svg>
+                <div style="display:flex;align-items:center;gap:1.5px"><div style="width:22px;height:11px;border:1.3px solid currentColor;border-radius:3.2px;padding:1.5px;opacity:.9"><div style="width:72%;height:100%;background:currentColor;border-radius:1.3px"></div></div><div style="width:1.5px;height:4px;background:currentColor;border-radius:1px;opacity:.5"></div></div>
+              </div>
+            </div>
+            <div style="position:absolute;top:54px;left:0;right:0;bottom:0;overflow:hidden;color:#F1F0F6">
+              <div style="position:absolute;top:-30px;left:50%;transform:translateX(-50%);width:360px;height:300px;background:radial-gradient(circle at 50% 38%,rgba(142,110,255,.42),rgba(142,110,255,0) 62%);pointer-events:none"></div>
+              <!-- top row -->
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;padding:8px 24px 0">
+                <div style="display:flex;align-items:center;gap:9px">
+                  <div style="width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#8E86FF,#5B54C9);display:flex;align-items:center;justify-content:center;box-shadow:0 0 14px -2px rgba(142,134,255,.8)"><div style="width:9px;height:9px;border-radius:50%;background:#0B0D12"></div></div>
+                  <span style="font:600 18px/1 'Space Grotesk';letter-spacing:.3px">Vesper</span>
+                </div>
+                <div style="width:33px;height:33px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#F1F0F6;display:flex;align-items:center;justify-content:center;font:500 12px 'Space Grotesk'">EC</div>
+              </div>
+              <!-- hero centered -->
+              <div style="position:relative;padding:26px 26px 0;text-align:center">
+                <div style="font:500 10.5px/1 'Sora';letter-spacing:2px;color:#9A97AE">TOTAL BALANCE</div>
+                <div style="font:600 50px/1 'Space Grotesk';letter-spacing:-1.5px;margin-top:14px;font-variant-numeric:tabular-nums;text-shadow:0 0 30px rgba(142,134,255,.45)">$30,181<span style="font-size:26px;color:#9A97AE">.24</span></div>
+                <div style="display:inline-flex;align-items:center;gap:5px;margin-top:14px;font:600 11.5px/1 'Space Grotesk';color:#57E0BE;background:rgba(87,224,190,.1);border:1px solid rgba(87,224,190,.2);padding:5px 11px;border-radius:20px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M6 15l6-6 6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>1.4% this week</div>
+              </div>
+              <!-- actions -->
+              <div style="display:flex;gap:9px;padding:24px 24px 0">
+                <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:13px 0;background:linear-gradient(135deg,#8E86FF,#6C63E0);border-radius:14px;color:#fff;box-shadow:0 8px 22px -6px rgba(142,134,255,.6)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font:600 12.5px/1 'Space Grotesk'">Send</span></div>
+                <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:13px 0;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:14px;color:#F1F0F6"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg><span style="font:600 12.5px/1 'Space Grotesk'">Add</span></div>
+                <div style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:13px 0;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:14px;color:#F1F0F6"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" stroke-linecap="round" transform="rotate(180 12 12)"/><path d="M19 12H5" stroke-linecap="round"/></svg><span style="font:600 12.5px/1 'Space Grotesk'">Request</span></div>
+              </div>
+              <!-- accounts -->
+              <div style="padding:22px 22px 0"><div style="font:500 11px/1 'Sora';letter-spacing:1.4px;color:#6E6C7E;margin-bottom:2px">ACCOUNTS</div>
+                <div style="display:flex;align-items:center;gap:13px;padding:11px 12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);border-radius:14px;margin-top:9px">
+                  <div style="width:37px;height:37px;border-radius:11px;background:rgba(87,224,190,.12);color:#57E0BE;display:flex;align-items:center;justify-content:center;font:600 15px 'Space Grotesk';flex:none">$</div>
+                  <div style="flex:1;min-width:0"><div style="font:500 14px/1.2 'Space Grotesk'">US Dollar</div><div style="font:400 11px/1.2 'Sora';color:#8B899C;margin-top:2px">USD</div></div>
+                  <div style="font:500 15px/1.2 'Space Grotesk';font-variant-numeric:tabular-nums">$12,480.50</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:13px;padding:11px 12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);border-radius:14px;margin-top:9px">
+                  <div style="width:37px;height:37px;border-radius:11px;background:rgba(142,134,255,.14);color:#A99CFF;display:flex;align-items:center;justify-content:center;font:600 15px 'Space Grotesk';flex:none">€</div>
+                  <div style="flex:1;min-width:0"><div style="font:500 14px/1.2 'Space Grotesk'">Euro</div><div style="font:400 11px/1.2 'Sora';color:#8B899C;margin-top:2px">EUR</div></div>
+                  <div style="font:500 15px/1.2 'Space Grotesk';font-variant-numeric:tabular-nums">€8,240.00</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:13px;padding:11px 12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);border-radius:14px;margin-top:9px">
+                  <div style="width:37px;height:37px;border-radius:11px;background:rgba(110,168,255,.14);color:#6EA8FF;display:flex;align-items:center;justify-content:center;font:600 15px 'Space Grotesk';flex:none">£</div>
+                  <div style="flex:1;min-width:0"><div style="font:500 14px/1.2 'Space Grotesk'">British Pound</div><div style="font:400 11px/1.2 'Sora';color:#8B899C;margin-top:2px">GBP</div></div>
+                  <div style="font:500 15px/1.2 'Space Grotesk';font-variant-numeric:tabular-nums">£3,150.75</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:13px;padding:11px 12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);border-radius:14px;margin-top:9px">
+                  <div style="width:37px;height:37px;border-radius:11px;background:rgba(255,158,122,.13);color:#FF9E7A;display:flex;align-items:center;justify-content:center;font:600 12px 'Space Grotesk';flex:none">Fr</div>
+                  <div style="flex:1;min-width:0"><div style="font:500 14px/1.2 'Space Grotesk'">Swiss Franc</div><div style="font:400 11px/1.2 'Sora';color:#8B899C;margin-top:2px">CHF</div></div>
+                  <div style="font:500 15px/1.2 'Space Grotesk';font-variant-numeric:tabular-nums">CHF 5,600.00</div>
+                </div>
+              </div>
+            </div>
+            <!-- tab bar -->
+            <div style="position:absolute;bottom:0;left:0;right:0;height:74px;background:rgba(11,13,18,.82);backdrop-filter:blur(16px);border-top:1px solid rgba(255,255,255,.07);display:flex;align-items:center;justify-content:space-around;padding:0 26px 16px">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:4px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A99CFF" stroke-width="1.9"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z" stroke-linejoin="round"/></svg><div style="width:4px;height:4px;border-radius:50%;background:#A99CFF;box-shadow:0 0 8px #8E86FF"></div></div>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5E5C6E" stroke-width="1.9"><path d="M3 12h4l2 6 4-14 2 8h6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <div style="width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#8E86FF,#6C63E0);display:flex;align-items:center;justify-content:center;margin-top:-18px;box-shadow:0 8px 22px -4px rgba(142,134,255,.7)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5E5C6E" stroke-width="1.9"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20" stroke-linecap="round"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5E5C6E" stroke-width="1.9"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- DESKTOP -->
+        <div style="width:1060px;border-radius:15px;overflow:hidden;box-shadow:0 40px 100px -34px rgba(90,70,200,.45),0 0 0 1px rgba(255,255,255,.06);flex:none;background:#0B0D12">
+          <div style="height:44px;display:flex;align-items:center;gap:10px;padding:0 16px;background:#15171F;border-bottom:1px solid rgba(255,255,255,.06)">
+            <div style="display:flex;gap:7px"><div style="width:11px;height:11px;border-radius:50%;background:#FF6A5C"></div><div style="width:11px;height:11px;border-radius:50%;background:#FFB93B"></div><div style="width:11px;height:11px;border-radius:50%;background:#4FC97E"></div></div>
+            <div style="flex:1;display:flex;justify-content:center"><div style="font:400 12px/1 'Space Grotesk';color:#6E6C7E;background:#0B0D12;padding:6px 16px;border-radius:7px;border:1px solid rgba(255,255,255,.06)">vesper.xyz/issuer/overview</div></div>
+          </div>
+          <div style="display:flex;height:660px">
+            <!-- nav -->
+            <div style="width:230px;background:#0E1016;border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;padding:20px 14px">
+              <div style="display:flex;align-items:center;gap:10px;padding:0 8px 22px">
+                <div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#8E86FF,#5B54C9);display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px -2px rgba(142,134,255,.7)"><div style="width:11px;height:11px;border-radius:50%;background:#0B0D12"></div></div>
+                <div><div style="font:600 17px/1 'Space Grotesk';color:#F1F0F6">Vesper</div><div style="font:500 9px/1 'Sora';letter-spacing:1px;color:#6E6C7E;margin-top:3px">ISSUER CONSOLE</div></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:10px;background:rgba(142,134,255,.12);border:1px solid rgba(142,134,255,.25);color:#F1F0F6;box-shadow:0 0 20px -8px rgba(142,134,255,.7)"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#A99CFF" stroke-width="1.9"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span style="font:600 13px/1 'Space Grotesk'">Overview</span></div>
+              <div style="display:flex;align-items:center;gap:11px;padding:11px 12px;color:#8B899C"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg><span style="font:400 13px/1 'Sora'">Operations</span></div>
+              <div style="display:flex;align-items:center;gap:11px;padding:11px 12px;color:#8B899C"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3l7 3v6c0 5-3 8-7 9-4-1-7-4-7-9V6z" stroke-linejoin="round"/></svg><span style="font:400 13px/1 'Sora'">Regulatory</span></div>
+              <div style="display:flex;align-items:center;gap:11px;padding:11px 12px;color:#8B899C"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20" stroke-linecap="round"/></svg><span style="font:400 13px/1 'Sora'">Banking</span></div>
+              <div style="display:flex;align-items:center;gap:11px;padding:11px 12px;color:#8B899C"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M8 3h8l3 4v14H5V7z" stroke-linejoin="round"/><path d="M9 12h6M9 16h6" stroke-linecap="round"/></svg><span style="font:400 13px/1 'Sora'">Audit log</span></div>
+              <div style="margin-top:auto;display:flex;align-items:center;gap:10px;padding:12px 10px;background:rgba(255,255,255,.03);border-radius:11px;border:1px solid rgba(255,255,255,.07)">
+                <div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#8E86FF,#5B54C9);color:#fff;display:flex;align-items:center;justify-content:center;font:600 11px 'Space Grotesk'">NW</div>
+                <div style="min-width:0"><div style="font:500 12px/1.1 'Space Grotesk';color:#F1F0F6">Northwind</div><div style="font:400 10px/1.1 'Sora';color:#8B899C;margin-top:2px">Verified issuer</div></div>
+              </div>
+            </div>
+            <!-- main -->
+            <div style="flex:1;padding:26px 30px;overflow:hidden;color:#F1F0F6;position:relative">
+              <div style="position:absolute;top:-20px;right:40px;width:360px;height:240px;background:radial-gradient(circle at 70% 20%,rgba(142,110,255,.18),transparent 60%);pointer-events:none"></div>
+              <div style="position:relative;display:flex;align-items:flex-start;justify-content:space-between">
+                <div><h1 style="font:600 27px/1 'Space Grotesk';margin:0;letter-spacing:-.5px">Overview</h1><div style="font:400 13px/1 'Sora';color:#8B899C;margin-top:9px">Live regulatory &amp; reserve state · 4 assets</div></div>
+                <span style="display:inline-flex;align-items:center;gap:6px;font:500 12px/1 'Space Grotesk';color:#57E0BE;background:rgba(87,224,190,.1);border:1px solid rgba(87,224,190,.22);padding:8px 13px;border-radius:20px">Reserves 100% backed</span>
+              </div>
+              <!-- stat row -->
+              <div style="display:flex;gap:14px;margin-top:22px">
+                <div style="flex:1.3;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;display:flex;align-items:center;gap:16px">
+                  <svg width="76" height="76" viewBox="0 0 88 88" style="flex:none;filter:drop-shadow(0 0 7px rgba(142,134,255,.55))"><circle cx="44" cy="44" r="37" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="8"/><circle cx="44" cy="44" r="37" fill="none" stroke="#8E86FF" stroke-width="8" stroke-linecap="round" stroke-dasharray="232.5" stroke-dashoffset="0" transform="rotate(-90 44 44)"/></svg>
+                  <div><div style="font:400 11px/1 'Sora';color:#8B899C">Reserve ratio</div><div style="font:600 27px/1 'Space Grotesk';margin-top:9px;font-variant-numeric:tabular-nums">100.0%</div><div style="font:400 10.5px/1 'Sora';color:#6E6C7E;margin-top:6px">bank ↔ supply</div></div>
+                </div>
+                <div style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px"><div style="font:400 11px/1 'Sora';color:#8B899C">In circulation</div><div style="font:600 25px/1 'Space Grotesk';margin-top:11px;font-variant-numeric:tabular-nums">$9.12M</div><div style="font:400 10.5px/1 'Sora';color:#6E6C7E;margin-top:6px">USD-equivalent</div></div>
+                <div style="flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px"><div style="font:400 11px/1 'Sora';color:#8B899C">Net flow · 24h</div><div style="font:600 25px/1 'Space Grotesk';margin-top:11px;color:#57E0BE;font-variant-numeric:tabular-nums">+$54K</div><div style="font:400 10.5px/1 'Sora';color:#6E6C7E;margin-top:6px">issued − redeemed</div></div>
+              </div>
+              <!-- asset list -->
+              <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:14px;margin-top:18px;overflow:hidden">
+                <div style="display:grid;grid-template-columns:1.6fr 1fr .9fr .9fr 1fr;gap:12px;padding:12px 18px;font:500 10px/1 'Sora';letter-spacing:1px;color:#6E6C7E;border-bottom:1px solid rgba(255,255,255,.06)"><div>ASSET</div><div style="text-align:right">SUPPLY</div><div>STATUS</div><div>ACCESS</div><div style="text-align:right">RESERVE</div></div>
+                <div style="display:grid;grid-template-columns:1.6fr 1fr .9fr .9fr 1fr;gap:12px;padding:13px 18px;align-items:center;border-bottom:1px solid rgba(255,255,255,.05)"><div style="display:flex;align-items:center;gap:10px"><div style="width:30px;height:30px;border-radius:8px;background:rgba(87,224,190,.12);color:#57E0BE;display:flex;align-items:center;justify-content:center;font:600 13px 'Space Grotesk'">$</div><div><div style="font:500 13px/1.1 'Space Grotesk'">US Dollar</div><div style="font:400 10px/1.1 'Sora';color:#8B899C;margin-top:2px">mUSD</div></div></div><div style="text-align:right;font:500 13px/1 'Space Grotesk';font-variant-numeric:tabular-nums">4,204,000</div><div><span style="font:500 11px/1 'Space Grotesk';color:#57E0BE;background:rgba(87,224,190,.1);border:1px solid rgba(87,224,190,.2);padding:4px 9px;border-radius:6px">Active</span></div><div style="font:400 12px/1 'Sora';color:#8B899C">Denylist</div><div style="text-align:right;font:500 12px/1 'Space Grotesk';color:#57E0BE">100%</div></div>
+                <div style="display:grid;grid-template-columns:1.6fr 1fr .9fr .9fr 1fr;gap:12px;padding:13px 18px;align-items:center;border-bottom:1px solid rgba(255,255,255,.05)"><div style="display:flex;align-items:center;gap:10px"><div style="width:30px;height:30px;border-radius:8px;background:rgba(142,134,255,.14);color:#A99CFF;display:flex;align-items:center;justify-content:center;font:600 13px 'Space Grotesk'">€</div><div><div style="font:500 13px/1.1 'Space Grotesk'">Euro</div><div style="font:400 10px/1.1 'Sora';color:#8B899C;margin-top:2px">mEUR</div></div></div><div style="text-align:right;font:500 13px/1 'Space Grotesk';font-variant-numeric:tabular-nums">2,850,000</div><div><span style="font:500 11px/1 'Space Grotesk';color:#57E0BE;background:rgba(87,224,190,.1);border:1px solid rgba(87,224,190,.2);padding:4px 9px;border-radius:6px">Active</span></div><div style="font:400 12px/1 'Sora';color:#8B899C">Denylist</div><div style="text-align:right;font:500 12px/1 'Space Grotesk';color:#FF9E7A">+€300 drift</div></div>
+                <div style="display:grid;grid-template-columns:1.6fr 1fr .9fr .9fr 1fr;gap:12px;padding:13px 18px;align-items:center;border-bottom:1px solid rgba(255,255,255,.05)"><div style="display:flex;align-items:center;gap:10px"><div style="width:30px;height:30px;border-radius:8px;background:rgba(110,168,255,.14);color:#6EA8FF;display:flex;align-items:center;justify-content:center;font:600 13px 'Space Grotesk'">£</div><div><div style="font:500 13px/1.1 'Space Grotesk'">British Pound</div><div style="font:400 10px/1.1 'Sora';color:#8B899C;margin-top:2px">mGBP</div></div></div><div style="text-align:right;font:500 13px/1 'Space Grotesk';font-variant-numeric:tabular-nums">940,000</div><div><span style="font:500 11px/1 'Space Grotesk';color:#57E0BE;background:rgba(87,224,190,.1);border:1px solid rgba(87,224,190,.2);padding:4px 9px;border-radius:6px">Active</span></div><div style="font:400 12px/1 'Sora';color:#8B899C">Allowlist</div><div style="text-align:right;font:500 12px/1 'Space Grotesk';color:#57E0BE">100%</div></div>
+                <div style="display:grid;grid-template-columns:1.6fr 1fr .9fr .9fr 1fr;gap:12px;padding:13px 18px;align-items:center;background:rgba(255,126,110,.05)"><div style="display:flex;align-items:center;gap:10px"><div style="width:30px;height:30px;border-radius:8px;background:rgba(255,158,122,.13);color:#FF9E7A;display:flex;align-items:center;justify-content:center;font:600 11px 'Space Grotesk'">Fr</div><div><div style="font:500 13px/1.1 'Space Grotesk'">Swiss Franc</div><div style="font:400 10px/1.1 'Sora';color:#8B899C;margin-top:2px">mCHF</div></div></div><div style="text-align:right;font:500 13px/1 'Space Grotesk';font-variant-numeric:tabular-nums">1,100,000</div><div><span style="font:500 11px/1 'Space Grotesk';color:#FF7E6E;background:rgba(255,126,110,.1);border:1px solid rgba(255,126,110,.25);padding:4px 9px;border-radius:6px">Paused</span></div><div style="font:400 12px/1 'Sora';color:#8B899C">Denylist</div><div style="text-align:right;font:500 12px/1 'Space Grotesk';color:#57E0BE">100%</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <!--OPTS-END--></div>
+  <p class="dv-next">Try next: "take <a class="dv-oid" href="#1a">1a</a> forward into every screen" · "<a class="dv-oid" href="#1a">1a</a> but dark" · "show the Send flow &amp; audit log in the direction I pick"</p>
+</section>
+</x-dc>
+</body>
+</html>
