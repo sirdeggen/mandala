@@ -1,5 +1,6 @@
 import { HTTPSOverlayBroadcastFacilitator, WalletInterface } from '@bsv/sdk'
 import { TOPIC, OVERLAY_URL } from './constants'
+import { journalPut, journalRemove } from './txJournal'
 
 interface OverlayBroadcastFacilitator {
   send(url: string, taggedBEEF: { beef: number[]; topics: string[]; offChainValues?: number[] }): Promise<Record<string, { outputsToAdmit: number[] }>>
@@ -54,10 +55,29 @@ export async function submitAndBroadcast (
   } catch (e) {
     // Overlay refused (policy/pause/insufficient) — release the held inputs.
     if (reference != null) {
-      try { await wallet.abortAction({ reference }) } catch { /* best-effort */ }
+      try {
+        await wallet.abortAction({ reference })
+      } catch {
+        // Inputs still held by the dead action — journal so reconcileWallet
+        // retries the abort on the next load instead of the asset vanishing.
+        journalPut({ txid: signed.txid, stage: 'abort', reference, at: Date.now() })
+      }
     }
     throw e
   }
-  await broadcastAcceptedTx(wallet, signed.txid)
+
+  // Overlay has folded this tx into its state — from here the tx MUST reach the
+  // network. Journal before broadcasting; a broadcast failure keeps the entry so
+  // reconcileWallet retries, and it must never be aborted (that would desync
+  // wallet from overlay).
+  journalPut({ txid: signed.txid, stage: 'accepted', at: Date.now() })
+  try {
+    await broadcastAcceptedTx(wallet, signed.txid)
+  } catch (e) {
+    throw new Error(
+      `Overlay accepted the transaction but the network broadcast failed; it will be re-broadcast automatically on next load (txid ${signed.txid}). ${String(e)}`
+    )
+  }
+  journalRemove(signed.txid)
   return admitted
 }

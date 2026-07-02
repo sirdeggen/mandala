@@ -1,6 +1,9 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { submitToOverlay, submitAndBroadcast } from './overlay'
+import { journalList, journalClear } from './txJournal'
 import { OVERLAY_URL } from './constants'
+
+beforeEach(() => journalClear())
 
 describe('submitToOverlay', () => {
   it('returns admitted indices on success', async () => {
@@ -46,5 +49,30 @@ describe('submitAndBroadcast (overlay-gated finalize)', () => {
       .rejects.toThrow('overlay rejected')
     expect(wallet.createAction).not.toHaveBeenCalled()
     expect(wallet.abortAction).not.toHaveBeenCalled()
+  })
+
+  it('journals the txid for retry when broadcast fails AFTER overlay acceptance', async () => {
+    const facilitator = { send: vi.fn().mockResolvedValue({ tm_mandala: { outputsToAdmit: [0] } }) }
+    const wallet = { createAction: vi.fn().mockRejectedValue(new Error('net down')), abortAction: vi.fn() }
+    await expect(submitAndBroadcast(wallet as any, signed, undefined, 'ref-1', facilitator as any))
+      .rejects.toThrow(/re-broadcast automatically/)
+    // Accepted by the overlay → must NOT be aborted, must be journaled for retry.
+    expect(wallet.abortAction).not.toHaveBeenCalled()
+    expect(journalList()).toMatchObject([{ txid: 'abc', stage: 'accepted' }])
+  })
+
+  it('journals a pending abort when the overlay rejects and abortAction fails', async () => {
+    const facilitator = { send: vi.fn().mockResolvedValue({ tm_mandala: { outputsToAdmit: [] } }) }
+    const wallet = { createAction: vi.fn(), abortAction: vi.fn().mockRejectedValue(new Error('offline')) }
+    await expect(submitAndBroadcast(wallet as any, signed, undefined, 'ref-1', facilitator as any))
+      .rejects.toThrow('overlay rejected')
+    expect(journalList()).toMatchObject([{ txid: 'abc', stage: 'abort', reference: 'ref-1' }])
+  })
+
+  it('clears the journal after a successful accept + broadcast', async () => {
+    const facilitator = { send: vi.fn().mockResolvedValue({ tm_mandala: { outputsToAdmit: [0] } }) }
+    const wallet = { createAction: vi.fn().mockResolvedValue({}), abortAction: vi.fn() }
+    await submitAndBroadcast(wallet as any, signed, undefined, 'ref-1', facilitator as any)
+    expect(journalList()).toEqual([])
   })
 })

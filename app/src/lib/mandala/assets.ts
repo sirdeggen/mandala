@@ -201,6 +201,11 @@ export async function submitAdminAction (
   // Fetch BEEF for the prior auth outpoint.
   const list = await wallet.listOutputs({ basket: BASKET, include: 'entire transactions', limit: 1000 })
   if (list.BEEF == null) throw new Error('listOutputs returned no BEEF')
+  // Fail fast on a stale auth reference (e.g. spent by a half-failed earlier
+  // action) instead of building a doomed tx that dies with a cryptic wallet error.
+  if (!list.outputs.some(o => o.outpoint === asset.authOutpoint)) {
+    throw new Error('admin authority outpoint is no longer spendable — reload assets and retry')
+  }
 
   // Optionally build FT locking script for reissue.
   let ftKeyID = ''

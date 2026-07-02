@@ -1,7 +1,9 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { WalletClient } from '@bsv/sdk'
 import { MessageBoxClient } from '@bsv/message-box-client'
+import { toast } from 'sonner'
 import { OVERLAY_IDENTITY_KEY, MESSAGEBOX_URL } from '../lib/mandala/constants'
+import { reconcileWallet } from '../lib/mandala/reconcile'
 
 interface WalletState {
   wallet: WalletClient | null
@@ -39,6 +41,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           isIssuer: identityKey === OVERLAY_IDENTITY_KEY,
           isInitialized: true, error: null
         })
+        // Recover half-failed flows from previous sessions: re-broadcast
+        // overlay-accepted txs, retry pending aborts, and sweep stuck nosend
+        // actions so held admin-auth/FT inputs are released (see reconcile.ts).
+        void reconcileWallet(wallet as any).then(r => {
+          const recovered = r.rebroadcast.length + r.aborted.length + r.swept
+          if (recovered > 0) {
+            console.info('[mandala] reconciled pending transactions:', r)
+            toast.info(`Recovered ${recovered} pending transaction${recovered === 1 ? '' : 's'}`)
+          }
+        }).catch(e => console.warn('[mandala] reconcile failed:', e))
       } catch (e) {
         setState(s => ({ ...s, isInitialized: true, error: 'Failed to initialize wallet. Ensure a BRC-100 wallet (Metanet) is running.' }))
       }
