@@ -1,11 +1,33 @@
 // app/src/lib/mandala/banking.ts
 export interface MockDeposit { id: string, amount: number, currency: string, originator: string, timestamp: number }
 
-export function seedDeposits (now = 1_780_000_000_000): MockDeposit[] {
-  return [
-    { id: 'BR-1001', amount: 25000, currency: 'USD', originator: 'ACME Payroll', timestamp: now - 86_400_000 },
-    { id: 'BR-1002', amount: 5000, currency: 'USD', originator: 'Jane Doe (wire)', timestamp: now - 3_600_000 }
-  ]
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+/** Picks a random uppercase letter A-Z via the given RNG (defaults to Math.random). */
+export function randomLetter(random: () => number = Math.random): string {
+  return LETTERS[Math.floor(random() * LETTERS.length)]
+}
+
+/**
+ * Builds a demo incoming deposit for the admin to issue against. The
+ * counterparty is always a synthetic "Company {letter}" — this is a sandbox
+ * feed standing in for a real bank/Plaid integration, not real originator
+ * data, so it must not look like one.
+ */
+export function makeDeposit(
+  amount: number,
+  opts: { now?: () => number, random?: () => number } = {}
+): MockDeposit {
+  const now = opts.now ?? Date.now
+  const random = opts.random ?? Math.random
+  const ts = now()
+  return {
+    id: `BR-${ts.toString(36).toUpperCase().slice(-6)}`,
+    amount,
+    currency: 'USD',
+    originator: `Company ${randomLetter(random)}`,
+    timestamp: ts
+  }
 }
 
 export const bankBalance = (deposits: number[], withdrawals: number[]): number =>

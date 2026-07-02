@@ -3,7 +3,8 @@ import { RefreshCw } from 'lucide-react'
 import { AdminAsset } from '../../lib/mandala/assets'
 import { resolveAssetState, AssetAdminStateView } from '../../lib/mandala/adminState'
 import { resolveAdminHistory } from '../../lib/mandala/adminHistory'
-import { reconcile, seedDeposits } from '../../lib/mandala/banking'
+import { reconcile } from '../../lib/mandala/banking'
+import { useMockDeposits } from '../../lib/mandala/mockBankStore'
 import { formatAmount } from '../../lib/mandala/amount'
 import { cn } from '@/lib/utils'
 import AuditLog from './AuditLog'
@@ -76,13 +77,15 @@ export default function OverviewSection({ assetId, asset, onReload }: Props) {
   const [netIssued, setNetIssued] = useState(0)
   const [reserveRatioPct, setReserveRatioPct] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
+  // Shared with the Banking page's demo deposit feed (mockBankStore) — the
+  // ratio must reflect real added deposits, never a separate fabricated number.
+  const deposits = useMockDeposits()
 
   const decimals = Number(asset?.metadata?.decimals) || 0
 
   const load = useCallback(async () => {
     if (assetId === '') return
     setLoading(true)
-    const deposits = seedDeposits()
     const bankDepositAmounts = deposits.map(d => d.amount)
     try {
       const [assetState, history] = await Promise.all([
@@ -117,7 +120,7 @@ export default function OverviewSection({ assetId, asset, onReload }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [assetId])
+  }, [assetId, deposits])
 
   useEffect(() => { void load() }, [load])
 

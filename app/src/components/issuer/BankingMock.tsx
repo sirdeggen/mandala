@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import { CheckCircle2, ArrowDownLeft } from 'lucide-react'
+import { CheckCircle2, ArrowDownLeft, PlusCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Select } from '../ui/select'
+import { Input } from '../ui/input'
+import { Spinner } from '../ui/spinner'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset, listAdminAssets, submitAdminAction } from '../../lib/mandala/assets'
 import { resolveAdminHistory } from '../../lib/mandala/adminHistory'
-import { seedDeposits, reconcile, unissuedSum, MockDeposit } from '../../lib/mandala/banking'
-import { formatAmount } from '../../lib/mandala/amount'
+import { reconcile, unissuedSum, makeDeposit, MockDeposit } from '../../lib/mandala/banking'
+import { useMockDeposits, addMockDeposit } from '../../lib/mandala/mockBankStore'
+import { formatAmount, parseAmount } from '../../lib/mandala/amount'
 
 interface IssuedDeposit {
   depositId: string
@@ -23,10 +26,16 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
   const { wallet, messageBoxClient, identityKey } = useWallet()
   const [assets, setAssets] = useState<AdminAsset[]>([])
   const [selectedAssetId, setSelectedAssetId] = useState('')
-  const [deposits] = useState<MockDeposit[]>(() => seedDeposits())
+  // Shared with the Overview reserve-ratio KPI (mockBankStore) so both reflect
+  // the same feed; starts blank — nothing to reconcile until a deposit is added.
+  const deposits = useMockDeposits()
+  const [depositAmount, setDepositAmount] = useState('')
   const [receivedDeposits, setReceivedDeposits] = useState<IssuedDeposit[]>([])
   const [recon, setRecon] = useState<{ bankBalance: number, netSupply: number, drift: number } | null>(null)
-  const [busy, setBusy] = useState(false)
+  // Tracks WHICH deposit's issue is in flight, so only that row's button shows
+  // its spinner while every other "Receive & issue" button is just disabled.
+  const [busyDepositId, setBusyDepositId] = useState<string | null>(null)
+  const busy = busyDepositId !== null
 
   // In controlled mode the active asset id comes from the prop
   const activeAssetId = controlledAssetId ?? selectedAssetId
@@ -72,13 +81,27 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
 
   useEffect(() => { void computeReconciliation() }, [computeReconciliation])
 
+  // Add a demo incoming deposit — the counterparty is always a synthetic
+  // "Company {letter}" (see makeDeposit); only the amount is admin-supplied.
+  const handleAddDeposit = useCallback(() => {
+    const amount = parseAmount(depositAmount, decimals)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error('Enter a valid deposit amount')
+      return
+    }
+    const dep = makeDeposit(amount)
+    addMockDeposit(dep)
+    setDepositAmount('')
+    toast.success(`Added incoming deposit: ${dep.originator} · ${formatAmount(amount, decimals)}`)
+  }, [depositAmount, decimals])
+
   // "Receive deposit" — issue tokens against a bank deposit
   const handleReceiveDeposit = useCallback(async (deposit: MockDeposit) => {
     if (wallet == null || identityKey == null || asset == null) {
       toast.error('Select an asset first')
       return
     }
-    setBusy(true)
+    setBusyDepositId(deposit.id)
     try {
       await submitAdminAction({
         wallet: wallet as any,
@@ -103,7 +126,7 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
     } catch (e) {
       toast.error(`Issue failed: ${String(e)}`)
     } finally {
-      setBusy(false)
+      setBusyDepositId(null)
     }
   }, [wallet, identityKey, asset, decimals, messageBoxClient, computeReconciliation, loadAssets])
 
@@ -132,10 +155,43 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
         )}
       </div>
 
+      {/* ADD DEMO DEPOSIT — the counterparty is always a synthetic "Company
+          {letter}"; only the amount is admin-supplied. This is a sandbox feed
+          standing in for a real bank connection, so it starts empty rather
+          than pre-seeded with fake history. */}
+      <p className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase mb-[10px] mt-[22px]">
+        Simulate an Incoming Deposit
+      </p>
+      <div className="bg-card border border-border rounded-[14px] px-[18px] py-[15px] flex items-center gap-3">
+        <Input
+          type="number"
+          min="0"
+          step="any"
+          value={depositAmount}
+          onChange={e => setDepositAmount(e.target.value)}
+          placeholder="Amount"
+          className="flex-1"
+          aria-label="Deposit amount"
+        />
+        <button
+          onClick={handleAddDeposit}
+          disabled={depositAmount.trim() === '' || activeAssetId === ''}
+          className="flex items-center gap-2 whitespace-nowrap rounded-[10px] bg-primary text-primary-foreground px-4 py-[11px] text-[13px] font-semibold disabled:opacity-50"
+        >
+          <PlusCircle size={16} />
+          Add deposit
+        </button>
+      </div>
+
       {/* INCOMING DEPOSITS */}
       <p className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase mb-[10px] mt-[22px]">
         Incoming Deposits
       </p>
+      {deposits.length === 0 ? (
+        <div className="bg-card border border-border rounded-[14px] px-[18px] py-[26px] text-center text-[13px] text-muted-foreground">
+          No incoming deposits yet — add one above to see it flow through reconciliation.
+        </div>
+      ) : (
       <div className="bg-card border border-border rounded-[14px] overflow-hidden">
         {deposits.map((dep, idx) => {
           const issued = alreadyIssued(dep.id)
@@ -167,17 +223,19 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
                 </div>
               ) : (
                 <button
-                  className="bg-primary text-primary-foreground rounded-[10px] px-4 py-[10px] text-[12.5px] font-semibold whitespace-nowrap disabled:opacity-50"
+                  className="flex items-center gap-2 bg-primary text-primary-foreground rounded-[10px] px-4 py-[10px] text-[12.5px] font-semibold whitespace-nowrap disabled:opacity-50"
                   onClick={() => void handleReceiveDeposit(dep)}
                   disabled={busy || activeAssetId === ''}
                 >
-                  Receive &amp; issue
+                  {busyDepositId === dep.id && <Spinner size="sm" tone="current" />}
+                  {busyDepositId === dep.id ? 'Issuing…' : 'Receive & issue'}
                 </button>
               )}
             </div>
           )
         })}
       </div>
+      )}
 
       {/* RECONCILIATION */}
       {recon != null && (() => {
