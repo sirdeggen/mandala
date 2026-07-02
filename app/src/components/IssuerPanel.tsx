@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { useWallet } from '../context/WalletContext'
 import { FT_PROTOCOL, BASKET } from '../lib/mandala/constants'
 import { encodeLinkagePayload, MandalaActionDetails } from '../lib/mandala/encoding'
-import { submitToOverlay } from '../lib/mandala/overlay'
+import { submitAndBroadcast } from '../lib/mandala/overlay'
 import { outpoint, revealLinkage } from '../lib/mandala/tokens'
 import { walletMandalaUnlock } from '../lib/mandala/unlock'
 import { parseAmount, formatAmount } from '../lib/mandala/amount'
@@ -91,7 +91,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
           // source of truth for the auth chain (no localStorage, no on-chain marker).
           customInstructions: adminCustomInstructions('', label.trim(), regDetails, metadata)
         }],
-        options: { randomizeOutputs: false }
+        options: { randomizeOutputs: false, noSend: true } // hold — broadcast after overlay accepts
       })
 
       if (reg.tx == null || reg.txid == null) throw new Error('register: no tx returned')
@@ -104,7 +104,9 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
         outputs: [],
         admin: [{ index: 0, actionDetails: regDetails }]
       })
-      await submitToOverlay(reg.tx as number[], offChainValues)
+      // Genesis has no signable FT inputs — no reference to abort; overlay gates,
+      // then broadcast.
+      await submitAndBroadcast(wallet as any, { tx: reg.tx as number[], txid: reg.txid }, offChainValues)
 
       toast.success(`Registered ${label.trim()} (${assetId})`)
       setLabel('')
@@ -201,19 +203,20 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
 
       const signed = await wallet.signAction({
         reference: created.signableTransaction.reference,
-        spends
+        spends,
+        options: { noSend: true } // hold — broadcast only after the overlay accepts
       })
 
       if (signed.tx == null || signed.txid == null) throw new Error('signAction: no tx returned')
 
-      // Reveal linkage for the FT output and submit to overlay.
+      // Reveal linkage for the FT output; submit to the overlay, then broadcast.
       const linkage = await revealLinkage(wallet as any, keyID, counterparty)
       const offChainValues = encodeLinkagePayload({
         inputs: [],
         outputs: [{ index: 0, linkage }],
         admin: [{ index: 1, actionDetails: issueDetails }]
       })
-      await submitToOverlay(signed.tx as number[], offChainValues)
+      await submitAndBroadcast(wallet as any, { tx: signed.tx as number[], txid: signed.txid }, offChainValues, created.signableTransaction.reference)
 
       toast.success(`Issued ${formatAmount(amount, Number(asset.metadata?.decimals) || 0)} ${asset.label}`)
       setIssueAmount('')
@@ -309,7 +312,8 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
 
       const signed = await wallet.signAction({
         reference: created.signableTransaction.reference,
-        spends
+        spends,
+        options: { noSend: true } // hold — broadcast only after the overlay accepts
       })
 
       if (signed.tx == null || signed.txid == null) throw new Error('signAction: no tx returned')
@@ -324,7 +328,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
         outputs: outLinks,
         admin: [{ index: 0, actionDetails: redeemDetails }]
       })
-      await submitToOverlay(signed.tx as number[], offChainValues)
+      await submitAndBroadcast(wallet as any, { tx: signed.tx as number[], txid: signed.txid }, offChainValues, created.signableTransaction.reference)
 
       toast.success(`Redeemed (burned) ${formatAmount(amount, Number(asset.metadata?.decimals) || 0)} ${asset.label}`)
       setRedeemAmount('')

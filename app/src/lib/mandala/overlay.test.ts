@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { submitToOverlay } from './overlay'
+import { submitToOverlay, submitAndBroadcast } from './overlay'
 import { OVERLAY_URL } from './constants'
 
 describe('submitToOverlay', () => {
@@ -12,5 +12,39 @@ describe('submitToOverlay', () => {
   it('throws when nothing is admitted', async () => {
     const facilitator = { send: vi.fn().mockResolvedValue({ tm_mandala: { outputsToAdmit: [], coinsToRetain: [] } }) }
     await expect(submitToOverlay([1], undefined, facilitator as any)).rejects.toThrow('overlay rejected')
+  })
+})
+
+describe('submitAndBroadcast (overlay-gated finalize)', () => {
+  const signed = { tx: [1, 2, 3], txid: 'abc' }
+
+  it('broadcasts via sendWith only after the overlay accepts', async () => {
+    const facilitator = { send: vi.fn().mockResolvedValue({ tm_mandala: { outputsToAdmit: [0] } }) }
+    const wallet = { createAction: vi.fn().mockResolvedValue({}), abortAction: vi.fn() }
+    const res = await submitAndBroadcast(wallet as any, signed, [9], 'ref-1', facilitator as any)
+    expect(res).toEqual([0])
+    expect(wallet.createAction).toHaveBeenCalledWith({
+      description: 'broadcast overlay-accepted tx',
+      options: { sendWith: ['abc'], acceptDelayedBroadcast: false }
+    })
+    expect(wallet.abortAction).not.toHaveBeenCalled()
+  })
+
+  it('never broadcasts and aborts (releasing inputs) when the overlay rejects', async () => {
+    const facilitator = { send: vi.fn().mockResolvedValue({ tm_mandala: { outputsToAdmit: [] } }) }
+    const wallet = { createAction: vi.fn(), abortAction: vi.fn().mockResolvedValue({}) }
+    await expect(submitAndBroadcast(wallet as any, signed, undefined, 'ref-1', facilitator as any))
+      .rejects.toThrow('overlay rejected')
+    expect(wallet.createAction).not.toHaveBeenCalled() // tx never hit the network
+    expect(wallet.abortAction).toHaveBeenCalledWith({ reference: 'ref-1' })
+  })
+
+  it('skips abort with no reference (genesis) and still never broadcasts on reject', async () => {
+    const facilitator = { send: vi.fn().mockResolvedValue({ tm_mandala: { outputsToAdmit: [] } }) }
+    const wallet = { createAction: vi.fn(), abortAction: vi.fn() }
+    await expect(submitAndBroadcast(wallet as any, signed, undefined, undefined, facilitator as any))
+      .rejects.toThrow('overlay rejected')
+    expect(wallet.createAction).not.toHaveBeenCalled()
+    expect(wallet.abortAction).not.toHaveBeenCalled()
   })
 })

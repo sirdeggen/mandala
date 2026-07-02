@@ -3,7 +3,7 @@ import { MandalaAdmin, MandalaToken, MandalaActionDetails } from '@bsv/templates
 import { BASKET, FT_PROTOCOL, MESSAGEBOX } from './constants'
 import { encodeLinkagePayload } from './encoding'
 import { revealLinkage, outpoint } from './tokens'
-import { submitToOverlay } from './overlay'
+import { submitAndBroadcast } from './overlay'
 
 // Admin auth bookkeeping lives in the admin output's customInstructions, so the
 // wallet basket is the single source of truth — no localStorage, no on-chain
@@ -231,7 +231,8 @@ export async function submitAdminAction (
 
   const signed = await wallet.signAction({
     reference: created.signableTransaction.reference,
-    spends: { '0': { unlockingScript: txToSign.inputs[0].unlockingScript!.toHex() } }
+    spends: { '0': { unlockingScript: txToSign.inputs[0].unlockingScript!.toHex() } },
+    options: { noSend: true } // hold — broadcast only after the overlay accepts
   })
   if (signed.tx == null || signed.txid == null) throw new Error('signAction returned no tx')
 
@@ -239,9 +240,11 @@ export async function submitAdminAction (
   const outLinks = ftOutput != null && ftKeyID !== ''
     ? [{ index: 0, linkage: await revealLinkage(wallet as any, ftKeyID, ftOutput.recipient) }]
     : []
-  await submitToOverlay(
-    signed.tx as number[],
-    encodeLinkagePayload({ inputs: [], outputs: outLinks, admin: [{ index: adminIndex, actionDetails: details }] })
+  await submitAndBroadcast(
+    wallet,
+    { tx: signed.tx as number[], txid: signed.txid },
+    encodeLinkagePayload({ inputs: [], outputs: outLinks, admin: [{ index: adminIndex, actionDetails: details }] }),
+    created.signableTransaction.reference
   )
 
   if (ftOutput != null && messageBoxClient != null) {
@@ -299,13 +302,16 @@ export async function submitGlobalAdminAction (p: {
 
   const signed = await wallet.signAction({
     reference: created.signableTransaction.reference,
-    spends
+    spends,
+    options: { noSend: true } // hold — broadcast only after the overlay accepts
   })
   if (signed.tx == null || signed.txid == null) throw new Error('signAction returned no tx')
 
-  await submitToOverlay(
-    signed.tx as number[],
-    encodeLinkagePayload({ inputs: [], outputs: [], admin: assets.map((_, i) => ({ index: i, actionDetails: details[i] })) })
+  await submitAndBroadcast(
+    wallet,
+    { tx: signed.tx as number[], txid: signed.txid },
+    encodeLinkagePayload({ inputs: [], outputs: [], admin: assets.map((_, i) => ({ index: i, actionDetails: details[i] })) }),
+    created.signableTransaction.reference
   )
 
   return { txid: signed.txid }

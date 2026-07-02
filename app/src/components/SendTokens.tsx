@@ -14,7 +14,7 @@ import { revealLinkage } from '../lib/mandala/tokens'
 import { listAdminAssets } from '../lib/mandala/assets'
 import { resolveAssetMetadata } from '../lib/mandala/metadata'
 import { parseAmount, formatAmount, formatAmountPlain } from '../lib/mandala/amount'
-import { submitToOverlay } from '../lib/mandala/overlay'
+import { submitAndBroadcast } from '../lib/mandala/overlay'
 import { encodeLinkagePayload } from '../lib/mandala/encoding'
 import { loadHistory } from '../lib/mandala/history'
 import { loadFtCandidates } from '../lib/mandala/ftCandidates'
@@ -294,7 +294,8 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
 
     const signed = await wallet.signAction({
       reference: created.signableTransaction.reference,
-      spends
+      spends,
+      options: { noSend: true } // hold — broadcast only after the overlay accepts
     })
 
     // Build offChain linkage payload
@@ -310,7 +311,9 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
       inLinks.push({ index: i, linkage: await revealLinkage(wallet as any, spendInfo[i].keyID, spendInfo[i].counterparty) })
     }
     const offChainValues = encodeLinkagePayload({ inputs: inLinks, outputs: outLinks })
-    await submitToOverlay(signed.tx as number[], offChainValues)
+    // Overlay gates: submit first; broadcast only on acceptance, else abort + throw.
+    const txid = signed.txid ?? Transaction.fromBEEF(signed.tx as number[]).id('hex')
+    await submitAndBroadcast(wallet as any, { tx: signed.tx as number[], txid }, offChainValues, created.signableTransaction.reference)
 
     await messageBoxClient.sendMessage({
       recipient: recipientKey,
@@ -326,11 +329,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
     })
 
     // Return the real txid for the Sent screen reference
-    try {
-      return Transaction.fromBEEF(signed.tx as number[]).id('hex')
-    } catch {
-      return ''
-    }
+    return txid
   }
 
   // ---------------------------------------------------------------------------
