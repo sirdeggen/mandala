@@ -35,13 +35,18 @@ const main = async (): Promise<void> => {
   //    defaults true, so a failed broadcast rejects the submit — the app then
   //    aborts safely instead of desyncing),
   //  - refreshes merkle proofs from `${ARCADE_URL}/tx/:txid`,
-  //  - tracks chain headers + reorg SSE via Arcade's go-chaintracks service.
+  //  - runs FULL SPV: configureChaintracks installs the go-chaintracks client
+  //    as the chain tracker (header validation + merkle-root checks + reorg
+  //    SSE), replacing the local 'scripts only' mode.
   // Without it (local demo): validate scripts only; the wallet is the sole
   // broadcaster.
   const ARCADE_URL = process.env.ARCADE_URL
   if (ARCADE_URL != null && ARCADE_URL !== '') {
     server.configureArcade(ARCADE_URL, { apiKey: process.env.ARCADE_API_KEY })
-    server.configureChaintracks(ARCADE_URL)
+    // Chaintracks lives at the /chaintracks service of the same Arcade host by
+    // default, but both the host and API prefix are independently overridable.
+    const CHAINTRACKS_URL = process.env.CHAINTRACKS_URL ?? `${ARCADE_URL}/chaintracks`
+    server.configureChaintracks(CHAINTRACKS_URL, { apiPrefix: process.env.CHAINTRACKS_API_PREFIX ?? '/v2' })
   } else {
     server.configureChainTracker('scripts only')
   }
