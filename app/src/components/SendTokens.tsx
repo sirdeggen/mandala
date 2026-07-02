@@ -17,6 +17,8 @@ import { parseAmount, formatAmount, formatAmountPlain } from '../lib/mandala/amo
 import { submitToOverlay } from '../lib/mandala/overlay'
 import { encodeLinkagePayload } from '../lib/mandala/encoding'
 import { loadHistory } from '../lib/mandala/history'
+import { loadFtCandidates } from '../lib/mandala/ftCandidates'
+import { selectFtInputs } from '../lib/mandala/ftSelect'
 import { deriveContacts, Contact } from '../lib/mandala/contacts'
 import { listContacts, StoredContact } from '../lib/mandala/contactsStore'
 import { resolveAssetState } from '../lib/mandala/adminState'
@@ -232,39 +234,13 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
     // FT) + customInstructions (keyID/counterparty for unlock); 'entire transactions'
     // attaches the BEEF for inputBEEF. The two modes are mutually exclusive on what
     // they return, but the outpoints line up.
-    const scriptRes = await wallet.listOutputs({
-      basket: BASKET,
-      include: 'locking scripts',
-      limit: 1000,
-      includeCustomInstructions: true
-    })
-    const beefRes = await wallet.listOutputs({
-      basket: BASKET,
-      include: 'entire transactions',
-      limit: 1000
-    })
-
-    // Pick FT inputs of this asset until gathered >= sendAmount
+    // Token-aware coin selection: confirmed-first, fewest UTXOs (see ftSelect).
+    const { candidates, beef: beefBytes } = await loadFtCandidates(wallet as any, selectedAssetId)
+    const { selected, total: gathered } = selectFtInputs(candidates, sendAmount) // throws if insufficient
     const beef = new Beef()
-    beef.mergeBeef(beefRes.BEEF as number[])
-    const inputs: Array<{ outpoint: string, unlockingScriptLength: number, inputDescription: string }> = []
-    const spendInfo: Array<{ keyID: string, counterparty: string }> = []
-    let gathered = 0
-
-    for (const o of scriptRes.outputs) {
-      if (gathered >= sendAmount) break
-      let decoded
-      try {
-        decoded = MandalaToken.decode(LockingScript.fromHex(o.lockingScript as string))
-      } catch { continue }
-      if (decoded.assetId !== selectedAssetId) continue
-      const ci = JSON.parse((o.customInstructions as string) ?? '{}')
-      inputs.push({ outpoint: o.outpoint as string, unlockingScriptLength: 108, inputDescription: 'spend FT' })
-      spendInfo.push({ keyID: ci.keyID, counterparty: ci.counterparty })
-      gathered += decoded.amount
-    }
-
-    if (gathered < sendAmount) throw new Error('insufficient token balance')
+    beef.mergeBeef(beefBytes)
+    const inputs = selected.map(s => ({ outpoint: s.outpoint, unlockingScriptLength: 108, inputDescription: 'spend FT' }))
+    const spendInfo = selected.map(s => ({ keyID: s.keyID, counterparty: s.counterparty }))
     const change = gathered - sendAmount
 
     const keyIDOut = 'xfer-' + Date.now()

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Transaction, Beef, LockingScript } from '@bsv/sdk'
+import { Transaction, Beef } from '@bsv/sdk'
 import { MandalaToken, MandalaAdmin } from '@bsv/templates'
 import { toast } from 'sonner'
 import { useWallet } from '../context/WalletContext'
@@ -9,6 +9,8 @@ import { submitToOverlay } from '../lib/mandala/overlay'
 import { outpoint, revealLinkage } from '../lib/mandala/tokens'
 import { walletMandalaUnlock } from '../lib/mandala/unlock'
 import { parseAmount, formatAmount } from '../lib/mandala/amount'
+import { loadFtCandidates } from '../lib/mandala/ftCandidates'
+import { selectFtInputs } from '../lib/mandala/ftSelect'
 import {
   AdminAsset,
   listAdminAssets,
@@ -234,40 +236,13 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
     if (asset == null || !Number.isInteger(amount) || amount < 1) return
     setBusy(true)
     try {
-      // Gather FT inputs of this asset totaling >= amount (same selection as transfer).
-      // 'locking scripts' attaches lockingScript + customInstructions for selection;
-      // 'entire transactions' attaches the BEEF for inputBEEF. Outpoints line up.
-      const scriptRes = await wallet.listOutputs({
-        basket: BASKET,
-        include: 'locking scripts',
-        limit: 1000,
-        includeCustomInstructions: true
-      })
-      const beefRes = await wallet.listOutputs({
-        basket: BASKET,
-        include: 'entire transactions',
-        limit: 1000
-      })
-
+      // Token-aware coin selection (confirmed-first, fewest UTXOs) — same as transfer.
+      const { candidates, beef: beefBytes } = await loadFtCandidates(wallet as any, effectiveRedeemAsset)
+      const { selected, total: gathered } = selectFtInputs(candidates, amount) // throws if insufficient
       const beef = new Beef()
-      beef.mergeBeef(beefRes.BEEF as number[])
-
-      const ftInputs: Array<{ outpoint: string, unlockingScriptLength: number, inputDescription: string }> = []
-      const ftSpend: Array<{ keyID: string, counterparty: string }> = []
-      let gathered = 0
-
-      for (const o of scriptRes.outputs) {
-        if (gathered >= amount) break
-        let d
-        try { d = MandalaToken.decode(LockingScript.fromHex(o.lockingScript as string)) } catch { continue }
-        if (d.assetId !== effectiveRedeemAsset) continue
-        const ci = JSON.parse((o.customInstructions as string) ?? '{}')
-        ftInputs.push({ outpoint: o.outpoint as string, unlockingScriptLength: 108, inputDescription: 'burn FT' })
-        ftSpend.push({ keyID: ci.keyID, counterparty: ci.counterparty })
-        gathered += d.amount
-      }
-
-      if (gathered < amount) throw new Error('insufficient balance to redeem')
+      beef.mergeBeef(beefBytes)
+      const ftInputs = selected.map(s => ({ outpoint: s.outpoint, unlockingScriptLength: 108, inputDescription: 'burn FT' }))
+      const ftSpend = selected.map(s => ({ keyID: s.keyID, counterparty: s.counterparty }))
       const change = gathered - amount
 
       // Build next admin-auth locking script for the redeem action.
