@@ -28,8 +28,23 @@ const main = async (): Promise<void> => {
   const server = new OverlayExpress(NODE_NAME, SERVER_PRIVATE_KEY, HOSTING_URL)
   server.configurePort(8080)
   server.configureNetwork(NETWORK)
-  // Local demo: validate scripts without a full chain tracker / ARC key.
-  server.configureChainTracker('scripts only')
+
+  // With ARCADE_URL set, the overlay becomes a real network participant:
+  //  - broadcasts accepted txs itself (ArcadeProvider POSTs to `${ARCADE_URL}/tx`;
+  //    engine broadcasts BEFORE folding state, and throwOnBroadcastFailure
+  //    defaults true, so a failed broadcast rejects the submit — the app then
+  //    aborts safely instead of desyncing),
+  //  - refreshes merkle proofs from `${ARCADE_URL}/tx/:txid`,
+  //  - tracks chain headers + reorg SSE via Arcade's go-chaintracks service.
+  // Without it (local demo): validate scripts only; the wallet is the sole
+  // broadcaster.
+  const ARCADE_URL = process.env.ARCADE_URL
+  if (ARCADE_URL != null && ARCADE_URL !== '') {
+    server.configureArcade(ARCADE_URL, { apiKey: process.env.ARCADE_API_KEY })
+    server.configureChaintracks(ARCADE_URL)
+  } else {
+    server.configureChainTracker('scripts only')
+  }
   await server.configureKnex({
     client: 'sqlite3',
     connection: { filename: process.env.SQLITE_FILE ?? '/data/overlay.sqlite' },
