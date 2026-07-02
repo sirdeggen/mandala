@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Copy, Check, Loader2 } from 'lucide-react'
+import { Copy, Check } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { toQrDataUrl } from '../../lib/mandala/qr'
 import { Button } from '../ui/button'
+import { Spinner } from '../ui/spinner'
 
 export default function ReceivePanel() {
   const { identityKey } = useWallet()
@@ -25,8 +26,8 @@ export default function ReceivePanel() {
 
   if (!identityKey) {
     return (
-      <div className="flex items-center justify-center py-10 text-muted-foreground">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+      <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
+        <Spinner size="md" tone="brand" />
         Loading wallet…
       </div>
     )
@@ -51,7 +52,7 @@ export default function ReceivePanel() {
         </div>
       ) : (
         <div className="flex h-[220px] w-[220px] animate-pulse items-center justify-center rounded-[--radius-lg] bg-muted">
-          <Loader2 className="h-8 w-8 animate-spin text-subtle-foreground" />
+          <Spinner size="lg" tone="brand" />
         </div>
       )}
 

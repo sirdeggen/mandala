@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { ArrowUpRight, ArrowDownLeft, Loader2, Download } from 'lucide-react'
+import { ArrowUpRight, ArrowDownLeft, Download } from 'lucide-react'
 import { IdentityClient } from '@bsv/sdk'
 import { useWallet } from '../../context/WalletContext'
 import { loadHistory, exportTransactionsCsv, HistoryRow } from '../../lib/mandala/history'
 import { formatCurrency } from '../../lib/mandala/amount'
 import { Button } from '../ui/button'
+import { Spinner } from '../ui/spinner'
 
 interface ResolvedIdentity {
   name?: string
@@ -110,8 +111,8 @@ export default function TransactionHistory({ assetId, decimals, ticker }: Props)
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-10 text-muted-foreground">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+      <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
+        <Spinner size="md" tone="brand" />
         Loading history…
       </div>
     )

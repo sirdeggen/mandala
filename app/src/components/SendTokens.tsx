@@ -4,8 +4,9 @@ import type { DisplayableIdentity } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
 import { Button } from './ui/button'
 import { Select } from './ui/select'
+import { Spinner } from './ui/spinner'
 import { useWallet } from '../context/WalletContext'
-import { ChevronLeft, Search, Loader2, CheckCircle2, Copy, Send } from 'lucide-react'
+import { ChevronLeft, Search, CheckCircle2, Copy, Send } from 'lucide-react'
 import { noAutofill } from '../lib/noAutofill'
 import { cn } from '@/lib/utils'
 import { BASKET, FT_PROTOCOL, MESSAGEBOX } from '../lib/mandala/constants'
@@ -512,7 +513,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
             placeholder="Name, @handle or email"
             className="min-w-0 flex-1 bg-transparent text-[13.5px] text-foreground placeholder:text-subtle-foreground outline-none"
           />
-          {isSearching && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+          {isSearching && <Spinner size="sm" tone="brand" />}
         </div>
 
         {/* Search results dropdown */}
@@ -879,20 +880,13 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         <Button
           onClick={() => void handleConfirmAndSend()}
           disabled={isSending || (isPaused && !devMode) || wallet == null}
+          loading={isSending}
+          loadingText="Sending…"
           size="lg"
           className="w-full"
         >
-          {isSending ? (
-            <>
-              <Loader2 className="h-[17px] w-[17px] animate-spin" />
-              Sending…
-            </>
-          ) : (
-            <>
-              <Send className="h-[17px] w-[17px]" />
-              Send {formatAmount(sendAmount, decimals)} {labelFor(assetId)}
-            </>
-          )}
+          <Send className="h-[17px] w-[17px]" />
+          Send {formatAmount(sendAmount, decimals)} {labelFor(assetId)}
         </Button>
       </div>
     </div>

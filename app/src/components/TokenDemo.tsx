@@ -1,6 +1,7 @@
 import { AlertTriangle } from 'lucide-react'
 import { Routes, Route, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useWallet } from '../context/WalletContext'
+import { Spinner } from './ui/spinner'
 import IssuerDashboard from './issuer/IssuerDashboard'
 import TokenWallet from './TokenWallet'
 import SendTokens from './SendTokens'
@@ -109,13 +110,7 @@ export default function TokenDemo() {
     return (
       <div className="grid min-h-screen place-items-center">
         <div className="flex flex-col items-center gap-4 animate-in">
-          <div className="relative h-9 w-9">
-            <div className="absolute inset-0 rounded-full border-[2.5px] border-primary/15" />
-            <div
-              className="absolute inset-0 animate-spin rounded-full border-[2.5px] border-solid"
-              style={{ borderColor: 'var(--brass)', borderRightColor: 'transparent' }}
-            />
-          </div>
+          <Spinner size="lg" tone="brand" />
           <p className="text-[14px] font-medium text-muted-foreground">Connecting your wallet…</p>
         </div>
       </div>

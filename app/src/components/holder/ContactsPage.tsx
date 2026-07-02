@@ -14,6 +14,7 @@ import { Users, UserPlus, Pencil, Trash2, X, Check, Search, ChevronRight } from 
 import { noAutofill } from '../../lib/noAutofill'
 import { IdentityClient } from '@bsv/sdk'
 import { useWallet } from '../../context/WalletContext'
+import { Spinner } from '../ui/spinner'
 import {
   listContacts,
   saveContact,
@@ -141,9 +142,10 @@ function ContactRow({ contact, onEdit, onRemove, removing }: ContactRowProps) {
               type="button"
               disabled={removing}
               onClick={() => onRemove(contact.identityKey)}
-              className="flex h-7 items-center gap-[4px] rounded-[8px] bg-destructive px-[9px] text-[11px] font-semibold text-destructive-foreground transition-opacity disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-7 items-center gap-[5px] rounded-[8px] bg-destructive px-[9px] text-[11px] font-semibold text-destructive-foreground transition-opacity disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {removing ? '…' : 'Remove'}
+              {removing && <Spinner size="sm" tone="current" className="h-3 w-3" />}
+              {removing ? 'Removing' : 'Remove'}
             </button>
             <button
               type="button"
@@ -548,12 +550,13 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
                 disabled={saving || !hasIdentity}
                 onClick={() => void handleSave()}
                 className={cn(
-                  'mt-[4px] w-full rounded-[12px] py-[13px]',
+                  'mt-[4px] flex w-full items-center justify-center gap-2 rounded-[12px] py-[13px]',
                   'text-[14px] font-semibold leading-none',
                   'bg-primary text-primary-foreground transition-opacity disabled:opacity-50',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
                 )}
               >
+                {saving && <Spinner size="sm" tone="current" />}
                 {saving ? 'Saving…' : 'Save Contact'}
               </button>
             </div>
@@ -708,12 +711,13 @@ function EditContactDialog({ contact, wallet, onSaved, onCancel }: EditContactDi
             disabled={saving || !name.trim()}
             onClick={() => void handleSave()}
             className={cn(
-              'mt-[4px] w-full rounded-[12px] py-[13px]',
+              'mt-[4px] flex w-full items-center justify-center gap-2 rounded-[12px] py-[13px]',
               'text-[14px] font-semibold leading-none',
               'bg-primary text-primary-foreground transition-opacity disabled:opacity-50',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
             )}
           >
+            {saving && <Spinner size="sm" tone="current" />}
             {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>

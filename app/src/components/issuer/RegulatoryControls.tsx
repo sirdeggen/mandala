@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { useIdentitySearch } from '@bsv/identity-react'
 import { Input } from '../ui/input'
 import { Select } from '../ui/select'
+import { Spinner } from '../ui/spinner'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset, submitAdminAction } from '../../lib/mandala/assets'
 import { resolveAssetState, AssetAdminStateView } from '../../lib/mandala/adminState'
@@ -16,13 +17,18 @@ interface Props {
   assetId?: string
 }
 
+type ActionKey = 'pause' | 'accessMode' | 'freeze' | 'unfreeze' | 'blockIdentity' | 'unblockIdentity' | 'allowIdentity' | 'unallowIdentity' | 'reissue'
+
 export default function RegulatoryControls({ assets, onActionComplete, assetId: controlledAssetId }: Props) {
   const { wallet, messageBoxClient, identityKey } = useWallet()
 
   // Selected asset
   const [selectedAssetId, setSelectedAssetId] = useState('')
   const [state, setState] = useState<AssetAdminStateView | null>(null)
-  const [busy, setBusy] = useState(false)
+  // Tracks WHICH action is in flight, not just whether one is — so only the
+  // pressed button shows its spinner; every other control is merely disabled.
+  const [busyAction, setBusyAction] = useState<ActionKey | null>(null)
+  const busy = busyAction !== null
 
   // Freeze/unfreeze
   const [freezeOutpoint, setFreezeOutpoint] = useState('')
@@ -89,9 +95,9 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     }
   })
 
-  const run = useCallback(async (fn: () => Promise<void>) => {
+  const run = useCallback(async (action: ActionKey, fn: () => Promise<void>) => {
     if (wallet == null || identityKey == null || asset == null) return
-    setBusy(true)
+    setBusyAction(action)
     try {
       await fn()
       await loadState()
@@ -99,14 +105,14 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     } catch (e) {
       toast.error(`Action failed: ${String(e)}`)
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }, [wallet, identityKey, asset, loadState, onActionComplete])
 
   // ---------------------------------------------------------------------------
   // Pause / unpause
   // ---------------------------------------------------------------------------
-  const handlePauseToggle = () => void run(async () => {
+  const handlePauseToggle = () => void run('pause', async () => {
     const isPaused = state?.isPaused ?? false
     await submitAdminAction({
       wallet: wallet as any,
@@ -125,7 +131,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // ---------------------------------------------------------------------------
   // Freeze output
   // ---------------------------------------------------------------------------
-  const handleFreeze = () => void run(async () => {
+  const handleFreeze = () => void run('freeze', async () => {
     const op = freezeOutpoint.trim()
     if (op === '') { toast.error('Enter an outpoint to freeze'); return }
     await submitAdminAction({
@@ -142,7 +148,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // ---------------------------------------------------------------------------
   // Unfreeze output (from list)
   // ---------------------------------------------------------------------------
-  const handleUnfreeze = () => void run(async () => {
+  const handleUnfreeze = () => void run('unfreeze', async () => {
     const op = selectedFreezeRef || freezeOutpoint.trim()
     if (op === '') { toast.error('Select or enter an outpoint to unfreeze'); return }
     await submitAdminAction({
@@ -160,7 +166,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // ---------------------------------------------------------------------------
   // Block / unblock / allow / unallow identity
   // ---------------------------------------------------------------------------
-  const handleIdentityAction = (kind: 'blockIdentity' | 'unblockIdentity' | 'allowIdentity' | 'unallowIdentity') => void run(async () => {
+  const handleIdentityAction = (kind: 'blockIdentity' | 'unblockIdentity' | 'allowIdentity' | 'unallowIdentity') => void run(kind, async () => {
     const key = resolvedIdentityKey || publicKeyInput.trim()
     if (key === '') { toast.error('Select or enter an identity key'); return }
     await submitAdminAction({
@@ -180,7 +186,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // ---------------------------------------------------------------------------
   // Set access mode
   // ---------------------------------------------------------------------------
-  const handleSetAccessMode = () => void run(async () => {
+  const handleSetAccessMode = () => void run('accessMode', async () => {
     if (newAccessMode === 'allowlist' && (state?.allowedIdentities.length ?? 0) === 0) {
       toast.error('Add at least one allowed identity first')
       return
@@ -198,7 +204,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // ---------------------------------------------------------------------------
   // Reissue (from frozen outpoint)
   // ---------------------------------------------------------------------------
-  const handleReissue = () => void run(async () => {
+  const handleReissue = () => void run('reissue', async () => {
     const op = reissueOutpoint
     if (op === '') { toast.error('Select a frozen outpoint to reissue'); return }
     const recipient = reissueRecipient || reissueRecipientPublicKey.trim()
@@ -352,7 +358,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
                 : 'bg-destructive text-destructive-foreground'
             }`}
           >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+            {busyAction === 'pause' && <Spinner size="sm" tone="current" />}
             {isPaused ? 'Unpause transfers' : 'Pause transfers'}
           </button>
         </div>
@@ -392,7 +398,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
             className="w-full rounded-[11px] py-[11px] text-[13px] font-semibold mt-3 flex items-center justify-center gap-2 disabled:opacity-50"
             style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
           >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+            {busyAction === 'accessMode' && <Spinner size="sm" tone="current" />}
             Apply access mode
           </button>
         </div>
@@ -430,7 +436,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
               className="flex-1 rounded-[11px] py-[11px] text-[13px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
               style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
             >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+              {busyAction === 'freeze' && <Spinner size="sm" tone="current" />}
               Freeze
             </button>
             <button
@@ -438,6 +444,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
               disabled={busy || (freezeOutpoint.trim() === '' && selectedFreezeRef === '') || asset == null}
               className="flex-1 rounded-[11px] py-[11px] text-[13px] font-semibold bg-card border border-border text-foreground flex items-center justify-center gap-2 disabled:opacity-50"
             >
+              {busyAction === 'unfreeze' && <Spinner size="sm" tone="current" />}
               Unfreeze
             </button>
           </div>
@@ -457,7 +464,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
           />
           {identitySearch.isLoading && (
             <p className="mt-1.5 text-[12px] text-muted-foreground flex items-center gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" /> Searching…
+              <Spinner size="sm" tone="brand" className="h-3 w-3" /> Searching…
             </p>
           )}
           {identitySearch.inputValue && identitySearch.identities.length > 0 && !identitySearch.selectedIdentity && (
@@ -505,8 +512,9 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
             <button
               onClick={() => handleIdentityAction('blockIdentity')}
               disabled={busy || identityKeyEmpty || asset == null}
-              className="flex-1 rounded-[11px] py-[11px] text-[13px] font-semibold bg-card border border-destructive/40 text-destructive disabled:opacity-50"
+              className="flex-1 rounded-[11px] py-[11px] text-[13px] font-semibold bg-card border border-destructive/40 text-destructive flex items-center justify-center gap-2 disabled:opacity-50"
             >
+              {busyAction === 'blockIdentity' && <Spinner size="sm" tone="current" />}
               Block
             </button>
             <button
@@ -515,7 +523,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
               className="flex-1 rounded-[11px] py-[11px] text-[13px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
               style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
             >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+              {busyAction === 'allowIdentity' && <Spinner size="sm" tone="current" />}
               Allow
             </button>
           </div>
@@ -525,15 +533,17 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
             <button
               onClick={() => handleIdentityAction('unblockIdentity')}
               disabled={busy || identityKeyEmpty || asset == null}
-              className="flex-1 rounded-[11px] py-[9px] text-[12px] font-medium text-subtle-foreground bg-muted disabled:opacity-40"
+              className="flex-1 rounded-[11px] py-[9px] text-[12px] font-medium text-subtle-foreground bg-muted flex items-center justify-center gap-2 disabled:opacity-40"
             >
+              {busyAction === 'unblockIdentity' && <Spinner size="sm" tone="current" />}
               Unblock
             </button>
             <button
               onClick={() => handleIdentityAction('unallowIdentity')}
               disabled={busy || identityKeyEmpty || asset == null}
-              className="flex-1 rounded-[11px] py-[9px] text-[12px] font-medium text-subtle-foreground bg-muted disabled:opacity-40"
+              className="flex-1 rounded-[11px] py-[9px] text-[12px] font-medium text-subtle-foreground bg-muted flex items-center justify-center gap-2 disabled:opacity-40"
             >
+              {busyAction === 'unallowIdentity' && <Spinner size="sm" tone="current" />}
               Unallow
             </button>
           </div>
@@ -643,7 +653,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
               className="w-full rounded-[11px] py-[11px] text-[13px] font-semibold mt-3 flex items-center justify-center gap-2 disabled:opacity-50"
               style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
             >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+              {busyAction === 'reissue' && <Spinner size="sm" tone="current" />}
               Reissue tokens
             </button>
           </>

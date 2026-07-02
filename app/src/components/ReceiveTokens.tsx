@@ -4,12 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button'
 import { toast } from 'sonner'
 import { useWallet } from '../context/WalletContext'
-import { Download, Check, RefreshCw, Loader2 } from 'lucide-react'
+import { Download, Check, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MESSAGEBOX, BASKET } from '../lib/mandala/constants'
 import { resolveAssetMetadata } from '../lib/mandala/metadata'
 import { formatAmount } from '../lib/mandala/amount'
 import ReceivePanel from './holder/ReceivePanel'
+import { Spinner } from './ui/spinner'
 
 interface ReceivedToken {
   id: string
@@ -158,7 +159,7 @@ export default function ReceiveTokens() {
 
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
+            <Spinner size="md" tone="brand" />
             <span className="text-[14px]">Accepting incoming transfers…</span>
           </div>
         ) : received.length === 0 ? (

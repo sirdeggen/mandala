@@ -20,6 +20,7 @@ import { Sparkles, Flame } from 'lucide-react'
 import { Input } from './ui/input'
 import { Select } from './ui/select'
 import { Button } from './ui/button'
+import { Spinner } from './ui/spinner'
 
 interface IssuerPanelProps {
   /** When set, sync to issue/redeem asset selection and hide per-section dropdowns. */
@@ -36,7 +37,10 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
   const [issueAmount, setIssueAmount] = useState('')
   const [redeemAsset, setRedeemAsset] = useState('')
   const [redeemAmount, setRedeemAmount] = useState('')
-  const [busy, setBusy] = useState(false)
+  // Tracks WHICH action is in flight so only the pressed button shows its
+  // spinner — Register/Issue/Redeem are independent actions, not one busy flag.
+  const [busyAction, setBusyAction] = useState<'register' | 'issue' | 'redeem' | null>(null)
+  const busy = busyAction !== null
 
   // UI-only state (not passed to any core function)
   const [issueRef, setIssueRef] = useState('')
@@ -71,7 +75,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
     if (wallet == null || identityKey == null || label.trim() === '') return
     const dec = Number(decimals)
     if (!Number.isInteger(dec) || dec < 0) { toast.error('Decimals must be a non-negative integer'); return }
-    setBusy(true)
+    setBusyAction('register')
     try {
       // issuer = our identity key, baked into the on-chain publicData so any holder
       // can SPV-verify it and return funds to the issuer.
@@ -116,7 +120,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
     } catch (e) {
       toast.error(`Register failed: ${String(e)}`)
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }, [wallet, identityKey, label, ticker, decimals, reload])
 
@@ -128,7 +132,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
     const asset = assets.find(a => a.assetId === effectiveIssueAsset)
     const amount = parseAmount(issueAmount, Number(asset?.metadata?.decimals) || 0)
     if (asset == null || !Number.isInteger(amount) || amount < 1) return
-    setBusy(true)
+    setBusyAction('issue')
     try {
       const keyID = 'mint-' + Date.now()
       // Self-mint: use our own identity key (hex) as counterparty, not the literal
@@ -224,7 +228,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
     } catch (e) {
       toast.error(`Issue failed: ${String(e)}`)
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }, [wallet, identityKey, assets, effectiveIssueAsset, issueAmount, reload])
 
@@ -237,7 +241,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
     const asset = assets.find(a => a.assetId === effectiveRedeemAsset)
     const amount = parseAmount(redeemAmount, Number(asset?.metadata?.decimals) || 0)
     if (asset == null || !Number.isInteger(amount) || amount < 1) return
-    setBusy(true)
+    setBusyAction('redeem')
     try {
       // Token-aware coin selection (confirmed-first, fewest UTXOs) — same as transfer.
       const { candidates, beef: beefBytes } = await loadFtCandidates(wallet as any, effectiveRedeemAsset)
@@ -336,7 +340,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
     } catch (e) {
       toast.error(`Redeem failed: ${String(e)}`)
     } finally {
-      setBusy(false)
+      setBusyAction(null)
     }
   }, [wallet, identityKey, assets, effectiveRedeemAsset, redeemAmount, reload])
 
@@ -419,6 +423,8 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
           <Button
             onClick={() => void issue()}
             disabled={busy || effectiveIssueAsset === '' || issueAmount === ''}
+            loading={busyAction === 'issue'}
+            loadingText="Issuing…"
             className="w-full rounded-[11px] bg-primary text-primary-foreground mt-auto"
           >
             Issue Tokens
@@ -477,9 +483,10 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
           <button
             onClick={() => void redeem()}
             disabled={busy || effectiveRedeemAsset === '' || redeemAmount === ''}
-            className="w-full rounded-[11px] mt-auto py-[10px] px-4 text-[13.5px] font-medium transition-opacity disabled:opacity-40 bg-background border border-destructive/40 text-destructive"
+            className="w-full rounded-[11px] mt-auto py-[10px] px-4 text-[13.5px] font-medium transition-opacity disabled:opacity-40 bg-background border border-destructive/40 text-destructive flex items-center justify-center gap-2"
           >
-            Redeem (burn)
+            {busyAction === 'redeem' && <Spinner size="sm" tone="current" />}
+            {busyAction === 'redeem' ? 'Redeeming…' : 'Redeem (burn)'}
           </button>
         </div>
       </div>
@@ -539,10 +546,11 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
             <button
               onClick={() => void registerAsset()}
               disabled={busy || label.trim() === ''}
-              className="shrink-0 rounded-[8px] border px-4 py-[8px] text-[12.5px] font-medium transition-opacity disabled:opacity-40"
+              className="shrink-0 rounded-[8px] border px-4 py-[8px] text-[12.5px] font-medium transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
               style={{ background: '#fff', borderColor: 'rgba(27,30,36,.2)', color: '#23405E' }}
             >
-              Register asset
+              {busyAction === 'register' && <Spinner size="sm" tone="current" />}
+              {busyAction === 'register' ? 'Registering…' : 'Register asset'}
             </button>
           </div>
         </div>
