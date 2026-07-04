@@ -8,11 +8,11 @@
     "gen-key": "tsx src/genKey.ts"
   },
   "dependencies": {
-    "@bsv/overlay": "^2.1.1",
+    "@bsv/overlay": "^2.2.0",
     "@bsv/overlay-express": "^2.4.1",
-    "@bsv/overlay-topics": "^1.4.1",
+    "@bsv/overlay-topics": "^1.5.0",
     "@bsv/sdk": "^2.1.6",
-    "@bsv/templates": "^1.8.1",
+    "@bsv/templates": "^1.9.0",
     "dotenv": "^17.4.2",
     "knex": "^3.1.0",
     "mongodb": "^7.2.0",
