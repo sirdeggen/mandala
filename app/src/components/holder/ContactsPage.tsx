@@ -9,14 +9,14 @@
  * Meridian-styled: white cards, hairline borders, ink/navy/brass palette.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Users, UserPlus, Pencil, Trash2, X, Check, Search, ChevronRight } from 'lucide-react'
 import { noAutofill } from '../../lib/noAutofill'
 import { IdentityClient } from '@bsv/sdk'
 import { useWallet } from '../../context/WalletContext'
+import { useContactsData, useInvalidateContacts } from '../../hooks/useContactsData'
 import { Spinner } from '../ui/spinner'
 import {
-  listContacts,
   saveContact,
   removeContact,
   type StoredContact,
@@ -732,8 +732,11 @@ function EditContactDialog({ contact, wallet, onSaved, onCancel }: EditContactDi
 
 export default function ContactsPage({ onBack }: { onBack?: () => void }) {
   const { wallet } = useWallet()
-  const [contacts, setContacts] = useState<StoredContact[]>([])
-  const [loading, setLoading] = useState(true)
+  // Shared cached query — renders instantly on navigation, refetches behind.
+  const { data } = useContactsData()
+  const invalidateContacts = useInvalidateContacts()
+  const contacts = data?.saved ?? []
+  const loading = data == null
   const [showAdd, setShowAdd] = useState(false)
   const [editTarget, setEditTarget] = useState<StoredContact | null>(null)
   const [removingKey, setRemovingKey] = useState<string | null>(null)
@@ -748,27 +751,11 @@ export default function ContactsPage({ onBack }: { onBack?: () => void }) {
 
   const dismissToast = (id: number) => setToasts(prev => prev.filter(t => t.id !== id))
 
-  const refresh = useCallback(async () => {
-    if (wallet == null) return
-    setLoading(true)
-    try {
-      const list = await listContacts(wallet as any)
-      setContacts(list)
-    } catch {
-      addToast('Failed to load contacts', 'error')
-    } finally {
-      setLoading(false)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wallet])
-
-  useEffect(() => { void refresh() }, [refresh])
-
   const handleContactSaved = (contact: StoredContact) => {
     setShowAdd(false)
     setEditTarget(null)
     addToast(`${contact.name} saved`, 'success')
-    void refresh()
+    void invalidateContacts()
   }
 
   const handleRemove = async (identityKey: string) => {
@@ -777,7 +764,7 @@ export default function ContactsPage({ onBack }: { onBack?: () => void }) {
     try {
       await removeContact(wallet as any, identityKey)
       addToast('Contact removed', 'success')
-      void refresh()
+      void invalidateContacts()
     } catch (e) {
       addToast(e instanceof Error ? e.message : 'Remove failed', 'error')
     } finally {

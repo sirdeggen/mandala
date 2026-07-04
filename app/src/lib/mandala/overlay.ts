@@ -37,6 +37,12 @@ export async function broadcastAcceptedTx (wallet: WalletInterface, txid: string
  * abort the action so its inputs are released for a retry, then rethrow — the
  * transaction never reaches the network.
  *
+ * Resolves at the overlay-accept commit point: acceptance is the moment the
+ * outcome is decided, so callers (and the UI) don't wait on the network
+ * broadcast. The broadcast continues in the background under journal
+ * protection — a failure keeps the 'accepted' entry and reconcileWallet
+ * retries it; it must never be aborted (that would desync wallet from overlay).
+ *
  * `reference` is the `createAction` signableTransaction.reference; pass it for
  * signable actions so a rejected tx's inputs are released. Genesis/register
  * actions have no signable reference — omit it (only wallet-managed funding is
@@ -67,17 +73,17 @@ export async function submitAndBroadcast (
   }
 
   // Overlay has folded this tx into its state — from here the tx MUST reach the
-  // network. Journal before broadcasting; a broadcast failure keeps the entry so
-  // reconcileWallet retries, and it must never be aborted (that would desync
-  // wallet from overlay).
+  // network. Journal first, then broadcast in the background: the entry only
+  // clears on success, so an interrupted/failed broadcast is retried by
+  // reconcileWallet.
   journalPut({ txid: signed.txid, stage: 'accepted', at: Date.now() })
-  try {
-    await broadcastAcceptedTx(wallet, signed.txid)
-  } catch (e) {
-    throw new Error(
-      `Overlay accepted the transaction but the network broadcast failed; it will be re-broadcast automatically on next load (txid ${signed.txid}). ${String(e)}`
-    )
-  }
-  journalRemove(signed.txid)
+  void broadcastAcceptedTx(wallet, signed.txid)
+    .then(() => journalRemove(signed.txid))
+    .catch(e => {
+      console.warn(
+        `[mandala] overlay accepted ${signed.txid} but broadcast failed; will retry via reconcile:`,
+        e
+      )
+    })
   return admitted
 }

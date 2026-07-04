@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle, ShieldOff } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { BASKET } from '../../lib/mandala/constants'
-import { resolveAssetState } from '../../lib/mandala/adminState'
+import { useAssetState } from '../../hooks/useAssetState'
+import { useHolderData } from '../../hooks/useHolderData'
 import { formatCurrency } from '../../lib/mandala/amount'
-import { resolveAssetMetadata } from '../../lib/mandala/metadata'
 import { LockingScript } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
 
@@ -14,26 +14,20 @@ interface Props {
 
 export default function AlertBanners({ assetId }: Props) {
   const { wallet } = useWallet()
-  const [isPaused, setIsPaused] = useState(false)
+  // Cached queries — admin state (pause/freezes) + shared metadata.
+  const { data: state } = useAssetState(assetId)
+  const { data: holderData } = useHolderData()
   const [frozenAmount, setFrozenAmount] = useState(0)
-  const [decimals, setDecimals] = useState(0)
-  const [ticker, setTicker] = useState<string | undefined>()
+
+  const isPaused = state?.isPaused ?? false
+  const meta = holderData?.metas[assetId]
+  const decimals = meta?.decimals ?? 0
+  const ticker = meta?.ticker
 
   useEffect(() => {
     if (!assetId) return
     let cancelled = false
     void (async () => {
-      const [state, meta] = await Promise.all([
-        resolveAssetState(assetId),
-        resolveAssetMetadata(assetId)
-      ])
-
-      if (cancelled) return
-
-      setIsPaused(state?.isPaused ?? false)
-      setDecimals(Number(meta?.decimals) || 0)
-      setTicker(typeof (meta as any)?.ticker === 'string' ? (meta as any).ticker : undefined)
-
       if (state == null || wallet == null) return
 
       // Compute frozen amount: sum amounts of the holder's outputs whose outpoint
@@ -63,7 +57,7 @@ export default function AlertBanners({ assetId }: Props) {
       }
     })()
     return () => { cancelled = true }
-  }, [assetId, wallet])
+  }, [assetId, wallet, state])
 
   if (!isPaused && frozenAmount === 0) return null
 

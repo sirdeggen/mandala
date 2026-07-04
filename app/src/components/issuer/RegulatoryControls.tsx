@@ -7,8 +7,10 @@ import { Select } from '../ui/select'
 import { Spinner } from '../ui/spinner'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset, submitAdminAction } from '../../lib/mandala/assets'
-import { resolveAssetState, AssetAdminStateView } from '../../lib/mandala/adminState'
+import { AssetAdminStateView } from '../../lib/mandala/adminState'
 import { formatAmount } from '../../lib/mandala/amount'
+import { useAssetState, useInvalidateAssetState } from '../../hooks/useAssetState'
+import { useInvalidateAdminHistory } from '../../hooks/useAdminHistory'
 
 interface Props {
   assets: AdminAsset[]
@@ -24,7 +26,6 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
 
   // Selected asset
   const [selectedAssetId, setSelectedAssetId] = useState('')
-  const [state, setState] = useState<AssetAdminStateView | null>(null)
   // Tracks WHICH action is in flight, not just whether one is — so only the
   // pressed button shows its spinner; every other control is merely disabled.
   const [busyAction, setBusyAction] = useState<ActionKey | null>(null)
@@ -54,14 +55,17 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   const asset = assets.find(a => a.assetId === activeAssetId) ?? null
   const decimals = Number(asset?.metadata?.decimals) || 0
 
-  const loadState = useCallback(async () => {
-    if (activeAssetId === '') { setState(null); return }
-    const s = await resolveAssetState(activeAssetId)
-    setState(s)
-    setNewAccessMode(s?.accessMode ?? 'denylist')
-  }, [selectedAssetId])
+  // Shared overlay admin-state query — cached across sections, refetched in
+  // the background so controls stay usable while it refreshes.
+  const stateQuery = useAssetState(activeAssetId)
+  const state: AssetAdminStateView | null = stateQuery.data ?? null
+  const invalidateAssetState = useInvalidateAssetState()
+  const invalidateAdminHistory = useInvalidateAdminHistory()
 
-  useEffect(() => { void loadState() }, [loadState, activeAssetId])
+  // Keep the access-mode segmented control in sync with freshly loaded state.
+  useEffect(() => {
+    if (stateQuery.data !== undefined) setNewAccessMode(stateQuery.data?.accessMode ?? 'denylist')
+  }, [stateQuery.data])
 
   // Pre-fill reissue amount when a frozen outpoint is selected
   useEffect(() => {
@@ -100,14 +104,16 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     setBusyAction(action)
     try {
       await fn()
-      await loadState()
+      // Refresh every cache this action can touch instead of a manual reload.
+      await invalidateAssetState(activeAssetId)
+      void invalidateAdminHistory(activeAssetId)
       onActionComplete?.()
     } catch (e) {
       toast.error(`Action failed: ${String(e)}`)
     } finally {
       setBusyAction(null)
     }
-  }, [wallet, identityKey, asset, loadState, onActionComplete])
+  }, [wallet, identityKey, asset, activeAssetId, invalidateAssetState, invalidateAdminHistory, onActionComplete])
 
   // ---------------------------------------------------------------------------
   // Pause / unpause

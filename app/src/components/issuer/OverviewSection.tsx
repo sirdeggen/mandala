@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useMemo } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { AdminAsset } from '../../lib/mandala/assets'
-import { resolveAssetState, AssetAdminStateView } from '../../lib/mandala/adminState'
-import { resolveAdminHistory } from '../../lib/mandala/adminHistory'
+import { AssetAdminStateView } from '../../lib/mandala/adminState'
 import { reconcile } from '../../lib/mandala/banking'
+import { useAssetState, useInvalidateAssetState } from '../../hooks/useAssetState'
+import { useAdminHistory, useInvalidateAdminHistory } from '../../hooks/useAdminHistory'
 import { useMockDeposits } from '../../lib/mandala/mockBankStore'
 import { formatAmount } from '../../lib/mandala/amount'
 import { cn } from '@/lib/utils'
@@ -72,57 +73,48 @@ function StatusPill({ state }: { state: AssetAdminStateView | null }) {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function OverviewSection({ assetId, asset, onReload }: Props) {
-  const [state, setState] = useState<AssetAdminStateView | null>(null)
-  const [inCirculation, setInCirculation] = useState(0)
-  const [netIssued, setNetIssued] = useState(0)
-  const [reserveRatioPct, setReserveRatioPct] = useState<number | null>(null)
-  const [loading, setLoading] = useState(false)
   // Shared with the Banking page's demo deposit feed (mockBankStore) — the
   // ratio must reflect real added deposits, never a separate fabricated number.
   const deposits = useMockDeposits()
 
   const decimals = Number(asset?.metadata?.decimals) || 0
 
-  const load = useCallback(async () => {
-    if (assetId === '') return
-    setLoading(true)
-    const bankDepositAmounts = deposits.map(d => d.amount)
-    try {
-      const [assetState, history] = await Promise.all([
-        resolveAssetState(assetId),
-        resolveAdminHistory(assetId),
-      ])
-      setState(assetState)
+  const stateQuery = useAssetState(assetId)
+  const historyQuery = useAdminHistory(assetId)
+  const invalidateAssetState = useInvalidateAssetState()
+  const invalidateAdminHistory = useInvalidateAdminHistory()
 
-      let totalIssued = 0
-      let totalRedeemed = 0
-      for (const row of history) {
-        if (row.actionDetails.kind === 'issue')
-          totalIssued += (row.actionDetails.amount as number) ?? 0
-        if (row.actionDetails.kind === 'redeem')
-          totalRedeemed += (row.actionDetails.amount as number) ?? 0
-      }
-      const circulation = totalIssued - totalRedeemed
-      setInCirculation(circulation)
-      setNetIssued(circulation)
+  const state: AssetAdminStateView | null = stateQuery.data ?? null
+  const history = historyQuery.data
+  // Skeleton only while the queries have no data yet — background refetches
+  // keep showing cached values.
+  const loading = assetId !== '' && (stateQuery.data === undefined || history == null)
+  const refetching = stateQuery.isFetching || historyQuery.isFetching
 
-      const recon = reconcile({
-        deposits: bankDepositAmounts,
-        withdrawals: [],
-        issued: totalIssued,
-        redeemed: totalRedeemed,
-      })
-      const ratio =
-        circulation === 0
-          ? null
-          : Math.min(100, (recon.bankBalance / circulation) * 100)
-      setReserveRatioPct(ratio)
-    } finally {
-      setLoading(false)
+  const { inCirculation, netIssued, reserveRatioPct } = useMemo(() => {
+    if (history == null) return { inCirculation: 0, netIssued: 0, reserveRatioPct: null as number | null }
+    let totalIssued = 0
+    let totalRedeemed = 0
+    for (const row of history) {
+      if (row.actionDetails.kind === 'issue')
+        totalIssued += (row.actionDetails.amount as number) ?? 0
+      if (row.actionDetails.kind === 'redeem')
+        totalRedeemed += (row.actionDetails.amount as number) ?? 0
     }
-  }, [assetId, deposits])
+    const circulation = totalIssued - totalRedeemed
 
-  useEffect(() => { void load() }, [load])
+    const recon = reconcile({
+      deposits: deposits.map(d => d.amount),
+      withdrawals: [],
+      issued: totalIssued,
+      redeemed: totalRedeemed,
+    })
+    const ratio =
+      circulation === 0
+        ? null
+        : Math.min(100, (recon.bankBalance / circulation) * 100)
+    return { inCirculation: circulation, netIssued: circulation, reserveRatioPct: ratio }
+  }, [history, deposits])
 
   // Restrictions tile: read from assetAdminState
   const blockedCount = state?.blockedIdentities.length ?? 0
@@ -153,11 +145,14 @@ export default function OverviewSection({ assetId, asset, onReload }: Props) {
           <StatusPill state={state} />
           <button
             type="button"
-            onClick={() => { onReload?.(); void load() }}
-            disabled={loading}
+            onClick={() => {
+              onReload?.()
+              void invalidateAssetState(assetId)
+              void invalidateAdminHistory(assetId)
+            }}
             className="flex h-8 w-8 items-center justify-center rounded-[8px] text-muted-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+            <RefreshCw className={cn('h-4 w-4', refetching && 'animate-spin')} />
           </button>
         </div>
       </div>

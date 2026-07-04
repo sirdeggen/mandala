@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Transaction, Beef, LockingScript, PublicKey, IdentityClient } from '@bsv/sdk'
+import { PublicKey, IdentityClient } from '@bsv/sdk'
 import type { DisplayableIdentity } from '@bsv/sdk'
-import { MandalaToken } from '@bsv/templates'
 import { Button } from './ui/button'
 import { Select } from './ui/select'
 import { Spinner } from './ui/spinner'
@@ -9,32 +8,18 @@ import { useWallet } from '../context/WalletContext'
 import { ChevronLeft, Search, CheckCircle2, Copy, Send } from 'lucide-react'
 import { noAutofill } from '../lib/noAutofill'
 import { cn } from '@/lib/utils'
-import { BASKET, FT_PROTOCOL, MESSAGEBOX } from '../lib/mandala/constants'
-import { walletMandalaUnlock } from '../lib/mandala/unlock'
-import { revealLinkage } from '../lib/mandala/tokens'
-import { listAdminAssets } from '../lib/mandala/assets'
-import { resolveAssetMetadata } from '../lib/mandala/metadata'
 import { parseAmount, formatAmount, formatAmountPlain } from '../lib/mandala/amount'
-import { submitAndBroadcast } from '../lib/mandala/overlay'
-import { encodeLinkagePayload } from '../lib/mandala/encoding'
-import { loadHistory } from '../lib/mandala/history'
-import { loadFtCandidates } from '../lib/mandala/ftCandidates'
-import { selectFtInputs } from '../lib/mandala/ftSelect'
-import { deriveContacts, Contact } from '../lib/mandala/contacts'
-import { listContacts, StoredContact } from '../lib/mandala/contactsStore'
-import { resolveAssetState } from '../lib/mandala/adminState'
+import { useHolderData } from '../hooks/useHolderData'
+import { useContactsData } from '../hooks/useContactsData'
+import { useAssetState } from '../hooks/useAssetState'
+import { useSendMutation } from '../hooks/useSendMutation'
 import { useDevMode } from '../lib/devMode'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface TokenBalance {
-  assetId: string
-  amount: number
-}
-
-type Step = 'recipient' | 'amount' | 'review' | 'sent'
+type Step = 'recipient' | 'amount' | 'review' | 'sending' | 'sent'
 
 /** A tappable recipient row in the recipient-step shortlist. */
 interface PickRow { identityKey: string; name?: string; avatarURL?: string; subtitle: string }
@@ -48,7 +33,7 @@ const CONTACT_LIMIT = 12
 
 export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string } = {}) {
   const locked = lockedAssetId != null && lockedAssetId !== ''
-  const { wallet, messageBoxClient, identityKey } = useWallet()
+  const { wallet } = useWallet()
   // Dev mode bypasses the frontend pause guard so a paused transfer actually
   // reaches the overlay, proving the overlay (not the client) enforces the pause.
   const devMode = useDevMode()
@@ -66,97 +51,32 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   const [publicKeyInput, setPublicKeyInput] = useState('')
 
   // Async state
-  const [isSending, setIsSending] = useState(false)
   const [sendError, setSendError] = useState('')
   const [sentTxid, setSentTxid] = useState('')
   const [receiptCopied, setReceiptCopied] = useState(false)
-  const [balances, setBalances] = useState<TokenBalance[]>([])
-  const [metas, setMetas] = useState<Record<string, { label: string, decimals: number, issuer?: string }>>({})
-  const [isLoadingBalances, setIsLoadingBalances] = useState(true)
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [saved, setSaved] = useState<StoredContact[]>([])
-  const [isPaused, setIsPaused] = useState(false)
+
+  // Shared cached data — instant render, background refetch.
+  const holder = useHolderData()
+  const balances = (holder.data?.assets ?? []).filter(a => a.balance > 0)
+    .map(a => ({ assetId: a.assetId, amount: a.balance }))
+  const metas = holder.data?.metas ?? {}
+  const isLoadingBalances = holder.data == null
+  const contactsQuery = useContactsData()
+  const contacts = contactsQuery.data?.derived ?? []
+  const saved = contactsQuery.data?.saved ?? []
+  const assetState = useAssetState(assetId)
+  const isPaused = assetState.data?.isPaused ?? false
+
+  const sendMutation = useSendMutation()
 
   // Helpers
   const labelFor = (id: string): string => metas[id]?.label ?? `${id.slice(0, 20)}…`
   const decimalsFor = (id: string): number => metas[id]?.decimals ?? 0
 
-  // ---------------------------------------------------------------------------
-  // Effects
-  // ---------------------------------------------------------------------------
-
-  useEffect(() => {
-    void loadBalances()
-    void loadContacts()
-  }, [wallet])
-
   // Keep the asset locked to the account this Send tab belongs to.
   useEffect(() => {
     if (locked) setAssetId(lockedAssetId as string)
   }, [lockedAssetId, locked])
-
-  useEffect(() => {
-    if (!assetId) { setIsPaused(false); return }
-    void resolveAssetState(assetId).then(state => {
-      setIsPaused(state?.isPaused ?? false)
-    })
-  }, [assetId])
-
-  // ---------------------------------------------------------------------------
-  // Data loading
-  // ---------------------------------------------------------------------------
-
-  const loadContacts = async () => {
-    if (wallet == null) return
-    try {
-      const history = await loadHistory(wallet as any)
-      setContacts(deriveContacts(history))
-    } catch (e) {
-      console.error('Error loading contacts:', e)
-    }
-    // Saved contacts (names/avatars) are loaded independently so a store read
-    // failure never blocks the recency list.
-    try {
-      setSaved(await listContacts(wallet as any))
-    } catch (e) {
-      console.error('Error loading saved contacts:', e)
-    }
-  }
-
-  const loadBalances = async () => {
-    if (wallet == null) return
-    setIsLoadingBalances(true)
-    try {
-      const res = await wallet.listOutputs({
-        basket: BASKET,
-        include: 'locking scripts',
-        limit: 1000
-      })
-
-      const totals = new Map<string, number>()
-      for (const o of res.outputs) {
-        try {
-          const decoded = MandalaToken.decode(LockingScript.fromHex(o.lockingScript as string))
-          totals.set(decoded.assetId, (totals.get(decoded.assetId) ?? 0) + decoded.amount)
-        } catch { /* not a mandala FT */ }
-      }
-      setBalances([...totals.entries()].map(([assetId, amount]) => ({ assetId, amount })))
-      const admin = await listAdminAssets(wallet as any)
-      const metaMap: Record<string, { label: string, decimals: number, issuer?: string }> = {}
-      for (const a of admin) metaMap[a.assetId] = { label: a.label, decimals: Number(a.metadata?.decimals) || 0, issuer: typeof a.metadata?.issuer === 'string' ? a.metadata.issuer : undefined }
-      for (const b of [...totals.keys()]) {
-        if (metaMap[b] == null) {
-          const meta = await resolveAssetMetadata(b)
-          if (meta != null) metaMap[b] = { label: meta.label, decimals: Number(meta.decimals) || 0, issuer: typeof meta.issuer === 'string' ? meta.issuer : undefined }
-        }
-      }
-      setMetas(metaMap)
-    } catch (e) {
-      console.error('Error loading balances:', e)
-    } finally {
-      setIsLoadingBalances(false)
-    }
-  }
 
   // ---------------------------------------------------------------------------
   // Identity search — local state replacing useIdentitySearch hook
@@ -224,114 +144,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
     return name.slice(0, 2).toUpperCase()
   }
 
-  // ---------------------------------------------------------------------------
-  // Core transfer logic — PRESERVED EXACTLY
-  // ---------------------------------------------------------------------------
-
-  const transfer = async (selectedAssetId: string, sendAmount: number, recipientKey: string): Promise<string> => {
-    if (wallet == null || messageBoxClient == null || identityKey == null) throw new Error('Wallet not ready')
-
-    // Two queries: 'locking scripts' attaches lockingScript (needed to decode the
-    // FT) + customInstructions (keyID/counterparty for unlock); 'entire transactions'
-    // attaches the BEEF for inputBEEF. The two modes are mutually exclusive on what
-    // they return, but the outpoints line up.
-    // Token-aware coin selection: confirmed-first, fewest UTXOs (see ftSelect).
-    const { candidates, beef: beefBytes } = await loadFtCandidates(wallet as any, selectedAssetId)
-    const { selected, total: gathered } = selectFtInputs(candidates, sendAmount) // throws if insufficient
-    const beef = new Beef()
-    beef.mergeBeef(beefBytes)
-    const inputs = selected.map(s => ({ outpoint: s.outpoint, unlockingScriptLength: 108, inputDescription: 'spend FT' }))
-    const spendInfo = selected.map(s => ({ keyID: s.keyID, counterparty: s.counterparty }))
-    const change = gathered - sendAmount
-
-    const keyIDOut = 'xfer-' + Date.now()
-    const ftOut = await new MandalaToken(wallet as any).lockBRC29(selectedAssetId, sendAmount, FT_PROTOCOL, keyIDOut, recipientKey)
-    const outputs: any[] = [{
-      satoshis: 1,
-      lockingScript: ftOut.toHex(),
-      outputDescription: 'FT to recipient',
-      customInstructions: JSON.stringify({ protocolID: FT_PROTOCOL, keyID: keyIDOut, counterparty: recipientKey, direction: 'sent', recipient: recipientKey }),
-      tags: ['mandala', 'sent', selectedAssetId]
-    }]
-
-    let keyIDChange = ''
-    if (change > 0) {
-      keyIDChange = 'change-' + Date.now()
-      // Change back to self: use our identity key (hex), not the literal 'self' —
-      // the overlay parses linkage.counterparty as a public key (it echoes verbatim).
-      const ftChange = await new MandalaToken(wallet as any).lockBRC29(selectedAssetId, change, FT_PROTOCOL, keyIDChange, identityKey)
-      outputs.push({
-        satoshis: 1,
-        lockingScript: ftChange.toHex(),
-        outputDescription: 'FT change',
-        basket: BASKET,
-        customInstructions: JSON.stringify({ protocolID: FT_PROTOCOL, keyID: keyIDChange, counterparty: identityKey })
-      })
-    }
-
-    const created = await wallet.createAction({
-      description: `Send ${sendAmount} of ${selectedAssetId}`,
-      labels: ['mandala', 'transfer'],
-      inputBEEF: beef.toBinary(),
-      inputs,
-      outputs,
-      options: { randomizeOutputs: false }
-    })
-
-    if (!created.signableTransaction) throw new Error('createAction returned no signableTransaction')
-
-    const tx = Transaction.fromBEEF(created.signableTransaction.tx as number[])
-    for (let i = 0; i < spendInfo.length; i++) {
-      tx.inputs[i].unlockingScriptTemplate = walletMandalaUnlock(wallet as any, spendInfo[i].keyID, spendInfo[i].counterparty)
-    }
-    await tx.sign()
-
-    const spends: Record<string, { unlockingScript: string }> = {}
-    for (let i = 0; i < spendInfo.length; i++) {
-      const hex = tx.inputs[i].unlockingScript?.toHex()
-      if (!hex) throw new Error(`Missing unlocking script for input ${i}`)
-      spends[String(i)] = { unlockingScript: hex }
-    }
-
-    const signed = await wallet.signAction({
-      reference: created.signableTransaction.reference,
-      spends,
-      options: { noSend: true } // hold — broadcast only after the overlay accepts
-    })
-
-    // Build offChain linkage payload
-    const linkOut = await revealLinkage(wallet as any, keyIDOut, recipientKey)
-    const outLinks: Array<{ index: number, linkage: any }> = [{ index: 0, linkage: linkOut }]
-    if (change > 0) {
-      outLinks.push({ index: 1, linkage: await revealLinkage(wallet as any, keyIDChange, identityKey) })
-    }
-    // Reveal linkage for each spent FT input so the overlay can screen senders
-    // under access mode (A6 gate 3).
-    const inLinks: Array<{ index: number, linkage: any }> = []
-    for (let i = 0; i < spendInfo.length; i++) {
-      inLinks.push({ index: i, linkage: await revealLinkage(wallet as any, spendInfo[i].keyID, spendInfo[i].counterparty) })
-    }
-    const offChainValues = encodeLinkagePayload({ inputs: inLinks, outputs: outLinks })
-    // Overlay gates: submit first; broadcast only on acceptance, else abort + throw.
-    const txid = signed.txid ?? Transaction.fromBEEF(signed.tx as number[]).id('hex')
-    await submitAndBroadcast(wallet as any, { tx: signed.tx as number[], txid }, offChainValues, created.signableTransaction.reference)
-
-    await messageBoxClient.sendMessage({
-      recipient: recipientKey,
-      messageBox: MESSAGEBOX,
-      body: {
-        assetId: selectedAssetId,
-        amount: sendAmount,
-        transaction: signed.tx,
-        keyID: keyIDOut,
-        protocolID: FT_PROTOCOL,
-        sender: identityKey
-      }
-    })
-
-    // Return the real txid for the Sent screen reference
-    return txid
-  }
+  // Core transfer pipeline lives in lib/mandala/transfer.ts (via useSendMutation).
 
   // ---------------------------------------------------------------------------
   // Wizard actions
@@ -407,24 +220,30 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
     setAmountStr(formatAmountPlain(selectedBalance.amount, decimals))
   }
 
-  const handleConfirmAndSend = async () => {
+  const handleConfirmAndSend = () => {
     if (isPaused && !devMode) return // dev mode: let the overlay do the rejecting
     if (!assetId || !recipient || !sendAmount || sendAmount <= 0) return
     if (!selectedBalance || selectedBalance.amount < sendAmount) return
 
     setSendError('')
-    setIsSending(true)
-    try {
-      const txid = await transfer(assetId, sendAmount, recipient)
-      setSentTxid(txid)
-      setStep('sent')
-      void loadBalances()
-    } catch (e) {
-      console.error('Send error:', e)
-      setSendError(e instanceof Error ? e.message : 'Send failed. Please try again.')
-    } finally {
-      setIsSending(false)
-    }
+    // Flip the UI immediately — the pipeline (build → sign → overlay submit)
+    // runs behind the Sending screen. Overlay accept → Sent; reject → back to
+    // Review with the error (the wallet action was aborted, inputs released).
+    setStep('sending')
+    sendMutation.mutate(
+      { assetId, amount: sendAmount, recipientKey: recipient },
+      {
+        onSuccess: res => {
+          setSentTxid(res.txid)
+          setStep('sent')
+        },
+        onError: e => {
+          console.error('Send error:', e)
+          setSendError(e instanceof Error ? e.message : 'Send failed. Please try again.')
+          setStep('review')
+        }
+      }
+    )
   }
 
   const resetFlow = () => {
@@ -878,16 +697,39 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
       {/* Confirm CTA */}
       <div className="mt-auto px-5 pb-6 pt-4">
         <Button
-          onClick={() => void handleConfirmAndSend()}
-          disabled={isSending || (isPaused && !devMode) || wallet == null}
-          loading={isSending}
-          loadingText="Sending…"
+          onClick={handleConfirmAndSend}
+          disabled={(isPaused && !devMode) || wallet == null}
           size="lg"
           className="w-full"
         >
           <Send className="h-[17px] w-[17px]" />
           Send {formatAmount(sendAmount, decimals)} {labelFor(assetId)}
         </Button>
+      </div>
+    </div>
+  )
+
+  // ---------------------------------------------------------------------------
+  // Step: Sending — shown the instant the button is pressed; the overlay accept
+  // (commit point) flips it to Sent, a reject returns to Review with the error.
+  // ---------------------------------------------------------------------------
+
+  const renderSending = () => (
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex flex-1 flex-col items-center justify-center px-[34px] pb-[210px] text-center animate-in">
+        <div className="relative mb-7 flex justify-center">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[190px] w-[190px] rounded-full bg-[radial-gradient(circle,rgba(35,64,94,.10),rgba(35,64,94,0)_68%)]" />
+          <div className="relative flex h-[90px] w-[90px] items-center justify-center rounded-full bg-primary/8">
+            <Spinner size="lg" tone="brand" />
+          </div>
+        </div>
+        <div className="text-[11px] font-medium tracking-[2px] uppercase text-subtle-foreground">Sending</div>
+        <div className="tabular mt-3 text-[44px] font-semibold leading-none tracking-[-1.5px]">
+          {formatAmount(sendAmount, decimals)}
+        </div>
+        <div className="text-[14px] text-muted-foreground mt-2.5 leading-snug">
+          {labelFor(assetId)} to {recipientName || (recipient.slice(0, 12) + '…')}
+        </div>
       </div>
     </div>
   )
@@ -952,6 +794,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
       {step === 'recipient' && renderRecipient()}
       {step === 'amount' && renderAmount()}
       {step === 'review' && renderReview()}
+      {step === 'sending' && renderSending()}
       {step === 'sent' && renderSent()}
     </div>
   )

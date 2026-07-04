@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { ArrowUpRight, ArrowDownLeft, Download } from 'lucide-react'
 import { IdentityClient } from '@bsv/sdk'
 import { useWallet } from '../../context/WalletContext'
-import { loadHistory, exportTransactionsCsv, HistoryRow } from '../../lib/mandala/history'
+import { exportTransactionsCsv, HistoryRow } from '../../lib/mandala/history'
+import { useHolderData } from '../../hooks/useHolderData'
 import { formatCurrency } from '../../lib/mandala/amount'
 import { Button } from '../ui/button'
 import { Spinner } from '../ui/spinner'
@@ -86,17 +87,10 @@ function CounterpartyDisplay({ identityKey, wallet }: CounterpartyProps) {
 
 export default function TransactionHistory({ assetId, decimals, ticker }: Props) {
   const { wallet } = useWallet()
-  const [rows, setRows] = useState<HistoryRow[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (wallet == null) return
-    setLoading(true)
-    loadHistory(wallet as any, assetId)
-      .then(setRows)
-      .catch(e => console.error('TransactionHistory load error', e))
-      .finally(() => setLoading(false))
-  }, [wallet, assetId])
+  // Shared cached query — renders instantly on navigation, refetches behind.
+  const { data } = useHolderData()
+  const rows = (data?.history ?? []).filter(r => r.assetId === assetId)
+  const loading = data == null
 
   const handleExportCsv = () => {
     const csv = exportTransactionsCsv(rows)

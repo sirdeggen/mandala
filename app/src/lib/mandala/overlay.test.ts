@@ -51,12 +51,14 @@ describe('submitAndBroadcast (overlay-gated finalize)', () => {
     expect(wallet.abortAction).not.toHaveBeenCalled()
   })
 
-  it('journals the txid for retry when broadcast fails AFTER overlay acceptance', async () => {
+  it('resolves at accept and keeps the journal entry when the background broadcast fails', async () => {
     const facilitator = { send: vi.fn().mockResolvedValue({ tm_mandala: { outputsToAdmit: [0] } }) }
     const wallet = { createAction: vi.fn().mockRejectedValue(new Error('net down')), abortAction: vi.fn() }
+    // Resolves at the overlay-accept commit point despite the doomed broadcast.
     await expect(submitAndBroadcast(wallet as any, signed, undefined, 'ref-1', facilitator as any))
-      .rejects.toThrow(/re-broadcast automatically/)
-    // Accepted by the overlay → must NOT be aborted, must be journaled for retry.
+      .resolves.toEqual([0])
+    await new Promise(r => setTimeout(r, 0)) // let the background broadcast settle
+    // Accepted by the overlay → must NOT be aborted, must stay journaled for retry.
     expect(wallet.abortAction).not.toHaveBeenCalled()
     expect(journalList()).toMatchObject([{ txid: 'abc', stage: 'accepted' }])
   })
@@ -73,6 +75,7 @@ describe('submitAndBroadcast (overlay-gated finalize)', () => {
     const facilitator = { send: vi.fn().mockResolvedValue({ tm_mandala: { outputsToAdmit: [0] } }) }
     const wallet = { createAction: vi.fn().mockResolvedValue({}), abortAction: vi.fn() }
     await submitAndBroadcast(wallet as any, signed, undefined, 'ref-1', facilitator as any)
+    await new Promise(r => setTimeout(r, 0)) // background broadcast
     expect(journalList()).toEqual([])
   })
 })

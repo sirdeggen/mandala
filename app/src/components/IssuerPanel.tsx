@@ -1,21 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Transaction, Beef } from '@bsv/sdk'
-import { MandalaToken, MandalaAdmin } from '@bsv/templates'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { useWallet } from '../context/WalletContext'
-import { FT_PROTOCOL, BASKET } from '../lib/mandala/constants'
-import { encodeLinkagePayload, MandalaActionDetails } from '../lib/mandala/encoding'
-import { submitAndBroadcast } from '../lib/mandala/overlay'
-import { outpoint, revealLinkage } from '../lib/mandala/tokens'
-import { walletMandalaUnlock } from '../lib/mandala/unlock'
-import { parseAmount, formatAmount } from '../lib/mandala/amount'
-import { loadFtCandidates } from '../lib/mandala/ftCandidates'
-import { selectFtInputs } from '../lib/mandala/ftSelect'
-import {
-  AdminAsset,
-  listAdminAssets,
-  adminCustomInstructions
-} from '../lib/mandala/assets'
+import { parseAmount } from '../lib/mandala/amount'
+import { useAdminAssets } from '../hooks/useAdminAssets'
+import { useIssuerMutations } from '../hooks/useIssuerMutations'
 import { Sparkles, Flame } from 'lucide-react'
 import { Input } from './ui/input'
 import { Select } from './ui/select'
@@ -28,28 +16,26 @@ interface IssuerPanelProps {
 }
 
 export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelProps = {}) {
-  const { wallet, identityKey } = useWallet()
+  const { wallet } = useWallet()
   const [label, setLabel] = useState('')
   const [ticker, setTicker] = useState('')
   const [decimals, setDecimals] = useState('0')
-  const [assets, setAssets] = useState<AdminAsset[]>([])
   const [issueAsset, setIssueAsset] = useState('')
   const [issueAmount, setIssueAmount] = useState('')
   const [redeemAsset, setRedeemAsset] = useState('')
   const [redeemAmount, setRedeemAmount] = useState('')
-  // Tracks WHICH action is in flight so only the pressed button shows its
-  // spinner — Register/Issue/Redeem are independent actions, not one busy flag.
-  const [busyAction, setBusyAction] = useState<'register' | 'issue' | 'redeem' | null>(null)
-  const busy = busyAction !== null
 
   // UI-only state (not passed to any core function)
   const [issueRef, setIssueRef] = useState('')
   const [redeemNote, setRedeemNote] = useState('')
 
-  const reload = useCallback(async () => {
-    if (wallet != null) setAssets(await listAdminAssets(wallet as any))
-  }, [wallet])
-  useEffect(() => { void reload() }, [reload])
+  // Shared cached admin-asset list; mutations invalidate it on settle.
+  const { data } = useAdminAssets()
+  const assets = data ?? []
+  const { register, issue, redeem } = useIssuerMutations()
+  // Register/Issue/Redeem are independent actions — only the pressed button
+  // shows its spinner, but all three stay mutually exclusive.
+  const busy = register.isPending || issue.isPending || redeem.isPending
 
   // When controlled assetId changes, sync it into each section's selection
   useEffect(() => {
@@ -62,287 +48,28 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
   const effectiveIssueAsset = controlledAssetId ?? issueAsset
   const effectiveRedeemAsset = controlledAssetId ?? redeemAsset
 
-  // ---------------------------------------------------------------------------
-  // Register: ONE tx, ONE output that both carries the public metadata blob and
-  // is the first admin auth. Its outpoint is the assetId; issue spends it. The
-  // overlay retains the metadata record across that spend (only eviction clears
-  // it), so the label/precision stay resolvable forever.
-  //   - data (keyID) = { kind:'register', label, decimals } — can't include assetId
-  //     (it IS this output's outpoint, unknown until the tx exists).
-  //   - publicData = { label, decimals } — the on-chain, SPV-verifiable metadata.
-  // ---------------------------------------------------------------------------
-  const registerAsset = useCallback(async () => {
-    if (wallet == null || identityKey == null || label.trim() === '') return
+  const handleRegister = () => {
+    if (wallet == null || label.trim() === '') return
     const dec = Number(decimals)
     if (!Number.isInteger(dec) || dec < 0) { toast.error('Decimals must be a non-negative integer'); return }
-    setBusyAction('register')
-    try {
-      // issuer = our identity key, baked into the on-chain publicData so any holder
-      // can SPV-verify it and return funds to the issuer.
-      const metadata = { label: label.trim(), ticker: ticker.trim().toUpperCase(), decimals: dec, issuer: identityKey }
-      const regDetails: MandalaActionDetails = { kind: 'register', ...metadata }
-      const genesisLock = await MandalaAdmin.lock({ wallet: wallet as any, data: regDetails, publicData: metadata })
+    register.mutate({ label, ticker, decimals: dec }, {
+      onSuccess: () => { setLabel(''); setTicker(''); setDecimals('0') }
+    })
+  }
 
-      const reg = await wallet.createAction({
-        description: `Register ${label.trim()}`,
-        labels: ['mandala', 'register'],
-        outputs: [{
-          satoshis: 1,
-          lockingScript: genesisLock.toHex(),
-          outputDescription: 'asset genesis + admin auth',
-          basket: BASKET,
-          // Bookkeeping rides on the admin UTXO itself — the wallet basket is the
-          // source of truth for the auth chain (no localStorage, no on-chain marker).
-          customInstructions: adminCustomInstructions('', label.trim(), regDetails, metadata)
-        }],
-        options: { randomizeOutputs: false, noSend: true } // hold — broadcast after overlay accepts
-      })
-
-      if (reg.tx == null || reg.txid == null) throw new Error('register: no tx returned')
-      const assetId = outpoint(reg.txid, 0)
-
-      // The output's CI was written with an empty assetId (it IS this outpoint, which
-      // didn't exist yet); adminAssetFromOutput resolves it to the outpoint on read.
-      const offChainValues = encodeLinkagePayload({
-        inputs: [],
-        outputs: [],
-        admin: [{ index: 0, actionDetails: regDetails }]
-      })
-      // Genesis has no signable FT inputs — no reference to abort; overlay gates,
-      // then broadcast.
-      await submitAndBroadcast(wallet as any, { tx: reg.tx as number[], txid: reg.txid }, offChainValues)
-
-      toast.success(`Registered ${label.trim()} (${assetId})`)
-      setLabel('')
-      setTicker('')
-      setDecimals('0')
-      void reload()
-    } catch (e) {
-      toast.error(`Register failed: ${String(e)}`)
-    } finally {
-      setBusyAction(null)
-    }
-  }, [wallet, identityKey, label, ticker, decimals, reload])
-
-  // ---------------------------------------------------------------------------
-  // Issue: spend the current auth outpoint; mint FT + next admin-auth output.
-  // ---------------------------------------------------------------------------
-  const issue = useCallback(async () => {
-    if (wallet == null || identityKey == null) return
+  const handleIssue = () => {
     const asset = assets.find(a => a.assetId === effectiveIssueAsset)
     const amount = parseAmount(issueAmount, Number(asset?.metadata?.decimals) || 0)
     if (asset == null || !Number.isInteger(amount) || amount < 1) return
-    setBusyAction('issue')
-    try {
-      const keyID = 'mint-' + Date.now()
-      // Self-mint: use our own identity key (hex) as counterparty, not the literal
-      // 'self' — the revealed linkage echoes counterparty verbatim and the overlay
-      // parses it as a public key. Derivation is identical ('self' normalizes to this).
-      const counterparty = identityKey
+    issue.mutate({ asset, amount }, { onSuccess: () => setIssueAmount('') })
+  }
 
-      // Build FT locking script.
-      const ftLock = await new MandalaToken(wallet as any).lockBRC29(
-        asset.assetId, amount, FT_PROTOCOL, keyID, counterparty
-      )
-
-      // Build next admin-auth locking script.
-      const priorOutpoint = asset.authOutpoint
-      const issueDetails: MandalaActionDetails = {
-        kind: 'issue',
-        assetId: asset.assetId,
-        amount,
-        priorOutpoint
-      }
-      const nextAuthLock = await MandalaAdmin.lock({ wallet: wallet as any, data: issueDetails })
-
-      // Fetch BEEF for the prior auth outpoint.
-      const listResult = await wallet.listOutputs({
-        basket: BASKET,
-        include: 'entire transactions',
-        limit: 1000
-      })
-      const priorOut = listResult.outputs.find(o => o.outpoint === priorOutpoint)
-      if (priorOut == null) throw new Error('prior auth outpoint not found in wallet outputs')
-      if (listResult.BEEF == null) throw new Error('listOutputs returned no BEEF')
-
-      // Create the action: spend prior auth, produce FT + next auth.
-      const created = await wallet.createAction({
-        description: `Issue ${amount} ${asset.label}`,
-        labels: ['mandala', 'issue'],
-        inputBEEF: listResult.BEEF as number[],
-        inputs: [{
-          outpoint: priorOutpoint,
-          unlockingScriptLength: 108,
-          inputDescription: 'spend prior admin auth'
-        }],
-        outputs: [
-          {
-            satoshis: 1,
-            lockingScript: ftLock.toHex(),
-            outputDescription: 'minted FT',
-            basket: BASKET,
-            customInstructions: JSON.stringify({ protocolID: FT_PROTOCOL, keyID, counterparty })
-          },
-          {
-            satoshis: 1,
-            lockingScript: nextAuthLock.toHex(),
-            outputDescription: 'next admin auth',
-            basket: BASKET,
-            customInstructions: adminCustomInstructions(asset.assetId, asset.label, issueDetails, asset.metadata)
-          }
-        ],
-        options: { randomizeOutputs: false }
-      })
-
-      if (created.signableTransaction == null) throw new Error('issue: no signableTransaction returned')
-
-      // Sign the prior auth input with the stored authDetails (symmetric with how it was locked).
-      const txToSign = Transaction.fromBEEF(created.signableTransaction.tx as number[])
-      txToSign.inputs[0].unlockingScriptTemplate = MandalaAdmin.unlock({ wallet: wallet as any, data: asset.authDetails })
-      await txToSign.sign()
-
-      const spends: Record<string, { unlockingScript: string }> = {
-        '0': { unlockingScript: txToSign.inputs[0].unlockingScript!.toHex() }
-      }
-
-      const signed = await wallet.signAction({
-        reference: created.signableTransaction.reference,
-        spends,
-        options: { noSend: true } // hold — broadcast only after the overlay accepts
-      })
-
-      if (signed.tx == null || signed.txid == null) throw new Error('signAction: no tx returned')
-
-      // Reveal linkage for the FT output; submit to the overlay, then broadcast.
-      const linkage = await revealLinkage(wallet as any, keyID, counterparty)
-      const offChainValues = encodeLinkagePayload({
-        inputs: [],
-        outputs: [{ index: 0, linkage }],
-        admin: [{ index: 1, actionDetails: issueDetails }]
-      })
-      await submitAndBroadcast(wallet as any, { tx: signed.tx as number[], txid: signed.txid }, offChainValues, created.signableTransaction.reference)
-
-      toast.success(`Issued ${formatAmount(amount, Number(asset.metadata?.decimals) || 0)} ${asset.label}`)
-      setIssueAmount('')
-      void reload()
-    } catch (e) {
-      toast.error(`Issue failed: ${String(e)}`)
-    } finally {
-      setBusyAction(null)
-    }
-  }, [wallet, identityKey, assets, effectiveIssueAsset, issueAmount, reload])
-
-  // ---------------------------------------------------------------------------
-  // Redeem: burn FT tokens by spending FT inputs + prior auth outpoint.
-  //   Output [0] = next admin auth; Output [1] = FT change (if any).
-  // ---------------------------------------------------------------------------
-  const redeem = useCallback(async () => {
-    if (wallet == null || identityKey == null) return
+  const handleRedeem = () => {
     const asset = assets.find(a => a.assetId === effectiveRedeemAsset)
     const amount = parseAmount(redeemAmount, Number(asset?.metadata?.decimals) || 0)
     if (asset == null || !Number.isInteger(amount) || amount < 1) return
-    setBusyAction('redeem')
-    try {
-      // Token-aware coin selection (confirmed-first, fewest UTXOs) — same as transfer.
-      const { candidates, beef: beefBytes } = await loadFtCandidates(wallet as any, effectiveRedeemAsset)
-      const { selected, total: gathered } = selectFtInputs(candidates, amount) // throws if insufficient
-      const beef = new Beef()
-      beef.mergeBeef(beefBytes)
-      const ftInputs = selected.map(s => ({ outpoint: s.outpoint, unlockingScriptLength: 108, inputDescription: 'burn FT' }))
-      const ftSpend = selected.map(s => ({ keyID: s.keyID, counterparty: s.counterparty }))
-      const change = gathered - amount
-
-      // Build next admin-auth locking script for the redeem action.
-      const redeemDetails: MandalaActionDetails = {
-        kind: 'redeem',
-        assetId: effectiveRedeemAsset,
-        amount,
-        priorOutpoint: asset.authOutpoint
-      }
-      const nextAuthLock = await MandalaAdmin.lock({ wallet: wallet as any, data: redeemDetails })
-
-      // Also include the prior auth outpoint as an input.
-      const inputs = [
-        ...ftInputs,
-        { outpoint: asset.authOutpoint, unlockingScriptLength: 108, inputDescription: 'spend prior auth' }
-      ]
-
-      const outputs: any[] = [
-        {
-          satoshis: 1,
-          lockingScript: nextAuthLock.toHex(),
-          outputDescription: 'redeem auth',
-          basket: BASKET,
-          customInstructions: adminCustomInstructions(effectiveRedeemAsset, asset.label, redeemDetails, asset.metadata)
-        }
-      ]
-
-      let keyIDChange = ''
-      if (change > 0) {
-        keyIDChange = 'rchg-' + Date.now()
-        const ftChange = await new MandalaToken(wallet as any).lockBRC29(effectiveRedeemAsset, change, FT_PROTOCOL, keyIDChange, identityKey)
-        outputs.push({
-          satoshis: 1,
-          lockingScript: ftChange.toHex(),
-          outputDescription: 'FT change',
-          basket: BASKET,
-          customInstructions: JSON.stringify({ protocolID: FT_PROTOCOL, keyID: keyIDChange, counterparty: identityKey })
-        })
-      }
-
-      const created = await wallet.createAction({
-        description: `Redeem ${amount} ${asset.label}`,
-        labels: ['mandala', 'redeem'],
-        inputBEEF: beef.toBinary(),
-        inputs,
-        outputs,
-        options: { randomizeOutputs: false }
-      })
-
-      if (created.signableTransaction == null) throw new Error('redeem: no signableTransaction returned')
-
-      // Sign FT inputs then the prior-auth input.
-      const txToSign = Transaction.fromBEEF(created.signableTransaction.tx as number[])
-      for (let i = 0; i < ftSpend.length; i++) {
-        txToSign.inputs[i].unlockingScriptTemplate = walletMandalaUnlock(wallet as any, ftSpend[i].keyID, ftSpend[i].counterparty)
-      }
-      txToSign.inputs[ftSpend.length].unlockingScriptTemplate = MandalaAdmin.unlock({ wallet: wallet as any, data: asset.authDetails })
-      await txToSign.sign()
-
-      const spends: Record<string, { unlockingScript: string }> = {}
-      for (let i = 0; i < inputs.length; i++) {
-        spends[String(i)] = { unlockingScript: txToSign.inputs[i].unlockingScript!.toHex() }
-      }
-
-      const signed = await wallet.signAction({
-        reference: created.signableTransaction.reference,
-        spends,
-        options: { noSend: true } // hold — broadcast only after the overlay accepts
-      })
-
-      if (signed.tx == null || signed.txid == null) throw new Error('signAction: no tx returned')
-
-      // Admin auth is index 0; FT change (if any) is index 1.
-      const outLinks: Array<{ index: number, linkage: any }> = []
-      if (change > 0) {
-        outLinks.push({ index: 1, linkage: await revealLinkage(wallet as any, keyIDChange, identityKey) })
-      }
-      const offChainValues = encodeLinkagePayload({
-        inputs: [],
-        outputs: outLinks,
-        admin: [{ index: 0, actionDetails: redeemDetails }]
-      })
-      await submitAndBroadcast(wallet as any, { tx: signed.tx as number[], txid: signed.txid }, offChainValues, created.signableTransaction.reference)
-
-      toast.success(`Redeemed (burned) ${formatAmount(amount, Number(asset.metadata?.decimals) || 0)} ${asset.label}`)
-      setRedeemAmount('')
-      void reload()
-    } catch (e) {
-      toast.error(`Redeem failed: ${String(e)}`)
-    } finally {
-      setBusyAction(null)
-    }
-  }, [wallet, identityKey, assets, effectiveRedeemAsset, redeemAmount, reload])
+    redeem.mutate({ asset, amount }, { onSuccess: () => setRedeemAmount('') })
+  }
 
   const assetOptions = (
     <>
@@ -421,9 +148,9 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
           </div>
 
           <Button
-            onClick={() => void issue()}
+            onClick={handleIssue}
             disabled={busy || effectiveIssueAsset === '' || issueAmount === ''}
-            loading={busyAction === 'issue'}
+            loading={issue.isPending}
             loadingText="Issuing…"
             className="w-full rounded-[11px] bg-primary text-primary-foreground mt-auto"
           >
@@ -481,12 +208,12 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
           </div>
 
           <button
-            onClick={() => void redeem()}
+            onClick={handleRedeem}
             disabled={busy || effectiveRedeemAsset === '' || redeemAmount === ''}
             className="w-full rounded-[11px] mt-auto py-[10px] px-4 text-[13.5px] font-medium transition-opacity disabled:opacity-40 bg-background border border-destructive/40 text-destructive flex items-center justify-center gap-2"
           >
-            {busyAction === 'redeem' && <Spinner size="sm" tone="current" />}
-            {busyAction === 'redeem' ? 'Redeeming…' : 'Redeem (burn)'}
+            {redeem.isPending && <Spinner size="sm" tone="current" />}
+            {redeem.isPending ? 'Redeeming…' : 'Redeem (burn)'}
           </button>
         </div>
       </div>
@@ -544,13 +271,13 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
               />
             </div>
             <button
-              onClick={() => void registerAsset()}
+              onClick={handleRegister}
               disabled={busy || label.trim() === ''}
               className="shrink-0 rounded-[8px] border px-4 py-[8px] text-[12.5px] font-medium transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
               style={{ background: '#fff', borderColor: 'rgba(27,30,36,.2)', color: '#23405E' }}
             >
-              {busyAction === 'register' && <Spinner size="sm" tone="current" />}
-              {busyAction === 'register' ? 'Registering…' : 'Register asset'}
+              {register.isPending && <Spinner size="sm" tone="current" />}
+              {register.isPending ? 'Registering…' : 'Register asset'}
             </button>
           </div>
         </div>

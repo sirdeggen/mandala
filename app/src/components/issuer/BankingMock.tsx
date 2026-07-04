@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { CheckCircle2, ArrowDownLeft, PlusCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Select } from '../ui/select'
 import { Input } from '../ui/input'
 import { Spinner } from '../ui/spinner'
 import { useWallet } from '../../context/WalletContext'
-import { AdminAsset, listAdminAssets, submitAdminAction } from '../../lib/mandala/assets'
-import { resolveAdminHistory } from '../../lib/mandala/adminHistory'
+import { AdminAsset, submitAdminAction } from '../../lib/mandala/assets'
+import { useAdminAssets, useInvalidateAdminAssets } from '../../hooks/useAdminAssets'
+import { useAdminHistory, useInvalidateAdminHistory } from '../../hooks/useAdminHistory'
 import { reconcile, unissuedSum, makeDeposit, MockDeposit } from '../../lib/mandala/banking'
 import { useMockDeposits, addMockDeposit } from '../../lib/mandala/mockBankStore'
 import { formatAmount, parseAmount } from '../../lib/mandala/amount'
@@ -24,14 +25,16 @@ interface BankingMockProps {
 
 export default function BankingMock({ assetId: controlledAssetId }: BankingMockProps = {}) {
   const { wallet, messageBoxClient, identityKey } = useWallet()
-  const [assets, setAssets] = useState<AdminAsset[]>([])
+  const { data: assetsData } = useAdminAssets()
+  const assets: AdminAsset[] = assetsData ?? []
+  const invalidateAdminAssets = useInvalidateAdminAssets()
+  const invalidateAdminHistory = useInvalidateAdminHistory()
   const [selectedAssetId, setSelectedAssetId] = useState('')
   // Shared with the Overview reserve-ratio KPI (mockBankStore) so both reflect
   // the same feed; starts blank — nothing to reconcile until a deposit is added.
   const deposits = useMockDeposits()
   const [depositAmount, setDepositAmount] = useState('')
   const [receivedDeposits, setReceivedDeposits] = useState<IssuedDeposit[]>([])
-  const [recon, setRecon] = useState<{ bankBalance: number, netSupply: number, drift: number } | null>(null)
   // Tracks WHICH deposit's issue is in flight, so only that row's button shows
   // its spinner while every other "Receive & issue" button is just disabled.
   const [busyDepositId, setBusyDepositId] = useState<string | null>(null)
@@ -43,43 +46,31 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
   const asset = assets.find(a => a.assetId === activeAssetId) ?? null
   const decimals = Number(asset?.metadata?.decimals) || 0
 
-  const loadAssets = useCallback(async () => {
-    if (wallet == null) return
-    const list = await listAdminAssets(wallet as any)
-    setAssets(list)
-  }, [wallet])
+  // Admin history from the shared query cache — reconciliation derives from it.
+  const historyQuery = useAdminHistory(wallet != null ? activeAssetId : '')
+  const history = historyQuery.data
 
-  useEffect(() => { void loadAssets() }, [loadAssets])
+  const recon = useMemo((): { bankBalance: number, netSupply: number, drift: number } | null => {
+    if (history == null) return null
+    // Sum amounts from received deposits (proxy for on-chain issue via bank)
+    const bankDepositAmounts = deposits.map(d => d.amount)
+    const bankWithdrawAmounts: number[] = []
 
-  const computeReconciliation = useCallback(async () => {
-    if (wallet == null || activeAssetId === '') { setRecon(null); return }
-    try {
-      // Sum amounts from received deposits (proxy for on-chain issue via bank)
-      const bankDepositAmounts = deposits.map(d => d.amount)
-      const bankWithdrawAmounts: number[] = []
-
-      // Sum issued and redeemed from admin history
-      const history = await resolveAdminHistory(activeAssetId)
-      let totalIssued = 0
-      let totalRedeemed = 0
-      for (const row of history) {
-        if (row.actionDetails.kind === 'issue') totalIssued += (row.actionDetails.amount as number) ?? 0
-        if (row.actionDetails.kind === 'redeem') totalRedeemed += (row.actionDetails.amount as number) ?? 0
-      }
-
-      const result = reconcile({
-        deposits: bankDepositAmounts,
-        withdrawals: bankWithdrawAmounts,
-        issued: totalIssued,
-        redeemed: totalRedeemed
-      })
-      setRecon(result)
-    } catch {
-      setRecon(null)
+    // Sum issued and redeemed from admin history
+    let totalIssued = 0
+    let totalRedeemed = 0
+    for (const row of history) {
+      if (row.actionDetails.kind === 'issue') totalIssued += (row.actionDetails.amount as number) ?? 0
+      if (row.actionDetails.kind === 'redeem') totalRedeemed += (row.actionDetails.amount as number) ?? 0
     }
-  }, [wallet, activeAssetId, deposits])
 
-  useEffect(() => { void computeReconciliation() }, [computeReconciliation])
+    return reconcile({
+      deposits: bankDepositAmounts,
+      withdrawals: bankWithdrawAmounts,
+      issued: totalIssued,
+      redeemed: totalRedeemed
+    })
+  }, [history, deposits])
 
   // Add a demo incoming deposit — the counterparty is always a synthetic
   // "Company {letter}" (see makeDeposit); only the amount is admin-supplied.
@@ -121,14 +112,14 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
         { depositId: deposit.id, amount: deposit.amount, issuedAt: Date.now() }
       ])
       toast.success(`Issued ${formatAmount(deposit.amount, decimals)} ${asset.label} for deposit ${deposit.id}`)
-      await computeReconciliation()
-      await loadAssets()
+      await invalidateAdminHistory(asset.assetId)
+      await invalidateAdminAssets()
     } catch (e) {
       toast.error(`Issue failed: ${String(e)}`)
     } finally {
       setBusyDepositId(null)
     }
-  }, [wallet, identityKey, asset, decimals, messageBoxClient, computeReconciliation, loadAssets])
+  }, [wallet, identityKey, asset, decimals, messageBoxClient, invalidateAdminHistory, invalidateAdminAssets])
 
   const alreadyIssued = (depositId: string) => receivedDeposits.some(r => r.depositId === depositId)
 

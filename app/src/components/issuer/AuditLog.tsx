@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Download, RefreshCw } from 'lucide-react'
 import { Select } from '../ui/select'
 import { AdminAsset } from '../../lib/mandala/assets'
-import { resolveAdminHistory, describeAction, exportAdminHistoryCsv, AdminHistoryRow } from '../../lib/mandala/adminHistory'
+import { describeAction, exportAdminHistoryCsv, AdminHistoryRow } from '../../lib/mandala/adminHistory'
+import { useAdminHistory } from '../../hooks/useAdminHistory'
 
 interface Props {
   assets?: AdminAsset[]
@@ -12,24 +13,15 @@ interface Props {
 
 export default function AuditLog({ assets = [], assetId: controlledAssetId }: Props) {
   const [selectedAssetId, setSelectedAssetId] = useState('')
-  const [rows, setRows] = useState<AdminHistoryRow[]>([])
-  const [loading, setLoading] = useState(false)
 
   // In controlled mode the active asset is the prop; otherwise use internal state
   const activeAssetId = controlledAssetId ?? selectedAssetId
 
-  const load = useCallback(async () => {
-    if (activeAssetId === '') { setRows([]); return }
-    setLoading(true)
-    try {
-      const history = await resolveAdminHistory(activeAssetId)
-      setRows(history)
-    } finally {
-      setLoading(false)
-    }
-  }, [activeAssetId])
-
-  useEffect(() => { void load() }, [load])
+  // Shared admin-history query — cached per asset, refetched in the background.
+  const { data, isFetching, refetch } = useAdminHistory(activeAssetId)
+  const rows: AdminHistoryRow[] = data ?? []
+  // Skeleton only while the query has no cached data yet.
+  const loading = activeAssetId !== '' && data == null
 
   const handleExport = () => {
     const csv = exportAdminHistoryCsv(rows)
@@ -72,11 +64,10 @@ export default function AuditLog({ assets = [], assetId: controlledAssetId }: Pr
 
         <button
           className="grid place-items-center w-9 h-9 rounded-[10px] bg-card border border-border text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          onClick={() => void load()}
-          disabled={loading}
+          onClick={() => void refetch()}
           title="Refresh"
         >
-          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+          <RefreshCw size={15} className={isFetching ? 'animate-spin' : ''} />
         </button>
 
         {rows.length > 0 && (

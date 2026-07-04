@@ -7,6 +7,7 @@ import { useWallet } from '../context/WalletContext'
 import { Download, Check, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MESSAGEBOX, BASKET } from '../lib/mandala/constants'
+import { useInvalidateHolderData } from '../hooks/useHolderData'
 import { resolveAssetMetadata } from '../lib/mandala/metadata'
 import { formatAmount } from '../lib/mandala/amount'
 import ReceivePanel from './holder/ReceivePanel'
@@ -40,6 +41,7 @@ interface IncomingMessage {
  */
 export default function ReceiveTokens() {
   const { wallet, messageBoxClient } = useWallet()
+  const invalidateHolderData = useInvalidateHolderData()
   const [received, setReceived] = useState<ReceivedToken[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const processedRef = useRef<Set<string>>(new Set())
@@ -75,6 +77,8 @@ export default function ReceiveTokens() {
       description: `Receive ${msg.amount} of ${msg.assetId}`
     })
     await messageBoxClient.acknowledgeMessage({ messageIds: [msg.id] })
+    // Balance + history changed — refresh the shared holder cache in the background.
+    void invalidateHolderData()
 
     setReceived(prev => [
       { id: msg.id, assetId: msg.assetId, amount: msg.amount, sender: msg.sender, label, decimals, at: Date.now() },

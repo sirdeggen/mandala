@@ -19,30 +19,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Bell, Send, Download, Users, RefreshCw, ChevronDown } from 'lucide-react'
-import { useWallet } from '../../context/WalletContext'
-import { BASKET } from '../../lib/mandala/constants'
-import { decodeBalances } from '../../lib/mandala/tokens'
-import { resolveAssetMetadata } from '../../lib/mandala/metadata'
+import { HistoryRow } from '../../lib/mandala/history'
 import { currencySymbol, formatAmount } from '../../lib/mandala/amount'
-import { loadHistory, HistoryRow } from '../../lib/mandala/history'
+import { useHolderData } from '../../hooks/useHolderData'
 import { BrandMark } from '../ui/BrandMark'
 import { cn } from '@/lib/utils'
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface AssetMeta {
-  label: string
-  decimals: number
-  ticker?: string
-}
-
-interface AssetRow {
-  assetId: string
-  balance: number
-  meta: AssetMeta
-}
 
 // ---------------------------------------------------------------------------
 // Currency badge colour map (matches comp: USD=brass, EUR=navy-tint, GBP=lavender,
@@ -128,14 +109,17 @@ function QuickActionButton({
 
 function RecentRow({ row, decimals, ticker }: { row: HistoryRow; decimals: number; ticker?: string }) {
   const isCredit = row.direction === 'received' || row.direction === 'issued'
+  // Optimistic rows carry a placeholder txid until the overlay-accepted tx
+  // replaces them on the next refetch.
+  const isPending = row.txid.startsWith('pending-')
   const symbol = currencySymbol(ticker)
   const formatted = `${isCredit ? '+' : '−'}${symbol}${formatAmount(row.amount, decimals)}`
   const cp = shortCounterparty(row.counterparty)
   const initials = cp.slice(0, 2).toUpperCase()
-  const when = relativeTime(row.when)
+  const when = isPending ? 'Sending…' : relativeTime(row.when)
 
   return (
-    <div className="flex items-center gap-[12px] border-t border-separator py-[9px]">
+    <div className={cn('flex items-center gap-[12px] border-t border-separator py-[9px]', isPending && 'opacity-60')}>
       {/* Avatar circle */}
       <div
         className={cn(
@@ -189,10 +173,11 @@ interface Props {
 }
 
 export default function HolderHome({ onSelect: _onSelect, onAction, identityKey }: Props) {
-  const { wallet } = useWallet()
-  const [assets, setAssets] = useState<AssetRow[]>([])
-  const [history, setHistory] = useState<HistoryRow[]>([])
-  const [loading, setLoading] = useState(true)
+  // Shared cached query — renders instantly on navigation, refetches behind.
+  const { data, isFetching, refetch } = useHolderData()
+  const assets = data?.assets ?? []
+  const history = data?.history ?? []
+  const firstLoad = data == null
   // currentAssetId lives in the URL (?asset=…) so a reload restores the selection.
   const [searchParams, setSearchParams] = useSearchParams()
   const currentAssetId = searchParams.get('asset') ?? ''
@@ -214,64 +199,6 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
 
   // Avatar initials from identity key
   const initials = identityKey ? identityKey.slice(2, 4).toUpperCase() : '?'
-
-  const refresh = useCallback(async () => {
-    if (wallet == null) return
-    setLoading(true)
-    try {
-      // 1. Live balances
-      const res = await wallet.listOutputs({
-        basket: BASKET,
-        include: 'locking scripts',
-        limit: 1000,
-      })
-      const decoded = decodeBalances(
-        res.outputs.map(o => ({ lockingScript: o.lockingScript as string }))
-      )
-      const balanceMap = new Map<string, number>(decoded.map(b => [b.assetId, b.amount]))
-
-      // 2. History (for zero-balance assets + recent activity)
-      const historyRows = await loadHistory(wallet as any)
-      const allAssetIds = new Set<string>([
-        ...balanceMap.keys(),
-        ...historyRows.map(r => r.assetId),
-      ])
-
-      // 3. Resolve metadata
-      const rows: AssetRow[] = []
-      for (const assetId of allAssetIds) {
-        const meta = await resolveAssetMetadata(assetId)
-        rows.push({
-          assetId,
-          balance: balanceMap.get(assetId) ?? 0,
-          meta: {
-            label: meta?.label ?? `${assetId.slice(0, 10)}…`,
-            decimals: Number(meta?.decimals) || 0,
-            ticker:
-              typeof (meta as any)?.ticker === 'string'
-                ? (meta as any).ticker
-                : undefined,
-          },
-        })
-      }
-
-      // Sort: non-zero balance first, then alphabetically by label
-      rows.sort((a, b) => {
-        if (a.balance > 0 && b.balance === 0) return -1
-        if (a.balance === 0 && b.balance > 0) return 1
-        return a.meta.label.localeCompare(b.meta.label)
-      })
-
-      setAssets(rows)
-      setHistory(historyRows)
-    } finally {
-      setLoading(false)
-    }
-  }, [wallet])
-
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
 
   // Auto-select a default account (first non-zero) into ?asset when the URL has
   // no valid selection — writes with replace so it doesn't add a history entry.
@@ -343,7 +270,7 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
                 assets.length <= 1 && 'cursor-default'
               )}
             >
-              {loading && assets.length === 0 ? (
+              {firstLoad ? (
                 <RefreshCw className="h-[11px] w-[11px] animate-spin text-subtle-foreground" />
               ) : (
                 switcherLabel
@@ -456,7 +383,7 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
         </p>
 
         {/* Big balance number */}
-        {loading && assets.length === 0 ? (
+        {firstLoad ? (
           <div className="mt-[7px] h-12 w-44 animate-pulse rounded-full bg-muted" />
         ) : currentAsset ? (
           (() => {
@@ -486,15 +413,15 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
 
         {/* Refresh affordance — replaces the old "across N accounts" text */}
         <div className="mt-[12px] flex items-center gap-[9px]">
+          {/* Background refetch — never disabled, never blocks the view */}
           <button
             type="button"
-            onClick={() => void refresh()}
-            disabled={loading}
+            onClick={() => void refetch()}
             aria-label="Refresh"
-            className="flex items-center gap-[5px] text-[12px] font-medium text-subtle-foreground transition-colors hover:text-foreground disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+            className="flex items-center gap-[5px] text-[12px] font-medium text-subtle-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
           >
-            <RefreshCw className={cn('h-[12px] w-[12px]', loading && 'animate-spin')} />
-            {loading ? 'Refreshing…' : 'Refresh'}
+            <RefreshCw className={cn('h-[12px] w-[12px]', isFetching && 'animate-spin')} />
+            {isFetching ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
       </div>
@@ -526,7 +453,7 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
       </div>
 
       {/* ── Empty state ── */}
-      {!loading && assets.length === 0 && (
+      {!firstLoad && assets.length === 0 && (
         <div className="px-[26px] pt-[24px]">
           <div className="border-t border-separator py-8 text-center text-[14px] text-muted-foreground">
             No tokens yet — tokens you receive will appear here.

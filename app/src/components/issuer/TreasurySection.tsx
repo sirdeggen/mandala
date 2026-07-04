@@ -1,11 +1,9 @@
-import { useEffect, useState } from 'react'
-import { LockingScript } from '@bsv/sdk'
-import { MandalaToken } from '@bsv/templates'
+import { useState } from 'react'
 import { ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset } from '../../lib/mandala/assets'
-import { BASKET } from '../../lib/mandala/constants'
 import { formatCurrency } from '../../lib/mandala/amount'
+import { useHolderData } from '../../hooks/useHolderData'
 import SendTokens from '../SendTokens'
 import ReceivePanel from '../holder/ReceivePanel'
 import TransactionHistory from '../holder/TransactionHistory'
@@ -23,36 +21,21 @@ interface Props {
 type Tab = 'send' | 'receive'
 
 export default function TreasurySection({ assetId, asset }: Props) {
-  const { wallet, identityKey } = useWallet()
-  const [balance, setBalance] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { identityKey } = useWallet()
   const [tab, setTab] = useState<Tab>('send')
 
   const ticker = asset?.metadata?.ticker != null ? String(asset.metadata.ticker) : undefined
   const decimals = asset?.metadata?.decimals != null ? Number(asset.metadata.decimals) : 0
 
-  // ── Load the issuer's held balance for this asset ──────────────────────────
+  // ── Issuer's held balance for this asset — from the shared holder-data cache
+  //    so navigating here renders instantly with a background refetch. ────────
 
-  useEffect(() => {
-    if (wallet == null || !assetId) return
-    let cancelled = false
-    setLoading(true)
-    wallet.listOutputs({ basket: BASKET, include: 'locking scripts', limit: 1000 })
-      .then(res => {
-        if (cancelled) return
-        let total = 0
-        for (const o of res.outputs) {
-          try {
-            const d = MandalaToken.decode(LockingScript.fromHex(o.lockingScript as string))
-            if (d.assetId === assetId) total += d.amount
-          } catch { /* not a mandala FT */ }
-        }
-        setBalance(total)
-      })
-      .catch(e => { console.error('TreasurySection: balance load failed', e) })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [wallet, assetId])
+  const { data: holderData } = useHolderData()
+  const balance: number | null = holderData == null || !assetId
+    ? null
+    : holderData.assets.find(a => a.assetId === assetId)?.balance ?? 0
+  // Skeleton only while the query has no cached data yet.
+  const loading = balance == null
 
   // ── Balance card ────────────────────────────────────────────────────────────
 

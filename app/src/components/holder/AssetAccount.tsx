@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { ArrowLeft, Send, Download, Clock } from 'lucide-react'
 import { Button } from '../ui/button'
 import { formatCurrency } from '../../lib/mandala/amount'
-import { resolveAssetMetadata } from '../../lib/mandala/metadata'
+import { useHolderData } from '../../hooks/useHolderData'
 import AlertBanners from './AlertBanners'
 import ReceivePanel from './ReceivePanel'
 import TransactionHistory from './TransactionHistory'
@@ -22,19 +22,11 @@ interface Props {
 
 export default function AssetAccount({ assetId, balance, decimals: decimalsProp = 0, ticker: tickerProp, label, onBack }: Props) {
   const [tab, setTab] = useState<Tab>('send')
-  const [decimals, setDecimals] = useState(decimalsProp)
-  const [ticker, setTicker] = useState<string | undefined>(tickerProp)
-
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      const meta = await resolveAssetMetadata(assetId)
-      if (cancelled) return
-      setDecimals(Number(meta?.decimals) || 0)
-      setTicker(typeof (meta as any)?.ticker === 'string' ? (meta as any).ticker : undefined)
-    })()
-    return () => { cancelled = true }
-  }, [assetId])
+  // Cached metadata (shared query) wins over props once resolved.
+  const { data } = useHolderData()
+  const meta = data?.metas[assetId]
+  const decimals = meta?.decimals ?? decimalsProp
+  const ticker = meta?.ticker ?? tickerProp
 
   return (
     <div className="space-y-4">

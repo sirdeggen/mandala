@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   LayoutDashboard, PlusCircle, ShieldCheck, Banknote, Wallet, ChevronDown
 } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
-import { listAdminAssets, AdminAsset } from '../../lib/mandala/assets'
+import { AdminAsset } from '../../lib/mandala/assets'
+import { useAdminAssets, useInvalidateAdminAssets } from '../../hooks/useAdminAssets'
 import { BrandMark } from '../ui/BrandMark'
 import { cn } from '@/lib/utils'
 import IssuerPanel from '../IssuerPanel'
@@ -95,11 +96,13 @@ function AssetSwitcher({ assets, currentAssetId, onChange }: AssetSwitcherProps)
 const SECTION_IDS = NAV_ITEMS.map(n => n.id) as string[]
 
 export default function IssuerDashboard() {
-  const { wallet, identityKey } = useWallet()
+  const { identityKey } = useWallet()
   const navigate = useNavigate()
   const params = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [assets, setAssets] = useState<AdminAsset[]>([])
+  const { data: assetsData } = useAdminAssets()
+  const invalidateAdminAssets = useInvalidateAdminAssets()
+  const assets: AdminAsset[] = assetsData ?? []
 
   // Section lives in the path (/issuer/:section); asset lives in ?asset — both
   // in the URL so a reload restores exactly where the operator was.
@@ -119,13 +122,6 @@ export default function IssuerDashboard() {
       return next
     })
   }
-
-  const reloadAssets = useCallback(async () => {
-    if (wallet == null) return
-    setAssets(await listAdminAssets(wallet as any))
-  }, [wallet])
-
-  useEffect(() => { void reloadAssets() }, [reloadAssets])
 
   // Normalise an unknown /issuer/:section to overview, keeping ?asset.
   useEffect(() => {
@@ -234,7 +230,7 @@ export default function IssuerDashboard() {
             <OverviewSection
               assetId={currentAssetId}
               asset={currentAsset}
-              onReload={() => void reloadAssets()}
+              onReload={() => void invalidateAdminAssets()}
             />
           )}
           {section === 'treasury' && (
@@ -247,7 +243,7 @@ export default function IssuerDashboard() {
             <RegulatoryControls
               assets={assets}
               assetId={currentAssetId}
-              onActionComplete={() => void reloadAssets()}
+              onActionComplete={() => void invalidateAdminAssets()}
             />
           )}
           {section === 'banking' && (
