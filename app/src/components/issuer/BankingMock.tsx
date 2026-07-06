@@ -1,44 +1,35 @@
 import { useCallback, useMemo, useState } from 'react'
-import { CheckCircle2, ArrowDownLeft, PlusCircle } from 'lucide-react'
+import { ArrowDownLeft, PlusCircle, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Select } from '../ui/select'
 import { Input } from '../ui/input'
-import { Spinner } from '../ui/spinner'
+import { AdminAsset } from '../../lib/mandala/assets'
+import { useAdminAssets } from '../../hooks/useAdminAssets'
+import { useAdminHistory } from '../../hooks/useAdminHistory'
 import { useWallet } from '../../context/WalletContext'
-import { AdminAsset, submitAdminAction } from '../../lib/mandala/assets'
-import { useAdminAssets, useInvalidateAdminAssets } from '../../hooks/useAdminAssets'
-import { useAdminHistory, useInvalidateAdminHistory } from '../../hooks/useAdminHistory'
-import { reconcile, unissuedSum, makeDeposit, MockDeposit } from '../../lib/mandala/banking'
-import { useMockDeposits, addMockDeposit } from '../../lib/mandala/mockBankStore'
+import { reconcile, makeDeposit } from '../../lib/mandala/banking'
+import { useMockDeposits, addMockDeposit, clearMockDeposits } from '../../lib/mandala/mockBankStore'
 import { formatAmount, parseAmount } from '../../lib/mandala/amount'
-
-interface IssuedDeposit {
-  depositId: string
-  amount: number
-  issuedAt: number
-}
 
 interface BankingMockProps {
   /** Controlled mode: when set, use this assetId and hide the header asset selector. */
   assetId?: string
 }
 
+/**
+ * Demo bank feed + reserve reconciliation. Deposits here are fake (persisted
+ * in localStorage, clearable); issuance happens on the Operations page — this
+ * page only shows how the bank balance reconciles against on-chain supply.
+ */
 export default function BankingMock({ assetId: controlledAssetId }: BankingMockProps = {}) {
-  const { wallet, messageBoxClient, identityKey } = useWallet()
+  const { wallet } = useWallet()
   const { data: assetsData } = useAdminAssets()
   const assets: AdminAsset[] = assetsData ?? []
-  const invalidateAdminAssets = useInvalidateAdminAssets()
-  const invalidateAdminHistory = useInvalidateAdminHistory()
   const [selectedAssetId, setSelectedAssetId] = useState('')
   // Shared with the Overview reserve-ratio KPI (mockBankStore) so both reflect
   // the same feed; starts blank — nothing to reconcile until a deposit is added.
   const deposits = useMockDeposits()
   const [depositAmount, setDepositAmount] = useState('')
-  const [receivedDeposits, setReceivedDeposits] = useState<IssuedDeposit[]>([])
-  // Tracks WHICH deposit's issue is in flight, so only that row's button shows
-  // its spinner while every other "Receive & issue" button is just disabled.
-  const [busyDepositId, setBusyDepositId] = useState<string | null>(null)
-  const busy = busyDepositId !== null
 
   // In controlled mode the active asset id comes from the prop
   const activeAssetId = controlledAssetId ?? selectedAssetId
@@ -52,21 +43,15 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
 
   const recon = useMemo((): { bankBalance: number, netSupply: number, drift: number } | null => {
     if (history == null) return null
-    // Sum amounts from received deposits (proxy for on-chain issue via bank)
-    const bankDepositAmounts = deposits.map(d => d.amount)
-    const bankWithdrawAmounts: number[] = []
-
-    // Sum issued and redeemed from admin history
     let totalIssued = 0
     let totalRedeemed = 0
     for (const row of history) {
       if (row.actionDetails.kind === 'issue') totalIssued += (row.actionDetails.amount as number) ?? 0
       if (row.actionDetails.kind === 'redeem') totalRedeemed += (row.actionDetails.amount as number) ?? 0
     }
-
     return reconcile({
-      deposits: bankDepositAmounts,
-      withdrawals: bankWithdrawAmounts,
+      deposits: deposits.map(d => d.amount),
+      withdrawals: [],
       issued: totalIssued,
       redeemed: totalRedeemed
     })
@@ -86,42 +71,10 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
     toast.success(`Added incoming deposit: ${dep.originator} · ${formatAmount(amount, decimals)}`)
   }, [depositAmount, decimals])
 
-  // "Receive deposit" — issue tokens against a bank deposit
-  const handleReceiveDeposit = useCallback(async (deposit: MockDeposit) => {
-    if (wallet == null || identityKey == null || asset == null) {
-      toast.error('Select an asset first')
-      return
-    }
-    setBusyDepositId(deposit.id)
-    try {
-      await submitAdminAction({
-        wallet: wallet as any,
-        asset,
-        details: {
-          kind: 'issue',
-          assetId: asset.assetId,
-          amount: deposit.amount,
-          priorOutpoint: asset.authOutpoint
-        },
-        ftOutput: { recipient: identityKey, amount: deposit.amount },
-        identityKey,
-        messageBoxClient: messageBoxClient ?? undefined
-      })
-      setReceivedDeposits(prev => [
-        ...prev,
-        { depositId: deposit.id, amount: deposit.amount, issuedAt: Date.now() }
-      ])
-      toast.success(`Issued ${formatAmount(deposit.amount, decimals)} ${asset.label} for deposit ${deposit.id}`)
-      await invalidateAdminHistory(asset.assetId)
-      await invalidateAdminAssets()
-    } catch (e) {
-      toast.error(`Issue failed: ${String(e)}`)
-    } finally {
-      setBusyDepositId(null)
-    }
-  }, [wallet, identityKey, asset, decimals, messageBoxClient, invalidateAdminHistory, invalidateAdminAssets])
-
-  const alreadyIssued = (depositId: string) => receivedDeposits.some(r => r.depositId === depositId)
+  const handleClearAll = useCallback(() => {
+    clearMockDeposits()
+    toast.success('Cleared all demo deposits')
+  }, [])
 
   return (
     <div>
@@ -129,7 +82,7 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-[27px] font-semibold tracking-[-0.5px] leading-tight">Banking</h1>
-          <p className="text-[13px] text-muted-foreground mt-[3px]">Plaid-sandbox deposit feed &amp; reserve reconciliation</p>
+          <p className="text-[13px] text-muted-foreground mt-[3px]">Demo deposit feed &amp; reserve reconciliation — issuance lives on Operations</p>
         </div>
         {controlledAssetId == null && (
           <Select
@@ -175,9 +128,20 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
       </div>
 
       {/* INCOMING DEPOSITS */}
-      <p className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase mb-[10px] mt-[22px]">
-        Incoming Deposits
-      </p>
+      <div className="flex items-center justify-between mb-[10px] mt-[22px]">
+        <p className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase">
+          Incoming Deposits
+        </p>
+        {deposits.length > 0 && (
+          <button
+            onClick={handleClearAll}
+            className="flex items-center gap-[5px] text-[12px] font-medium text-subtle-foreground transition-colors hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          >
+            <Trash2 size={13} />
+            Clear all
+          </button>
+        )}
+      </div>
       {deposits.length === 0 ? (
         <div className="bg-card border border-border rounded-[14px] px-[18px] py-[26px] text-center text-[13px] text-muted-foreground">
           No incoming deposits yet — add one above to see it flow through reconciliation.
@@ -185,7 +149,6 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
       ) : (
       <div className="bg-card border border-border rounded-[14px] overflow-hidden">
         {deposits.map((dep, idx) => {
-          const issued = alreadyIssued(dep.id)
           const dateStr = new Date(dep.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
           return (
             <div
@@ -207,21 +170,6 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
               <span className="text-[15px] font-semibold tabular-nums">
                 {dep.currency}{formatAmount(dep.amount, decimals)}
               </span>
-              {/* Action */}
-              {issued ? (
-                <div className="flex items-center gap-1 text-[12px] text-success">
-                  <CheckCircle2 size={14} /> Issued
-                </div>
-              ) : (
-                <button
-                  className="flex items-center gap-2 bg-primary text-primary-foreground rounded-[10px] px-4 py-[10px] text-[12.5px] font-semibold whitespace-nowrap disabled:opacity-50"
-                  onClick={() => void handleReceiveDeposit(dep)}
-                  disabled={busy || activeAssetId === ''}
-                >
-                  {busyDepositId === dep.id && <Spinner size="sm" tone="current" />}
-                  {busyDepositId === dep.id ? 'Issuing…' : 'Receive & issue'}
-                </button>
-              )}
             </div>
           )
         })}
@@ -230,9 +178,6 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
 
       {/* RECONCILIATION */}
       {recon != null && (() => {
-        const issuedIdSet = new Set(receivedDeposits.map(r => r.depositId))
-        const pendingDeposits = deposits.filter(d => !issuedIdSet.has(d.id))
-        const pendingSum = unissuedSum(deposits, issuedIdSet)
         const hasDrift = recon.drift !== 0
         return (
           <>
@@ -257,24 +202,14 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
                   {recon.drift > 0 ? '+' : ''}{formatAmount(recon.drift, decimals)}
                 </span>
               </div>
-              {/* Amber callout — ties drift to unissued deposits */}
+              {/* Amber callout — how to close the gap */}
               {hasDrift && (
                 <div className="bg-warning/[0.08] rounded-[10px] px-[13px] py-[10px] text-[11.5px] text-warning leading-[1.4]">
-                  <div className="font-semibold mb-[6px]">
-                    Drift {recon.drift > 0 ? '+' : ''}{formatAmount(Math.abs(recon.drift), decimals)} = {pendingDeposits.length} unissued deposit{pendingDeposits.length !== 1 ? 's' : ''} ({formatAmount(pendingSum, decimals)} awaiting issuance)
-                  </div>
-                  {pendingDeposits.length > 0 && (
-                    <div className="flex flex-col gap-[5px] mt-[4px]">
-                      {pendingDeposits.map(dep => (
-                        <div key={dep.id} className="flex items-center justify-between gap-2 text-[11px]">
-                          <span className="opacity-80">{dep.originator}</span>
-                          <span className="opacity-60 font-mono">{dep.id}</span>
-                          <span className="font-semibold tabular-nums">{dep.currency}{formatAmount(dep.amount, decimals)}</span>
-                          <span className="opacity-60 italic">awaiting issuance</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <span className="font-semibold">
+                    {recon.drift > 0
+                      ? 'Bank reserves exceed on-chain supply — issue tokens from the Operations page to match.'
+                      : 'On-chain supply exceeds bank reserves — redeem tokens from the Operations page (or add deposits) to match.'}
+                  </span>
                 </div>
               )}
               {/* Reconciled callout */}
