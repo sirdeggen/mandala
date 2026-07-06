@@ -9,6 +9,7 @@ import { useMockDeposits } from '../../lib/mandala/mockBankStore'
 import { formatAmount } from '../../lib/mandala/amount'
 import { cn } from '@/lib/utils'
 import AuditLog from './AuditLog'
+import RegisterAssetStrip from './RegisterAssetStrip'
 
 interface Props {
   assetId: string
@@ -198,6 +199,11 @@ export default function OverviewSection({ assetId, asset, onReload }: Props) {
           </div>
         </div>
         <AuditLog assetId={assetId} />
+      </div>
+
+      {/* ── Register a new asset (genesis) — moved here from Operations ── */}
+      <div className="mt-[28px]">
+        <RegisterAssetStrip />
       </div>
     </div>
   )

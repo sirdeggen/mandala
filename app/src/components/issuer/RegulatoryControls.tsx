@@ -17,11 +17,13 @@ interface Props {
   onActionComplete?: () => void
   /** Controlled mode: when set, use this assetId and hide the header asset-selector chip. */
   assetId?: string
+  /** Embedded inside another page (Operations): slim section label instead of a page heading. */
+  embedded?: boolean
 }
 
 type ActionKey = 'pause' | 'accessMode' | 'freeze' | 'unfreeze' | 'blockIdentity' | 'unblockIdentity' | 'allowIdentity' | 'unallowIdentity' | 'reissue'
 
-export default function RegulatoryControls({ assets, onActionComplete, assetId: controlledAssetId }: Props) {
+export default function RegulatoryControls({ assets, onActionComplete, assetId: controlledAssetId, embedded = false }: Props) {
   const { wallet, messageBoxClient, identityKey } = useWallet()
 
   // Selected asset
@@ -258,17 +260,25 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
 
   return (
     <div className="space-y-[14px]">
-      {/* Page heading row */}
+      {/* Page heading row — slim section label when embedded in Operations */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 style={{ fontSize: 27, fontWeight: 600, letterSpacing: '-0.5px', lineHeight: '1.2' }}>
-            Regulatory controls
-          </h1>
-          <p className="text-subtle-foreground text-[13px] mt-[3px]">
-            Pause, freeze, block &amp; manage access
-            {asset != null ? ` for ${asset.label}` : ''}
-          </p>
-        </div>
+        {embedded ? (
+          <div className="pt-[6px]">
+            <div className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase">
+              Regulatory controls
+            </div>
+          </div>
+        ) : (
+          <div>
+            <h1 style={{ fontSize: 27, fontWeight: 600, letterSpacing: '-0.5px', lineHeight: '1.2' }}>
+              Regulatory controls
+            </h1>
+            <p className="text-subtle-foreground text-[13px] mt-[3px]">
+              Pause, freeze, block &amp; manage access
+              {asset != null ? ` for ${asset.label}` : ''}
+            </p>
+          </div>
+        )}
         {/* Asset selector chip — suppressed in controlled mode */}
         {controlledAssetId == null && (
           <div className="shrink-0 flex flex-col gap-[4px]">

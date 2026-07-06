@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  LayoutDashboard, PlusCircle, ShieldCheck, Banknote, Wallet, ChevronDown
+  LayoutDashboard, ShieldCheck, Banknote, Wallet, ChevronDown
 } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset } from '../../lib/mandala/assets'
@@ -14,7 +14,7 @@ import RegulatoryControls from './RegulatoryControls'
 import BankingMock from './BankingMock'
 import TreasurySection from './TreasurySection'
 
-type Section = 'overview' | 'treasury' | 'operations' | 'regulatory' | 'banking'
+type Section = 'overview' | 'treasury' | 'operations' | 'banking'
 
 const NAV_ITEMS: Array<{
   id: Section
@@ -23,8 +23,7 @@ const NAV_ITEMS: Array<{
 }> = [
   { id: 'overview',    label: 'Overview',    icon: LayoutDashboard },
   { id: 'treasury',    label: 'Treasury',    icon: Wallet },
-  { id: 'operations',  label: 'Operations',  icon: PlusCircle },
-  { id: 'regulatory',  label: 'Regulatory',  icon: ShieldCheck },
+  { id: 'operations',  label: 'Operations',  icon: ShieldCheck },
   { id: 'banking',     label: 'Banking',     icon: Banknote },
 ]
 
@@ -123,11 +122,13 @@ export default function IssuerDashboard() {
     })
   }
 
-  // Normalise an unknown /issuer/:section to overview, keeping ?asset.
+  // Normalise an unknown /issuer/:section, keeping ?asset. The old standalone
+  // /issuer/regulatory page now lives inside Operations.
   useEffect(() => {
     if (params.section != null && !SECTION_IDS.includes(params.section)) {
       const qs = searchParams.toString()
-      navigate(`/issuer/overview${qs ? `?${qs}` : ''}`, { replace: true })
+      const target = params.section === 'regulatory' ? 'operations' : 'overview'
+      navigate(`/issuer/${target}${qs ? `?${qs}` : ''}`, { replace: true })
     }
   }, [params.section, searchParams, navigate])
 
@@ -237,14 +238,15 @@ export default function IssuerDashboard() {
             <TreasurySection assetId={currentAssetId} asset={currentAsset} />
           )}
           {section === 'operations' && (
-            <IssuerPanel assetId={currentAssetId} />
-          )}
-          {section === 'regulatory' && (
-            <RegulatoryControls
-              assets={assets}
-              assetId={currentAssetId}
-              onActionComplete={() => void invalidateAdminAssets()}
-            />
+            <div className="space-y-[26px]">
+              <IssuerPanel assetId={currentAssetId} />
+              <RegulatoryControls
+                embedded
+                assets={assets}
+                assetId={currentAssetId}
+                onActionComplete={() => void invalidateAdminAssets()}
+              />
+            </div>
           )}
           {section === 'banking' && (
             <BankingMock assetId={currentAssetId} />
