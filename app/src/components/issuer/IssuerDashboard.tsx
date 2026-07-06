@@ -238,15 +238,27 @@ export default function IssuerDashboard() {
             <TreasurySection assetId={currentAssetId} asset={currentAsset} />
           )}
           {section === 'operations' && (
-            <div className="space-y-[26px]">
-              <IssuerPanel assetId={currentAssetId} />
-              <RegulatoryControls
-                embedded
-                assets={assets}
-                assetId={currentAssetId}
-                onActionComplete={() => void invalidateAdminAssets()}
-              />
-            </div>
+            assets.length === 0 ? (
+              // Nothing on this page is actionable without an asset — show only
+              // the pointer to Overview (where registration lives), no dead controls.
+              assetsData != null && (
+                <div className="bg-card border border-border rounded-[14px] p-[24px_20px] text-center">
+                  <p className="text-[13px] text-subtle-foreground">
+                    Register an asset first — you can do that from the Overview page.
+                  </p>
+                </div>
+              )
+            ) : (
+              <div className="space-y-[26px]">
+                <IssuerPanel assetId={currentAssetId} />
+                <RegulatoryControls
+                  embedded
+                  assets={assets}
+                  assetId={currentAssetId}
+                  onActionComplete={() => void invalidateAdminAssets()}
+                />
+              </div>
+            )
           )}
           {section === 'banking' && (
             <BankingMock assetId={currentAssetId} />
