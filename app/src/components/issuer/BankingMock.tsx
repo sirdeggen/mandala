@@ -163,12 +163,12 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
               <div className="flex-1 min-w-0">
                 <div className="text-[14px] font-semibold">{dep.originator}</div>
                 <div className="text-[11.5px] text-subtle-foreground mt-[3px]">
-                  {dep.id} · {dep.currency} · {dateStr}
+                  {dep.id} · {dateStr}
                 </div>
               </div>
               {/* Amount */}
               <span className="text-[15px] font-semibold tabular-nums">
-                {dep.currency}{formatAmount(dep.amount, decimals)}
+                {formatAmount(dep.amount, decimals)}
               </span>
             </div>
           )

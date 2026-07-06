@@ -1,5 +1,5 @@
 // app/src/lib/mandala/banking.ts
-export interface MockDeposit { id: string, amount: number, currency: string, originator: string, timestamp: number }
+export interface MockDeposit { id: string, amount: number, originator: string, timestamp: number }
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
@@ -24,7 +24,6 @@ export function makeDeposit(
   return {
     id: `BR-${ts.toString(36).toUpperCase().slice(-6)}`,
     amount,
-    currency: 'USD',
     originator: `Company ${randomLetter(random)}`,
     timestamp: ts
   }

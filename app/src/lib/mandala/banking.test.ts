@@ -23,7 +23,6 @@ it('makeDeposit always names the counterparty "Company {letter}"', () => {
   const dep = makeDeposit(500, { now: () => 1_780_000_000_000, random: () => 0 })
   expect(dep.originator).toBe('Company A')
   expect(dep.amount).toBe(500)
-  expect(dep.currency).toBe('USD')
   expect(dep.timestamp).toBe(1_780_000_000_000)
 })
 
