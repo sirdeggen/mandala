@@ -68,13 +68,19 @@ export async function transferTokens (p: TransferParams): Promise<TransferResult
       lockingScript: ftChange.toHex(),
       outputDescription: 'FT change',
       basket: BASKET,
-      customInstructions: JSON.stringify({ protocolID: FT_PROTOCOL, keyID: keyIDChange, counterparty: identityKey })
+      // direction/recipient/sentAmount give history classification the send
+      // context even when the recipient output (not basket-tracked) drops out
+      // of listActions — the change output is the one the wallet always keeps.
+      customInstructions: JSON.stringify({ protocolID: FT_PROTOCOL, keyID: keyIDChange, counterparty: identityKey, direction: 'change', recipient: recipientKey, sentAmount: amount })
     })
   }
 
   const created = await wallet.createAction({
     description: `Send ${amount} of ${assetId}`,
-    labels: ['mandala', 'transfer'],
+    // The recipient key rides as an action label: output customInstructions
+    // are erased when the output is later spent/relinquished, but labels stay
+    // with the action for good — history reads the counterparty from here.
+    labels: ['mandala', 'transfer', `to-${recipientKey.toLowerCase()}`],
     inputBEEF: beef.toBinary(),
     inputs,
     outputs,

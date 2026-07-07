@@ -55,7 +55,7 @@ function ToastStack({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: nu
         <div
           key={t.id}
           className={cn(
-            'pointer-events-auto flex items-center gap-[10px] rounded-[13px] px-[14px] py-[11px]',
+            'pointer-events-auto flex items-center gap-[10px] rounded-md px-[14px] py-[11px]',
             'text-[13px] font-medium shadow-[var(--shadow-pop)]',
             t.type === 'success'
               ? 'bg-primary text-primary-foreground'
@@ -142,7 +142,7 @@ function ContactRow({ contact, onEdit, onRemove, removing }: ContactRowProps) {
               type="button"
               disabled={removing}
               onClick={() => onRemove(contact.identityKey)}
-              className="flex h-7 items-center gap-[5px] rounded-[8px] bg-destructive px-[9px] text-[11px] font-semibold text-destructive-foreground transition-opacity disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-7 items-center gap-[5px] rounded-sm bg-destructive px-[9px] text-[11px] font-semibold text-destructive-foreground transition-opacity disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {removing && <Spinner size="sm" tone="current" className="h-3 w-3" />}
               {removing ? 'Removing' : 'Remove'}
@@ -150,7 +150,7 @@ function ContactRow({ contact, onEdit, onRemove, removing }: ContactRowProps) {
             <button
               type="button"
               onClick={() => setConfirmRemove(false)}
-              className="flex h-7 w-7 items-center justify-center rounded-[8px] text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <X className="h-[14px] w-[14px]" />
             </button>
@@ -161,7 +161,7 @@ function ContactRow({ contact, onEdit, onRemove, removing }: ContactRowProps) {
               type="button"
               onClick={() => onEdit(contact)}
               aria-label={`Edit ${contact.name}`}
-              className="flex h-7 w-7 items-center justify-center rounded-[8px] text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Pencil className="h-[14px] w-[14px]" />
             </button>
@@ -169,7 +169,7 @@ function ContactRow({ contact, onEdit, onRemove, removing }: ContactRowProps) {
               type="button"
               onClick={() => setConfirmRemove(true)}
               aria-label={`Remove ${contact.name}`}
-              className="flex h-7 w-7 items-center justify-center rounded-[8px] text-muted-foreground hover:bg-muted hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Trash2 className="h-[14px] w-[14px]" />
             </button>
@@ -290,7 +290,7 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
       <div
         className={cn(
           'mx-auto w-full max-w-[430px] rounded-b-[22px] bg-background',
-          'shadow-[0_8px_40px_rgba(0,0,0,0.18)]',
+          'shadow-[var(--shadow-pop)]',
           'max-h-[90vh] overflow-y-auto animate-in'
         )}
       >
@@ -340,7 +340,7 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
                   onKeyDown={e => { if (e.key === 'Enter') void doSearch() }}
                   placeholder="Name, @handle, or email…"
                   className={cn(
-                    'flex-1 rounded-[10px] border border-border bg-input px-[12px] py-[9px]',
+                    'flex-1 rounded border border-border bg-input px-[12px] py-[9px]',
                     'text-[13px] placeholder:text-muted-foreground',
                     'focus:outline-none focus:ring-2 focus:ring-ring'
                   )}
@@ -350,7 +350,7 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
                   onClick={() => void doSearch()}
                   disabled={searching || !searchQuery.trim()}
                   className={cn(
-                    'flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-[10px]',
+                    'flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded',
                     'bg-primary text-primary-foreground transition-opacity disabled:opacity-50',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
                   )}
@@ -366,13 +366,13 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
               )}
 
               {searchError && (
-                <div className="mt-[10px] rounded-[10px] bg-destructive/10 px-[12px] py-[9px] text-[12px] text-destructive">
+                <div className="mt-[10px] rounded bg-destructive/10 px-[12px] py-[9px] text-[12px] text-destructive">
                   {searchError}
                 </div>
               )}
 
               {searchResults.length > 0 && (
-                <div className="mt-[12px] rounded-[14px] border border-border bg-card overflow-hidden">
+                <div className="mt-[12px] rounded-md border border-border bg-card overflow-hidden">
                   {searchResults.map((identity, i) => (
                     <button
                       key={identity.identityKey ?? i}
@@ -424,7 +424,7 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
 
           {/* After search pick — show form pre-filled */}
           {mode === 'search' && selected && (
-            <div className="mb-[14px] flex items-center gap-[10px] rounded-[12px] border border-border bg-card px-[14px] py-[10px]">
+            <div className="mb-[14px] flex items-center gap-[10px] rounded-md border border-border bg-card px-[14px] py-[10px]">
               <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary">
                 {selected.avatarURL ? (
                   <img src={selected.avatarURL} alt={selected.name ?? ''} className="h-full w-full object-cover" />
@@ -462,7 +462,7 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
                     onChange={e => setIdentityKey(e.target.value)}
                     placeholder="02abcdef…"
                     className={cn(
-                      'w-full rounded-[10px] border border-border bg-input px-[12px] py-[9px]',
+                      'w-full rounded border border-border bg-input px-[12px] py-[9px]',
                       'font-mono text-[12px] placeholder:text-muted-foreground',
                       'focus:outline-none focus:ring-2 focus:ring-ring'
                     )}
@@ -480,7 +480,7 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
                   onChange={e => setName(e.target.value)}
                   placeholder="Alice Smith"
                   className={cn(
-                    'w-full rounded-[10px] border border-border bg-input px-[12px] py-[9px]',
+                    'w-full rounded border border-border bg-input px-[12px] py-[9px]',
                     'text-[13px] placeholder:text-muted-foreground',
                     'focus:outline-none focus:ring-2 focus:ring-ring'
                   )}
@@ -498,7 +498,7 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
                     onChange={e => setEmail(e.target.value)}
                     placeholder="alice@example.com"
                     className={cn(
-                      'w-full rounded-[10px] border border-border bg-input px-[12px] py-[9px]',
+                      'w-full rounded border border-border bg-input px-[12px] py-[9px]',
                       'text-[13px] placeholder:text-muted-foreground',
                       'focus:outline-none focus:ring-2 focus:ring-ring'
                     )}
@@ -514,7 +514,7 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
                     onChange={e => setHandle(e.target.value)}
                     placeholder="@alice"
                     className={cn(
-                      'w-full rounded-[10px] border border-border bg-input px-[12px] py-[9px]',
+                      'w-full rounded border border-border bg-input px-[12px] py-[9px]',
                       'text-[13px] placeholder:text-muted-foreground',
                       'focus:outline-none focus:ring-2 focus:ring-ring'
                     )}
@@ -532,7 +532,7 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
                   onChange={e => setNote(e.target.value)}
                   placeholder="Optional note…"
                   className={cn(
-                    'w-full rounded-[10px] border border-border bg-input px-[12px] py-[9px]',
+                    'w-full rounded border border-border bg-input px-[12px] py-[9px]',
                     'text-[13px] placeholder:text-muted-foreground',
                     'focus:outline-none focus:ring-2 focus:ring-ring'
                   )}
@@ -540,7 +540,7 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
               </div>
 
               {saveError && (
-                <div className="rounded-[10px] bg-destructive/10 px-[12px] py-[9px] text-[12px] text-destructive">
+                <div className="rounded bg-destructive/10 px-[12px] py-[9px] text-[12px] text-destructive">
                   {saveError}
                 </div>
               )}
@@ -550,7 +550,7 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
                 disabled={saving || !hasIdentity}
                 onClick={() => void handleSave()}
                 className={cn(
-                  'mt-[4px] flex w-full items-center justify-center gap-2 rounded-[12px] py-[13px]',
+                  'mt-[4px] flex w-full items-center justify-center gap-2 rounded-md py-[13px]',
                   'text-[14px] font-semibold leading-none',
                   'bg-primary text-primary-foreground transition-opacity disabled:opacity-50',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
@@ -612,7 +612,7 @@ function EditContactDialog({ contact, wallet, onSaved, onCancel }: EditContactDi
 
   return (
     <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 backdrop-blur-[3px]">
-      <div className="mx-auto w-full max-w-[430px] rounded-t-[22px] bg-background shadow-[0_-8px_40px_rgba(0,0,0,0.18)] max-h-[90vh] overflow-y-auto">
+      <div className="mx-auto w-full max-w-[430px] rounded-t-xl bg-background shadow-[var(--shadow-pop)] max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-[22px] pt-[18px] pb-[14px]">
           <h2 className="text-[17px] font-semibold tracking-[-0.01em]">Edit Contact</h2>
@@ -631,7 +631,7 @@ function EditContactDialog({ contact, wallet, onSaved, onCancel }: EditContactDi
             <label className="mb-[4px] block text-[11px] font-medium uppercase tracking-[0.8px] text-faint-foreground">
               Identity Key
             </label>
-            <div className="w-full rounded-[10px] border border-border bg-muted/40 px-[12px] py-[9px] font-mono text-[11px] text-subtle-foreground break-all">
+            <div className="w-full rounded border border-border bg-muted/40 px-[12px] py-[9px] font-mono text-[11px] text-subtle-foreground break-all">
               {contact.identityKey}
             </div>
           </div>
@@ -645,7 +645,7 @@ function EditContactDialog({ contact, wallet, onSaved, onCancel }: EditContactDi
               value={name}
               onChange={e => setName(e.target.value)}
               className={cn(
-                'w-full rounded-[10px] border border-border bg-input px-[12px] py-[9px]',
+                'w-full rounded border border-border bg-input px-[12px] py-[9px]',
                 'text-[13px] focus:outline-none focus:ring-2 focus:ring-ring'
               )}
             />
@@ -662,7 +662,7 @@ function EditContactDialog({ contact, wallet, onSaved, onCancel }: EditContactDi
                 onChange={e => setEmail(e.target.value)}
                 placeholder="alice@example.com"
                 className={cn(
-                  'w-full rounded-[10px] border border-border bg-input px-[12px] py-[9px]',
+                  'w-full rounded border border-border bg-input px-[12px] py-[9px]',
                   'text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring'
                 )}
               />
@@ -677,7 +677,7 @@ function EditContactDialog({ contact, wallet, onSaved, onCancel }: EditContactDi
                 onChange={e => setHandle(e.target.value)}
                 placeholder="@alice"
                 className={cn(
-                  'w-full rounded-[10px] border border-border bg-input px-[12px] py-[9px]',
+                  'w-full rounded border border-border bg-input px-[12px] py-[9px]',
                   'text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring'
                 )}
               />
@@ -694,14 +694,14 @@ function EditContactDialog({ contact, wallet, onSaved, onCancel }: EditContactDi
               onChange={e => setNote(e.target.value)}
               placeholder="Optional note…"
               className={cn(
-                'w-full rounded-[10px] border border-border bg-input px-[12px] py-[9px]',
+                'w-full rounded border border-border bg-input px-[12px] py-[9px]',
                 'text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring'
               )}
             />
           </div>
 
           {saveError && (
-            <div className="rounded-[10px] bg-destructive/10 px-[12px] py-[9px] text-[12px] text-destructive">
+            <div className="rounded bg-destructive/10 px-[12px] py-[9px] text-[12px] text-destructive">
               {saveError}
             </div>
           )}
@@ -711,7 +711,7 @@ function EditContactDialog({ contact, wallet, onSaved, onCancel }: EditContactDi
             disabled={saving || !name.trim()}
             onClick={() => void handleSave()}
             className={cn(
-              'mt-[4px] flex w-full items-center justify-center gap-2 rounded-[12px] py-[13px]',
+              'mt-[4px] flex w-full items-center justify-center gap-2 rounded-md py-[13px]',
               'text-[14px] font-semibold leading-none',
               'bg-primary text-primary-foreground transition-opacity disabled:opacity-50',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
@@ -848,7 +848,7 @@ export default function ContactsPage({ onBack }: { onBack?: () => void }) {
 
       {/* Contacts list */}
       {!loading && contacts.length > 0 && (
-        <div className="mx-[16px] overflow-hidden rounded-[16px] border border-border bg-card">
+        <div className="mx-[16px] overflow-hidden rounded-lg border border-border bg-card">
           {contacts.map(c => (
             <ContactRow
               key={c.identityKey}

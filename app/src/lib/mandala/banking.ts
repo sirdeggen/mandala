@@ -1,5 +1,7 @@
 // app/src/lib/mandala/banking.ts
-export interface MockDeposit { id: string, amount: number, originator: string, timestamp: number }
+export type TransferDirection = 'in' | 'out'
+
+export interface MockTransfer { id: string, assetId: string, amount: number, direction: TransferDirection, originator: string, timestamp: number }
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
@@ -9,21 +11,25 @@ export function randomLetter(random: () => number = Math.random): string {
 }
 
 /**
- * Builds a demo incoming deposit for the admin to issue against. The
- * counterparty is always a synthetic "Company {letter}" — this is a sandbox
- * feed standing in for a real bank/Plaid integration, not real originator
- * data, so it must not look like one.
+ * Builds a demo bank transfer (incoming deposit or outgoing withdrawal) for a
+ * given asset. The counterparty is always a synthetic "Company {letter}" —
+ * this is a sandbox feed standing in for a real bank/Plaid integration, not
+ * real originator data, so it must not look like one.
  */
-export function makeDeposit(
+export function makeTransfer(
   amount: number,
+  direction: TransferDirection,
+  assetId: string,
   opts: { now?: () => number, random?: () => number } = {}
-): MockDeposit {
+): MockTransfer {
   const now = opts.now ?? Date.now
   const random = opts.random ?? Math.random
   const ts = now()
   return {
     id: `BR-${ts.toString(36).toUpperCase().slice(-6)}`,
+    assetId,
     amount,
+    direction,
     originator: `Company ${randomLetter(random)}`,
     timestamp: ts
   }

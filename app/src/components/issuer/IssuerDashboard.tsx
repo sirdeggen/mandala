@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  LayoutDashboard, ShieldCheck, Banknote, Wallet, ChevronDown
+  LayoutDashboard, ShieldCheck, Banknote, Wallet, Activity, ChevronDown
 } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset } from '../../lib/mandala/assets'
@@ -10,11 +10,13 @@ import { BrandMark } from '../ui/BrandMark'
 import { cn } from '@/lib/utils'
 import IssuerPanel from '../IssuerPanel'
 import OverviewSection from './OverviewSection'
+import RegisterAssetStrip from './RegisterAssetStrip'
 import RegulatoryControls from './RegulatoryControls'
 import BankingMock from './BankingMock'
+import OverlayActivity from './OverlayActivity'
 import TreasurySection from './TreasurySection'
 
-type Section = 'overview' | 'treasury' | 'operations' | 'banking'
+type Section = 'overview' | 'treasury' | 'operations' | 'activity' | 'banking'
 
 const NAV_ITEMS: Array<{
   id: Section
@@ -24,6 +26,7 @@ const NAV_ITEMS: Array<{
   { id: 'overview',    label: 'Overview',    icon: LayoutDashboard },
   { id: 'treasury',    label: 'Treasury',    icon: Wallet },
   { id: 'operations',  label: 'Operations',  icon: ShieldCheck },
+  { id: 'activity',    label: 'Activity',    icon: Activity },
   { id: 'banking',     label: 'Banking',     icon: Banknote },
 ]
 
@@ -40,7 +43,7 @@ function AssetBadge({ asset }: { asset: AdminAsset }) {
   const symbol = { USD: '$', EUR: '€', GBP: '£', CHF: 'Fr' }[ticker] ?? ticker.slice(0, 2)
   return (
     <div className="flex items-center gap-[9px]">
-      <div className="flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-[7px] bg-accent font-bold text-[12px] text-accent-foreground">
+      <div className="flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-sm bg-accent font-bold text-[12px] text-accent-foreground">
         {symbol}
       </div>
       <div className="leading-tight">
@@ -59,11 +62,11 @@ function AssetSwitcher({ assets, currentAssetId, onChange }: AssetSwitcherProps)
   // Single asset: static chip
   if (assets.length <= 1) {
     return current != null ? (
-      <div className="inline-flex items-center rounded-[10px] border border-border bg-card px-[12px] py-[7px]">
+      <div className="inline-flex items-center rounded border border-border bg-card px-[12px] py-[7px]">
         <AssetBadge asset={current} />
       </div>
     ) : (
-      <div className="inline-flex items-center rounded-[10px] border border-border bg-card px-[12px] py-[7px] text-[13px] text-muted-foreground">
+      <div className="inline-flex items-center rounded border border-border bg-card px-[12px] py-[7px] text-[13px] text-muted-foreground">
         No assets
       </div>
     )
@@ -75,7 +78,7 @@ function AssetSwitcher({ assets, currentAssetId, onChange }: AssetSwitcherProps)
       <select
         value={currentAssetId}
         onChange={e => onChange(e.target.value)}
-        className="appearance-none cursor-pointer inline-flex items-center rounded-[10px] border border-border bg-card px-[12px] py-[7px] pr-[32px] text-[13px] font-semibold focus:outline-none focus:ring-2 focus:ring-ring"
+        className="appearance-none cursor-pointer inline-flex items-center rounded border border-border bg-card px-[12px] py-[7px] pr-[32px] text-[13px] font-semibold focus:outline-none focus:ring-2 focus:ring-ring"
         aria-label="Switch asset"
       >
         {assets.map(a => (
@@ -170,7 +173,7 @@ export default function IssuerDashboard() {
                 type="button"
                 onClick={() => goSection(id)}
                 className={cn(
-                  'relative flex items-center gap-[11px] rounded-[10px] px-3 py-[10px] text-left text-[13px] font-medium',
+                  'relative flex items-center gap-[11px] rounded px-3 py-[10px] text-left text-[13px] font-medium',
                   'transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   active
                     ? 'bg-card text-foreground font-semibold'
@@ -197,10 +200,10 @@ export default function IssuerDashboard() {
 
         {/* Footer issuer chip */}
         <div
-          className="mt-auto flex items-center gap-[10px] rounded-[11px] border border-separator bg-background px-[10px] py-3"
+          className="mt-auto flex items-center gap-[10px] rounded border border-separator bg-background px-[10px] py-3"
         >
           <div
-            className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-primary font-semibold text-[11px] text-primary-foreground"
+            className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-sm bg-primary font-semibold text-[11px] text-primary-foreground"
           >
             {initials}
           </div>
@@ -217,13 +220,19 @@ export default function IssuerDashboard() {
 
       {/* ── MAIN AREA ── */}
       <main className="flex-1 overflow-y-auto bg-background">
-        {/* Top bar with asset switcher */}
-        <div className="flex items-center justify-between border-b border-separator bg-background px-[30px] py-[14px]">
+        {/* Top bar with asset switcher — Register a new asset lives here too,
+            in line with the switcher, only on the Overview page. */}
+        <div className="flex items-center justify-between gap-4 border-b border-separator bg-background px-[30px] py-[14px]">
           <AssetSwitcher
             assets={assets}
             currentAssetId={currentAssetId}
             onChange={selectAsset}
           />
+          {section === 'overview' && (
+            <div className="flex-1">
+              <RegisterAssetStrip />
+            </div>
+          )}
         </div>
 
         <div className="p-[26px_30px]">
@@ -242,7 +251,7 @@ export default function IssuerDashboard() {
               // Nothing on this page is actionable without an asset — show only
               // the pointer to Overview (where registration lives), no dead controls.
               assetsData != null && (
-                <div className="bg-card border border-border rounded-[14px] p-[24px_20px] text-center">
+                <div className="bg-card border border-border rounded-md p-[24px_20px] text-center">
                   <p className="text-[13px] text-subtle-foreground">
                     Register an asset first — you can do that from the Overview page.
                   </p>
@@ -259,6 +268,13 @@ export default function IssuerDashboard() {
                 />
               </div>
             )
+          )}
+          {section === 'activity' && (
+            <OverlayActivity
+              assetId={currentAssetId}
+              decimals={Number(currentAsset?.metadata?.decimals) || 0}
+              standalone
+            />
           )}
           {section === 'banking' && (
             <BankingMock assetId={currentAssetId} />

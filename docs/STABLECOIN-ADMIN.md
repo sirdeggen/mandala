@@ -4,7 +4,7 @@
 > enforces, and how to verify the audit trail. For the broader architecture see
 > `docs/PROJECT-STATE.md`.
 
-_Last updated: 2026-06-30. Branch `mandala-stablecoin-spike`._
+_Last updated: 2026-07-07. Branch `master`._
 
 ---
 
@@ -170,8 +170,11 @@ applies only to peer transfers and exempts admin actions. Do not conflate the tw
 
 ## 6. Audit log and proof verification
 
-`GET /admin/admin-history/:assetId` returns `AdminHistoryRow[]` ordered by
-`(height, offset, admitSeq)`. Each row carries:
+`GET /admin/admin-history/:assetId` returns the full `AdminHistoryRow[]`
+ordered by `(height, offset, admitSeq)` — used for CSV export. The audit log
+UI reads `GET /admin/admin-history-page/:assetId?limit=&offset=` (newest-first
+pages) and renders through a virtualized infinite-scroll list, so histories of
+thousands of actions stay responsive. Each row carries:
 
 ```
 txid, outputIndex, priorOutpoint, kind, assetId, [action-specific fields],
@@ -215,11 +218,14 @@ To independently verify an audit-log row:
 
 ## 7. Banking reconciliation
 
-`BankingMock` (front-end only, no backend persistence) tracks:
+`BankingMock` (front-end only; the simulated feed persists per-asset in
+localStorage and starts empty — the operator adds incoming/outgoing transfers
+explicitly) tracks:
 
-- **Bank balance** = sum of simulated ACH/wire deposits − withdrawals.
+- **Bank balance** = sum of simulated incoming transfers − outgoing transfers.
 - **Net circulating supply** = total `issued` base units − total `redeemed` base
-  units. `reissue` is net-zero in the overlay view (evicted coin is excluded from
+  units, fetched pre-aggregated from `GET /admin/admin-summary/:assetId`.
+  `reissue` is net-zero in the overlay view (evicted coin is excluded from
   the supply sum), so it does not appear as drift.
 
 A redemption reduces `netSupply` without reducing `bankBalance` (the bank leg of
@@ -229,7 +235,40 @@ genuine drift only when these two figures diverge after correct accounting.
 
 ---
 
-## 8. Quick-reference: action → overlay effect
+## 8. Operator oversight — the Activity feed
+
+`GET /admin/activity?assetId=&limit=&before=` (surfaced as the issuer
+console's **Activity** page) lists every transaction the overlay has admitted
+for an asset, with counterparties resolved from the key-linkage proofs
+(`revealSpecificKeyLinkage`) each output carried at submission. The overlay
+retains these linkage records permanently, so the feed covers spent outputs
+too.
+
+Each entry is a semantic summary derived by token conservation — outputs are a
+technical detail (one is usually change back to the sender):
+
+| kind | meaning | amount shown |
+|---|---|---|
+| `issue` | no FT inputs — minted supply | total minted to the recipient |
+| `transfer` | outputs to someone besides the sender | units received by the counterparty (change excluded) |
+| `self` | all outputs back to the sender, conserved | 0 (a self-transfer moves nothing) |
+| `redeem` | all outputs back to the sender, inputs > outputs | units burned |
+
+The sender is identified by walking each input back to its source outpoint in
+the linkage store. Every row carries the proof metadata (`keyID`,
+`counterparty`, `proofType` per output) as evidence of what the operator can
+see. The endpoint is cursor-paginated (limit clamped 1–500; the `before`
+cursor is inclusive so a tx group straddling a page boundary is re-served
+complete — clients dedupe by txid) and the UI virtualizes rows, so thousands
+of transactions scroll smoothly.
+
+This page intentionally demonstrates the transparency trade-off of the
+overlay model: the operator holds identity-linkage evidence for every
+admitted movement of the asset.
+
+---
+
+## 9. Quick-reference: action → overlay effect
 
 | kind | `isPaused` | `blockedIdentities` | `allowedIdentities` | `frozenOutpoints` | `evictedOutpoints` | `accessMode` |
 |---|---|---|---|---|---|---|

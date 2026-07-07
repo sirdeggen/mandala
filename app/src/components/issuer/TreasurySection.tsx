@@ -6,7 +6,6 @@ import { formatCurrency } from '../../lib/mandala/amount'
 import { useHolderData } from '../../hooks/useHolderData'
 import SendTokens from '../SendTokens'
 import ReceivePanel from '../holder/ReceivePanel'
-import TransactionHistory from '../holder/TransactionHistory'
 import { cn } from '@/lib/utils'
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -55,7 +54,7 @@ export default function TreasurySection({ assetId, asset }: Props) {
     <div className="flex flex-col gap-[26px]">
       {/* Section header */}
       <div>
-        <div className="text-[11px] font-medium tracking-[1.4px] uppercase text-faint-foreground mb-[3px]">
+        <div className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground mb-[3px]">
           Treasury
         </div>
         <div className="text-[22px] font-semibold leading-snug">
@@ -64,16 +63,16 @@ export default function TreasurySection({ assetId, asset }: Props) {
       </div>
 
       {/* Balance card */}
-      <div className="rounded-[16px] border border-separator bg-card px-[24px] py-[20px] shadow-[var(--shadow-card)]">
-        <div className="text-[10.5px] font-medium tracking-[1.4px] uppercase text-faint-foreground mb-[10px]">
+      <div className="rounded-lg border border-separator bg-card px-[24px] py-[20px] shadow-[var(--shadow-card)]">
+        <div className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground mb-[10px]">
           Treasury balance
         </div>
         {loading ? (
-          <div className="animate-pulse h-[44px] w-[180px] rounded-[8px] bg-muted" />
+          <div className="animate-pulse h-[44px] w-[180px] rounded-sm bg-muted" />
         ) : (
           <div
             className={cn(
-              'tabular text-[42px] font-semibold leading-none tracking-[-1.5px]',
+              'tabular text-[44px] font-semibold leading-none tracking-[-1.5px]',
               isEmpty ? 'text-muted-foreground' : 'text-foreground'
             )}
           >
@@ -90,7 +89,7 @@ export default function TreasurySection({ assetId, asset }: Props) {
 
       {/* Empty state hint */}
       {!loading && isEmpty && (
-        <div className="rounded-[14px] border border-dashed border-separator bg-muted/50 px-[20px] py-[18px] text-center">
+        <div className="rounded-md border border-dashed border-separator bg-muted/50 px-[20px] py-[18px] text-center">
           <div className="text-[14px] font-medium text-muted-foreground">
             No units held — issue some in Operations.
           </div>
@@ -99,18 +98,18 @@ export default function TreasurySection({ assetId, asset }: Props) {
 
       {/* Send / Receive toggle — always accessible even with zero balance (issuer might receive) */}
       <div>
-        <div className="text-[10.5px] font-medium tracking-[1.4px] uppercase text-faint-foreground mb-[14px]">
+        <div className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground mb-[14px]">
           Actions
         </div>
         {/* Tab bar */}
-        <div className="inline-flex rounded-[11px] border border-separator bg-muted p-[3px] gap-[3px] mb-[22px]">
+        <div className="inline-flex rounded border border-separator bg-muted p-[3px] gap-[3px] mb-[22px]">
           {(['send', 'receive'] as const).map(t => (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
               className={cn(
-                'flex items-center gap-[7px] rounded-[9px] px-[14px] py-[7px] text-[13px] font-medium transition-colors duration-150',
+                'flex items-center gap-[7px] rounded px-[14px] py-[7px] text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 tab === t
                   ? 'bg-card text-foreground font-semibold shadow-[0_1px_2px_var(--separator)]'
                   : 'text-muted-foreground hover:text-foreground'
@@ -129,18 +128,10 @@ export default function TreasurySection({ assetId, asset }: Props) {
           <SendTokens lockedAssetId={assetId} />
         )}
         {tab === 'receive' && (
-          <div className="rounded-[16px] border border-separator bg-card px-[24px] py-[20px] shadow-[var(--shadow-card)]">
+          <div className="rounded-lg border border-separator bg-card px-[24px] py-[20px] shadow-[var(--shadow-card)]">
             <ReceivePanel />
           </div>
         )}
-      </div>
-
-      {/* Recent activity */}
-      <div>
-        <div className="text-[10.5px] font-medium tracking-[1.4px] uppercase text-faint-foreground mb-[14px]">
-          Recent activity
-        </div>
-        <TransactionHistory assetId={assetId} decimals={decimals} ticker={ticker} />
       </div>
     </div>
   )

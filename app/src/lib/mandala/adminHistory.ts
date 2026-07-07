@@ -36,6 +36,50 @@ export async function resolveAdminHistory (assetId: string): Promise<AdminHistor
   }
 }
 
+/** One page of admin history, newest-first (?limit=&offset= on the overlay). */
+export async function resolveAdminHistoryPage (
+  assetId: string,
+  opts: { limit?: number, offset?: number } = {}
+): Promise<AdminHistoryRow[]> {
+  try {
+    const params = new URLSearchParams()
+    params.set('limit', String(opts.limit ?? 100))
+    params.set('offset', String(opts.offset ?? 0))
+    const res = await fetch(`${OVERLAY_URL}/admin/admin-history-page/${encodeURIComponent(assetId)}?${params.toString()}`)
+    if (!res.ok) return []
+    const entries = await res.json()
+    return Array.isArray(entries) ? entries as AdminHistoryRow[] : []
+  } catch {
+    return []
+  }
+}
+
+export interface AdminSummary {
+  totalIssued: number
+  totalRedeemed: number
+  actionCount: number
+}
+
+/**
+ * Whole-history issue/redeem totals, aggregated on the overlay — the Overview
+ * KPIs and Banking reconciliation need full sums without shipping the full
+ * history to the client.
+ */
+export async function resolveAdminSummary (assetId: string): Promise<AdminSummary | null> {
+  try {
+    const res = await fetch(`${OVERLAY_URL}/admin/admin-summary/${encodeURIComponent(assetId)}`)
+    if (!res.ok) return null
+    const s = await res.json()
+    return {
+      totalIssued: Number(s.totalIssued) || 0,
+      totalRedeemed: Number(s.totalRedeemed) || 0,
+      actionCount: Number(s.actionCount) || 0
+    }
+  } catch {
+    return null
+  }
+}
+
 const short = (k?: string): string => k == null ? '' : `${k.slice(0, 8)}…`
 
 export function describeAction (d: MandalaActionDetails): string {
@@ -44,7 +88,10 @@ export function describeAction (d: MandalaActionDetails): string {
   // it without referencing the removed union member.
   if ((d.kind as string) === 'recover') return `Recovered ${d.amount} units to ${short(d.recipient as string)} (legacy)`
   switch (d.kind) {
-    case 'register': return `Registered asset ${d.assetId}`
+    // The register action carries the genesis metadata (label/ticker), not an
+    // assetId — the assetId is the outpoint of this very tx, so it can't be a
+    // field within its own payload.
+    case 'register': return `Registered asset "${d.label as string}"${d.ticker != null && d.ticker !== '' ? ` (${d.ticker as string})` : ''}`
     case 'issue': return `Issued ${d.amount} units`
     case 'redeem': return `Redeemed (burned) ${d.amount} units`
     case 'pause': return 'Paused transfers'

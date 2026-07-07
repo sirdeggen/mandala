@@ -1,16 +1,35 @@
 # Mandala Token Demo
 
-A complete BSV blockchain token system demonstration featuring a self-hosted overlay service for token registration, issuance, transfer, and redemption, paired with a React/Vite frontend for wallet-based token management.
+A complete BSV blockchain **regulated stablecoin** demonstration: a self-hosted
+overlay service that polices token registration, issuance, transfer, redemption
+and regulatory controls, paired with a React/Vite frontend offering an **issuer
+console** (admin) and a **holder wallet** (neobank-style) UI.
 
-**Built on:** BSV SDK v2.1.6, @bsv/templates v1.6.1, BRC-100 identity protocol.
+**Built on:** @bsv/sdk v2.1.6, @bsv/templates v1.9.0, @bsv/overlay-topics
+v1.5.0, @bsv/overlay v2.2.0, BRC-100 identity protocol.
 
 ---
 
 ## Architecture Overview
 
-- **Overlay Service** (`overlay/`): Topic Manager instance running on localhost:8080, manages token lifecycle via tm_mandala topic. Uses MongoDB for certificate storage, SQLite for transaction/output caching.
-- **App Frontend** (`app/`): React/Vite SPA with role-gated UI. Issuer (admin) sees Register/Issue/Redeem/Recover tabs; regular wallets see Wallet/Send/Receive. Connects to a BRC-100 identity wallet (MetaNet / Babbage) and the overlay service.
-- **Token Flows**: Register asset (genesis outpoint) → Issue → Transfer (per-output `revealSpecificKeyLinkage` for counterparty verification) → Receive (MessageBox internalize) → Redeem/Recover.
+- **Overlay Service** (`overlay/`): OverlayExpress instance on localhost:8080
+  running the `tm_mandala` topic manager and `ls_mandala` lookup service.
+  MongoDB stores tokens, key-linkage records, asset admin state and history;
+  SQLite caches engine transactions/outputs. Exposes custom admin read
+  endpoints (asset state, admin history, aggregated supply summary, and an
+  overlay-wide activity feed with linkage-proven counterparties).
+- **App Frontend** (`app/`): React/Vite SPA, role-gated by wallet identity.
+  - **Issuer console** (`/issuer/:section`) — sidebar sections: **Overview**
+    (KPIs, admin history, register-asset strip), **Treasury** (issuer's own
+    balance, send/receive), **Operations** (issue/redeem + regulatory
+    controls), **Activity** (overlay-wide transaction feed), **Banking**
+    (simulated bank transfers + reserve reconciliation).
+  - **Holder wallet** — accounts overview, per-asset account with send/receive/
+    history, contacts, QR receive.
+- **Token Flows**: Register asset (genesis outpoint = assetId) → Issue →
+  Transfer (per-output `revealSpecificKeyLinkage` proves counterparties to the
+  overlay) → Receive (MessageBox internalize) → Redeem (burn) →
+  Freeze/Reissue (regulatory recovery, supply-conserving).
 
 ---
 
@@ -76,137 +95,152 @@ Open http://localhost:5173 in your browser.
 
 ### 3. Connect Your Wallet
 
-The app requires a **BRC-100 (MetaNet) wallet** running locally. The wallet's identity key must match `VITE_OVERLAY_IDENTITY_KEY` to unlock the **Issuer** tab (Register/Issue/Redeem/Recover). Other wallets see Wallet/Send/Receive only.
+The app requires a **BRC-100 (MetaNet) wallet** running locally. When the
+wallet's identity key matches `VITE_OVERLAY_IDENTITY_KEY`, the app renders the
+**issuer console**; any other wallet gets the **holder wallet** UI.
 
 ---
 
-## Token Operations
+## The Issuer Console
 
-### Register an Asset
+Navigate between sections in the left sidebar; the selected asset lives in the
+URL (`?asset=`) so a reload restores exactly where you were.
 
-(Issuer only)
+### Overview
 
-1. Go to the **Issuer** tab → **Register**.
-2. Enter an asset name (e.g., "Gold").
-3. Click **Register**.
-4. You'll see a toast: `assetId: <genesis_txid>.0`. This is the token identifier.
-5. The asset appears in the **Issuer asset list**.
+KPI tiles (in circulation, net issued, reserve ratio, restrictions) computed
+from the overlay's aggregated supply summary, the ordered admin-action history
+(virtualized, infinite scroll), and the **Register a new asset** strip in the
+top bar (label, ticker, decimals → one genesis tx; its outpoint becomes the
+assetId).
 
-### Issue Tokens
+### Treasury
 
-(Issuer only)
+The issuer's own holdings of the selected asset: balance card and
+Send / Receive tabs (the same flows a holder uses, locked to the asset).
 
-1. Go to **Issuer** → **Issue**.
-2. Select the asset.
-3. Enter a quantity (e.g., 100).
-4. Click **Issue**.
-5. Go to **Wallet** → you now see the balance.
+### Operations
 
-### Transfer to Another Wallet
+- **Issue tokens** — mint new units into circulation (optionally referencing a
+  bank deposit ref from the Banking page).
+- **Redeem tokens** — burn units out of circulation.
+- **Regulatory controls** — pause/unpause transfers, block/allow identities,
+  set access mode (denylist/allowlist), freeze/unfreeze outputs, and **reissue**
+  from a frozen output (supply-conserving recovery: the frozen coin is evicted
+  and replacement units are minted to the rightful owner).
 
-1. Go to **Wallet** → **Send**.
-2. Enter the recipient's wallet identity key and amount.
-3. Click **Send**.
-4. The overlay validates counterparty eligibility using per-output `revealSpecificKeyLinkage` linking.
-5. The recipient's wallet receives a pending transfer in **Receive**.
+### Activity
+
+The **overlay-wide transaction feed** — every transaction admitted by the
+overlay for the asset, with sender and recipient identities proven by the key
+linkage revealed at submission. Each row is a semantic summary (issued /
+transfer A→B / self / redeemed, with net units moved) plus a linkage-proof
+badge. This page demonstrates what the overlay operator has oversight of: not
+just its own transfers, but every party to every movement of the asset.
+Cursor-paginated and virtualized — it stays snappy at thousands of
+transactions.
+
+### Banking
+
+A simulated bank feed: add incoming/outgoing transfers per asset (persisted
+locally, deletable), and a reconciliation view comparing the bank balance to
+net on-chain supply, flagging drift with guidance to issue or redeem.
+
+---
+
+## Holder Operations
 
 ### Receive a Transfer
 
-1. Go to **Wallet** → **Receive**.
-2. You'll see pending inbound transfers.
-3. Click **Accept** to finalize.
-4. Balance updates immediately.
+1. **Receive** shows your identity key as a QR code, plus pending inbound
+   transfers from the message box.
+2. **Accept** internalizes the tokens into your wallet basket; balance updates
+   immediately.
 
-### Redeem Tokens
+### Send Tokens
 
-(Issuer or token holder)
+1. **Send** — search recipients by name/@handle/email, pick a recent contact,
+   paste an identity key (one field handles all three), or use the
+   **Return to issuer** shortcut.
+2. Amount keypad → review → send. The overlay validates conservation,
+   key linkage, sanctions, pause state and access mode before admitting.
+3. The recipient is notified via MessageBox.
 
-1. Go to **Issuer** → **Redeem** (or same flow from **Wallet** if not issuer, if permitted).
-2. Enter the amount and click **Redeem**.
-3. The tokens are burned. Balance drops.
+### History
 
-### Recover Tokens (Admin Seize)
+Per-asset transaction table (type, counterparty, amount, txid) with CSV
+export. Counterparty identity keys resolve to names/avatars where the identity
+network knows them.
 
-(Issuer only)
+---
 
-1. Go to **Issuer** → **Recover**.
-2. Enter a target identity key and amount.
-3. Click **Recover**.
-4. The target wallet receives the tokens via the overlay's MessageBox.
+## Overlay Admin Endpoints
+
+Custom read endpoints registered by `overlay/src/index.ts` (all CORS-open for
+local dev):
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /admin/asset-state/:assetId` | Derived `AssetAdminState` (paused, access mode, blocked/allowed identities, frozen outpoints). |
+| `GET /admin/admin-history/:assetId` | Full ordered admin-action history (used for CSV export). |
+| `GET /admin/admin-history-page/:assetId?limit=&offset=` | Paged, newest-first admin history (drives the audit log UI). |
+| `GET /admin/admin-summary/:assetId` | Aggregated `totalIssued` / `totalRedeemed` / `actionCount` (drives KPI + reconciliation math without shipping the full history). |
+| `GET /admin/activity?assetId=&limit=&before=` | Cursor-paginated overlay-wide transaction feed with linkage-proven counterparties (see `overlay/src/activity.ts`). |
+
+Mongo indexes backing the hot paths (`linkage.createdAt`,
+`adminHistory.(assetId, admitSeq)`) are created at overlay boot.
 
 ---
 
 ## Manual End-to-End Verification Checklist
 
-Run through the following steps to verify the entire system:
-
 ### Setup
 
 - [ ] Overlay running on localhost:8080; `curl http://localhost:8080/api/v1/info` returns valid response.
 - [ ] App running on localhost:5173 with `VITE_OVERLAY_IDENTITY_KEY` set to overlay's identity pubkey.
-- [ ] Issuer wallet connected (identity key matches `SERVER_PRIVATE_KEY`).
+- [ ] Issuer wallet connected (identity key matches the overlay's).
 
-### Token Registration & Issuance
+### Registration & Issuance
 
-- [ ] **Issuer** tab visible (only when wallet identity === overlay identity).
-- [ ] Issuer: Register "Gold" → toast shows `assetId: <genesis_txid>.0`.
-- [ ] "Gold" appears in **Issuer asset list**.
-- [ ] Issuer: Issue 100 Gold to self → **Wallet** tab shows "Gold: 100".
+- [ ] Issuer console renders (only when wallet identity === overlay identity).
+- [ ] Overview → Register "Gold" (ticker GLD) → asset appears in the top-bar switcher; assetId is `<genesis_txid>.0`.
+- [ ] Operations → Issue 100 → Overview "In circulation" shows 100; Treasury balance shows 100.
+- [ ] Activity page shows the issuance (`Issued +100`, minted → issuer identity).
 
-### Transfer & Receive (Single Recipient)
+### Transfer & Receive
 
-- [ ] Connect a **second wallet** (different identity key).
-- [ ] Second wallet: verify **Issuer tab is NOT visible** (role-gating works).
-- [ ] Issuer: **Send** 40 Gold to second wallet's identity.
-- [ ] Overlay admits the transfer (per-output linkage verified).
-- [ ] Second wallet: **Receive** shows pending transfer (40 Gold).
-- [ ] Second wallet: **Accept** → **Wallet** shows "Gold: 40".
-- [ ] Issuer: **Wallet** shows "Gold: 60" (change from 100 − 40).
-
-### Bidirectional Transfer
-
-- [ ] Second wallet: **Send** 10 Gold back to issuer.
-- [ ] Issuer: **Receive** shows pending (10 Gold).
-- [ ] Issuer: **Accept** → **Wallet** shows "Gold: 70" (60 + 10).
-- [ ] Second wallet: **Wallet** shows "Gold: 30" (40 − 10).
+- [ ] Connect a **second wallet** (different identity) — it gets the holder UI, no issuer console.
+- [ ] Issuer: Treasury → Send 40 to the second wallet's identity.
+- [ ] Second wallet: Receive shows 40 pending → Accept → balance 40.
+- [ ] Issuer Treasury balance 60 (change).
+- [ ] Activity page shows the transfer as `Transfer 40` from issuer to recipient (change output not shown — it's a technical detail).
+- [ ] Second wallet sends 10 back → issuer accepts → balances 30 / 70.
 
 ### Redeem
 
-- [ ] Issuer: **Redeem** 20 Gold.
-- [ ] **Wallet** balance drops to "Gold: 50" (70 − 20).
-- [ ] Overlay confirms burn.
+- [ ] Operations → Redeem 20 → Overview "In circulation" drops to 50; Activity shows `Redeemed −20`.
 
-### Recover (Admin Seize)
+### Regulatory Controls
 
-- [ ] Issuer: **Recover** 5 Gold to second wallet's identity.
-- [ ] Second wallet: **Receive** shows 5 Gold pending (from recover).
-- [ ] Second wallet: **Accept** → **Wallet** shows "Gold: 35" (30 + 5).
+- [ ] Operations → Pause → second wallet's send is rejected by the overlay (frontend guard bypassable via the Dev toggle to prove server-side enforcement).
+- [ ] Freeze one of the second wallet's outpoints → that coin cannot be spent.
+- [ ] Reissue from the frozen outpoint to the same identity → replacement units arrive; audit log records `freezeOutput` then `reissue`.
 
-### Role Gating
+### Banking Reconciliation
 
-- [ ] Connect a **third wallet** (different identity, not issuer).
-- [ ] Verify **Issuer tab is NOT visible**.
-- [ ] Third wallet can see **Wallet/Send/Receive** only.
+- [ ] Banking → add incoming transfer 50 → reconciliation shows drift (bank 50 vs supply) with guidance.
+- [ ] Issue 50 from Operations → reconciliation shows "Reconciled — 100%".
 
 ---
 
 ## Running Tests
 
-The app includes unit tests for encoding, unlock, overlay integration, asset store, and token operations:
-
 ```bash
-cd app
-npm run test
+cd app && npm run test        # component, lib and flow tests (Vitest)
+cd overlay && npm run test    # activity feed classifier + pagination tests
 ```
 
-Expected output: all Vitest suites (encoding, unlock, overlay, assetStore, tokens) **PASS**.
-
-Test files:
-- `src/lib/mandala/encoding.test.ts` — off-chain payload encoding/decoding
-- `src/lib/mandala/unlock.test.ts` — wallet-based script unlock
-- `src/lib/mandala/overlay.test.ts` — overlay integration (submission, certificate parsing)
-- `src/lib/mandala/assetStore.test.ts` — asset registry and balance tracking
-- `src/lib/mandala/tokens.test.ts` — token lifecycle (register, issue, transfer, redeem, recover)
+Both suites must pass. Typecheck with `npx tsc --noEmit` in either package.
 
 ---
 
@@ -219,9 +253,16 @@ NODE_NAME=mandala
 SERVER_PRIVATE_KEY=<output_from_npm_run_gen-key>
 HOSTING_URL=http://localhost:8080
 MONGO_URL=mongodb://mongodb:27017/mandala
-NETWORK=test
+NETWORK=main                # or test
 SQLITE_FILE=/data/overlay.sqlite
+# Optional — makes the overlay a full network participant (broadcast + SPV):
+# ARCADE_URL=<arcade host>
+# ARCADE_API_KEY=<key>
+# CHAINTRACKS_URL=<defaults to $ARCADE_URL/chaintracks>
 ```
+
+Without `ARCADE_URL` the overlay validates scripts only and the wallet is the
+sole broadcaster (local demo mode).
 
 ### App (`app/.env`)
 
@@ -235,16 +276,15 @@ VITE_MESSAGEBOX_URL=https://messagebox.babbage.systems
 
 ## Key Dependencies
 
-- **@bsv/sdk** `^2.1.6` — Core blockchain and transaction utilities.
-- **@bsv/templates** `^1.6.1` — MandalaToken encode/decode (fixes amounts 1–16).
-- **@bsv/overlay** `^2.1.0` — Overlay Topic Manager and certificate validation.
-- **@bsv/overlay-express** `^2.4.0` — Express middleware for overlay HTTP API.
-- **@bsv/overlay-topics** `^1.2.0` — Topic-specific lookups and operations.
-- **@bsv/identity-react** `^1.1.10` — React hooks for BRC-100 wallet integration.
-- **@bsv/message-box-client** `^1.4.5` — MessageBox client for internalizing pending transfers.
-- **React** `^19.2.0` — UI framework.
-- **Vite** `^6.0.5` — Frontend bundler and dev server.
-- **Tailwind CSS** `^4.1.17` — Styling.
+- **@bsv/sdk** `^2.1.6` — core blockchain and transaction utilities.
+- **@bsv/templates** `^1.9.0` — `MandalaToken` / `MandalaAdmin` script templates. App and overlay MUST run the same version (assetId byte-order encoding must agree).
+- **@bsv/overlay** `^2.2.0` — overlay engine + Knex/Mongo storage.
+- **@bsv/overlay-express** `^2.4.1` — Express host for the overlay HTTP API.
+- **@bsv/overlay-topics** `^1.5.0` — `tm_mandala` topic manager + `ls_mandala` lookup service + `MandalaStorageManager`.
+- **@bsv/identity-react** `^1.1.14` — identity resolution hooks.
+- **@bsv/message-box-client** `^2.2.0` — peer-to-peer transfer handoff.
+- **React 19 / Vite 6 / Tailwind CSS 4** — frontend stack.
+- **@tanstack/react-query + react-virtual** — cached/paged data fetching and virtualized lists.
 
 ---
 
@@ -263,17 +303,16 @@ VITE_MESSAGEBOX_URL=https://messagebox.babbage.systems
 - Check overlay is running: `curl http://localhost:8080/api/v1/info`.
 - Clear browser cache and restart dev server.
 
-### Issuer tab not visible
+### Issuer console not appearing
 
 - Ensure wallet identity key matches overlay's `IDENTITY_PUBLIC_KEY` (from `npm run gen-key`).
 - Check `app/.env` has correct `VITE_OVERLAY_IDENTITY_KEY`.
-- Verify wallet is properly connected and showing its identity.
 
-### Wallet connection issues
+### `overlay rejected the transaction` after a dependency bump
 
-- Ensure a BRC-100 (MetaNet) wallet is running locally.
-- Verify wallet is unlocked.
-- Check browser console for errors.
+- A stale Vite pre-bundle cache can serve an old `@bsv/templates` after a bump,
+  causing an assetId encoding mismatch → conservation failure. Fix:
+  `rm -rf app/node_modules/.vite` and restart the dev server.
 
 ### Transfer not appearing in Receive
 
@@ -287,25 +326,37 @@ VITE_MESSAGEBOX_URL=https://messagebox.babbage.systems
 
 ### Role Gating
 
-The **Issuer** tab appears **only when** the connected wallet's identity key equals the overlay's `SERVER_PRIVATE_KEY` (encoded as the overlay's `IDENTITY_PUBLIC_KEY`). This ensures only the token authority can mint, redeem, or recover tokens.
+The issuer console appears **only when** the connected wallet's identity key
+equals the overlay's identity key. Everyone else gets the holder wallet. Only
+the token authority can mint, redeem, pause, freeze or reissue.
 
-### Transfer Linkage
+### Transfer Linkage & Operator Oversight
 
-Each output sent in a transfer includes `revealSpecificKeyLinkage` so the overlay can verify:
-1. The recipient's identity key is known to the system.
-2. Sanctions and regulatory checks pass.
-3. The unlock script is eligible to consume the output.
+Every FT output submitted to the overlay carries a `revealSpecificKeyLinkage`
+proof binding it to a controlling identity key. The overlay verifies the proof
+before admission and retains the linkage record permanently — this is what
+powers sanctions screening, access-mode enforcement, and the issuer's
+**Activity** page (sender/recipient per transaction, derived by walking each
+input back to its linkage-proven source output).
 
-### Off-Chain Values
+### Supply Conservation
 
-Transfers encode counterparty identity and eligibility metadata in `offChainValues` before submission to the overlay. The overlay validates this metadata and persists it with the output for later unlock/spend operations.
+Per asset, the overlay only admits transactions where
+`outputs == inputs + authorizedIssuance`. Minting balances only because the
+issuer's admin-authorized `+amount` is present; redemption is negative
+issuance; a `reissue` mints replacement units while evicting the frozen coin
+from the overlay's balance view, keeping net supply constant.
 
 ### MessageBox Integration
 
-Pending transfers are stored as MessageBox entries. The recipient's wallet calls MessageBox `internalize` to finalize the receive, which unlocks the output and updates the balance.
+Pending transfers are delivered as MessageBox entries. The recipient's wallet
+calls `internalizeAction` to accept, which inserts the output into its basket
+and updates the balance.
 
 ---
 
 ## License
 
-This demo is part of the BSV Mandala Token specification. Refer to `docs/` for detailed architecture and API documentation.
+This demo is part of the BSV Mandala Token specification. Refer to `docs/` for
+detailed architecture (`docs/PROJECT-STATE.md`) and operator documentation
+(`docs/STABLECOIN-ADMIN.md`).

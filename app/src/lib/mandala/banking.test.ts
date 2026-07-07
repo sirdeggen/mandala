@@ -1,6 +1,6 @@
 // app/src/lib/mandala/banking.test.ts
 import { it, expect } from 'vitest'
-import { reconcile, bankBalance, makeDeposit, randomLetter } from './banking'
+import { reconcile, bankBalance, makeTransfer, randomLetter } from './banking'
 
 it('bank balance nets deposits minus withdrawals', () => {
   expect(bankBalance([100, 50], [30])).toBe(120)
@@ -19,15 +19,22 @@ it('randomLetter picks deterministically from the injected RNG', () => {
   expect(randomLetter(() => 0.999999)).toBe('Z')
 })
 
-it('makeDeposit always names the counterparty "Company {letter}"', () => {
-  const dep = makeDeposit(500, { now: () => 1_780_000_000_000, random: () => 0 })
-  expect(dep.originator).toBe('Company A')
-  expect(dep.amount).toBe(500)
-  expect(dep.timestamp).toBe(1_780_000_000_000)
+it('makeTransfer always names the counterparty "Company {letter}"', () => {
+  const t = makeTransfer(500, 'in', 'asset.0', { now: () => 1_780_000_000_000, random: () => 0 })
+  expect(t.originator).toBe('Company A')
+  expect(t.amount).toBe(500)
+  expect(t.direction).toBe('in')
+  expect(t.assetId).toBe('asset.0')
+  expect(t.timestamp).toBe(1_780_000_000_000)
 })
 
-it('makeDeposit ids are unique across different timestamps', () => {
-  const a = makeDeposit(10, { now: () => 1, random: () => 0 })
-  const b = makeDeposit(10, { now: () => 2, random: () => 0 })
+it('makeTransfer records the requested direction', () => {
+  const t = makeTransfer(500, 'out', 'asset.0', { now: () => 1, random: () => 0 })
+  expect(t.direction).toBe('out')
+})
+
+it('makeTransfer ids are unique across different timestamps', () => {
+  const a = makeTransfer(10, 'in', 'asset.0', { now: () => 1, random: () => 0 })
+  const b = makeTransfer(10, 'in', 'asset.0', { now: () => 2, random: () => 0 })
   expect(a.id).not.toBe(b.id)
 })

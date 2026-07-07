@@ -104,7 +104,7 @@ export default function AccountsOverview({ onSelect }: Props) {
       {loading && assets.length === 0 && (
         <div className="space-y-3">
           {[0, 1, 2].map(i => (
-            <div key={i} className="flex items-center gap-4 rounded-[--radius-lg] bg-card p-4 shadow-[var(--shadow-card)]">
+            <div key={i} className="flex items-center gap-4 rounded-lg bg-card p-4 shadow-[var(--shadow-card)]">
               <div className="h-11 w-11 animate-pulse rounded-full bg-muted" />
               <div className="flex-1 space-y-2">
                 <div className="h-3.5 w-28 animate-pulse rounded-full bg-muted" />
@@ -117,7 +117,7 @@ export default function AccountsOverview({ onSelect }: Props) {
       )}
 
       {!loading && assets.length === 0 && (
-        <div className="flex flex-col items-center gap-3 rounded-[--radius-lg] bg-card px-6 py-14 text-center shadow-[var(--shadow-card)]">
+        <div className="flex flex-col items-center gap-3 rounded-lg bg-card px-6 py-14 text-center shadow-[var(--shadow-card)]">
           <div className="grid h-14 w-14 place-items-center rounded-full bg-muted">
             <Wallet className="h-7 w-7 text-subtle-foreground" />
           </div>
@@ -133,7 +133,7 @@ export default function AccountsOverview({ onSelect }: Props) {
           key={a.assetId}
           type="button"
           onClick={() => onSelect(a.assetId, a.balance)}
-          className="flex w-full items-center gap-4 rounded-[--radius-lg] bg-card p-4 shadow-[var(--shadow-card)] transition-transform duration-150 ease-out hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex w-full items-center gap-4 rounded-lg bg-card p-4 shadow-[var(--shadow-card)] transition-transform duration-150 ease-out hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <div className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-full', tintFor(a.assetId))}>
             <Coins className="h-[22px] w-[22px]" />
@@ -143,11 +143,11 @@ export default function AccountsOverview({ onSelect }: Props) {
             <p className="tabular truncate text-[12px] text-subtle-foreground">{a.assetId}</p>
           </div>
           <div className="text-right">
-            <p className="tabular text-[26px] font-semibold leading-none tracking-[-0.02em]">
+            <p className="tabular text-[24px] font-semibold leading-none tracking-[-0.02em]">
               {formatCurrency(a.balance, a.meta.decimals, a.meta.ticker)}
             </p>
             {a.balance === 0 && (
-              <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-subtle-foreground">no balance</p>
+              <p className="mt-1 text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground">no balance</p>
             )}
           </div>
         </button>

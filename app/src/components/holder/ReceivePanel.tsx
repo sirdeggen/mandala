@@ -34,16 +34,11 @@ export default function ReceivePanel() {
   }
 
   return (
+    // No heading — this panel always renders under a "Receive" label, and the
+    // QR + key + copy affordances speak for themselves.
     <div className="flex flex-col items-center gap-6 py-4">
-      <div>
-        <h3 className="text-center text-[15px] font-semibold">Your receive address</h3>
-        <p className="mt-1 text-center text-[13px] text-muted-foreground">
-          Share your identity key or QR code to receive tokens.
-        </p>
-      </div>
-
       {qrDataUrl ? (
-        <div className="rounded-[--radius-lg] border border-separator bg-white p-3 shadow-[var(--shadow-card)]">
+        <div className="rounded-lg border border-separator bg-white p-3 shadow-[var(--shadow-card)]">
           <img
             src={qrDataUrl}
             alt="QR code for your identity key"
@@ -51,14 +46,14 @@ export default function ReceivePanel() {
           />
         </div>
       ) : (
-        <div className="flex h-[220px] w-[220px] animate-pulse items-center justify-center rounded-[--radius-lg] bg-muted">
+        <div className="flex h-[220px] w-[220px] animate-pulse items-center justify-center rounded-lg bg-muted">
           <Spinner size="lg" tone="brand" />
         </div>
       )}
 
       <div className="w-full max-w-sm space-y-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Identity key</p>
-        <div className="flex items-center gap-2 rounded-[--radius] border border-input-border bg-input px-3.5 py-2.5">
+        <p className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground">Identity key</p>
+        <div className="flex items-center gap-2 rounded border border-input-border bg-input px-3.5 py-2.5">
           <p className="tabular flex-1 truncate text-[12px] text-foreground">{identityKey}</p>
           <Button
             variant="ghost"

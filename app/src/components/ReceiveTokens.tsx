@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { type AtomicBEEF } from '@bsv/sdk'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
-import { Button } from './ui/button'
+import { Card, CardContent } from './ui/card'
 import { toast } from 'sonner'
 import { useWallet } from '../context/WalletContext'
-import { Download, Check, RefreshCw } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Check } from 'lucide-react'
 import { MESSAGEBOX, BASKET } from '../lib/mandala/constants'
 import { useInvalidateHolderData } from '../hooks/useHolderData'
 import { resolveAssetMetadata } from '../lib/mandala/metadata'
@@ -59,7 +57,9 @@ export default function ReceiveTokens() {
 
     await wallet.internalizeAction({
       tx: msg.transaction,
-      labels: ['mandala', 'receive'],
+      // Sender key as an action label — survives the output being spent,
+      // unlike customInstructions (see history.ts counterparty resolution).
+      labels: ['mandala', 'receive', `from-${msg.sender.toLowerCase()}`],
       outputs: [{
         outputIndex: 0,
         protocol: 'basket insertion',
@@ -128,58 +128,27 @@ export default function ReceiveTokens() {
   }
 
   return (
+    // No header — the page's top bar already says "Receive"; the QR panel is
+    // the action. One quiet footnote covers the "just wait" behaviour.
     <Card>
-      <CardHeader className="pb-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-[13px] bg-success/15 text-success">
-              <Download className="h-[20px] w-[20px]" />
-            </div>
-            <div>
-              <CardTitle>Receive tokens</CardTitle>
-              <CardDescription>Transfers sent to you are accepted automatically</CardDescription>
-            </div>
-          </div>
-          <Button onClick={() => void autoReceive()} variant="secondary" size="sm" disabled={isLoading} className="sm:w-auto">
-            <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
-            Check now
-          </Button>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-6">
-        {/* QR / identity — how others send to you */}
-        <div className="rounded-[--radius-lg] border border-separator bg-muted/30 p-4">
-          <ReceivePanel />
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-separator" />
-          <span className="text-[12px] font-medium uppercase tracking-wide text-muted-foreground">
-            {isLoading ? 'Checking for transfers…' : 'Received'}
-          </span>
-          <div className="h-px flex-1 bg-separator" />
-        </div>
+      <CardContent className="space-y-6 pt-6">
+        {/* QR / identity — how others send to you; sits directly on the card
+            (no nested well) to match the Send screen's single surface. */}
+        <ReceivePanel />
 
         {isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
-            <Spinner size="md" tone="brand" />
-            <span className="text-[14px]">Accepting incoming transfers…</span>
+          <div className="flex items-center justify-center gap-2 py-2 text-muted-foreground">
+            <Spinner size="sm" tone="brand" />
+            <span className="text-[13px]">Checking for incoming transfers…</span>
           </div>
         ) : received.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-12 text-center">
-            <div className="grid h-14 w-14 place-items-center rounded-full bg-muted">
-              <Download className="h-7 w-7 text-subtle-foreground" />
-            </div>
-            <h3 className="text-[15px] font-semibold">Nothing to receive right now</h3>
-            <p className="max-w-xs text-[14px] leading-relaxed text-muted-foreground">
-              When someone sends you tokens, they’re accepted automatically and land in your balance.
-            </p>
-          </div>
+          <p className="text-center text-[13px] text-muted-foreground">
+            Incoming transfers are accepted automatically.
+          </p>
         ) : (
           <div className="space-y-3">
             {received.map((r) => (
-              <div key={r.id} className="rounded-[--radius-md] border border-separator p-4">
+              <div key={r.id} className="rounded-md border border-separator p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="mb-2 flex items-center gap-2">

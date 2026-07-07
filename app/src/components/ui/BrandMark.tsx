@@ -25,7 +25,7 @@ export function BrandMark({ size = 'md', wordmark = false, sublabel, className }
   const isSm = size === 'sm'
 
   const tileSize = isSm ? 'h-7 w-7' : 'h-[30px] w-[30px]'
-  const tileRound = 'rounded-[8px]'
+  const tileRound = 'rounded-sm'
   const knotPx = isSm ? 19 : 21
   const wordSize = isSm ? 'text-[18px]' : 'text-[16px]'
 

@@ -42,8 +42,17 @@ describe('describeAction', () => {
     expect(describeAction({ kind: 'reissue', assetId: 'x.0', outpoint: 'y.1', amount: 30, recipient: '03cd' })).toMatch(/reissu/i)
   })
 
-  it('describes register in human-readable form', () => {
-    expect(describeAction({ kind: 'register', assetId: 'x.0' })).toMatch(/register/i)
+  it('describes register using the genesis label/ticker, not assetId', () => {
+    const desc = describeAction({ kind: 'register', label: 'Gold Coin', ticker: 'GLD', decimals: 2, issuer: '02ab' })
+    expect(desc).toMatch(/register/i)
+    expect(desc).toContain('Gold Coin')
+    expect(desc).toContain('GLD')
+    expect(desc).not.toContain('undefined')
+  })
+
+  it('describes register without a ticker by omitting the parenthetical', () => {
+    const desc = describeAction({ kind: 'register', label: 'Gold Coin' })
+    expect(desc).toBe('Registered asset "Gold Coin"')
   })
 
   it('describes issue in human-readable form', () => {

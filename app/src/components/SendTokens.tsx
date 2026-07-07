@@ -5,7 +5,7 @@ import { Button } from './ui/button'
 import { Select } from './ui/select'
 import { Spinner } from './ui/spinner'
 import { useWallet } from '../context/WalletContext'
-import { ChevronLeft, Search, CheckCircle2, Copy, Send } from 'lucide-react'
+import { ChevronLeft, Search, CheckCircle2, Copy, QrCode, Send } from 'lucide-react'
 import { noAutofill } from '../lib/noAutofill'
 import { cn } from '@/lib/utils'
 import { parseAmount, formatAmount, formatAmountPlain } from '../lib/mandala/amount'
@@ -14,6 +14,7 @@ import { useContactsData } from '../hooks/useContactsData'
 import { useAssetState } from '../hooks/useAssetState'
 import { useSendMutation } from '../hooks/useSendMutation'
 import { useDevMode } from '../lib/devMode'
+import QrScanModal from './QrScanModal'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,7 +34,7 @@ const CONTACT_LIMIT = 12
 
 export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string } = {}) {
   const locked = lockedAssetId != null && lockedAssetId !== ''
-  const { wallet } = useWallet()
+  const { wallet, identityKey } = useWallet()
   // Dev mode bypasses the frontend pause guard so a paused transfer actually
   // reaches the overlay, proving the overlay (not the client) enforces the pause.
   const devMode = useDevMode()
@@ -48,7 +49,6 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   const [recipient, setRecipient] = useState('')
   const [recipientName, setRecipientName] = useState('')
   const [recipientAvatarURL, setRecipientAvatarURL] = useState('')
-  const [publicKeyInput, setPublicKeyInput] = useState('')
 
   // Async state
   const [sendError, setSendError] = useState('')
@@ -85,8 +85,8 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   const [searchInput, setSearchInput] = useState('')
   const [identities, setIdentities] = useState<DisplayableIdentity[]>([])
   const [isSearching, setIsSearching] = useState(false)
-  const [selectedIdentity, setSelectedIdentity] = useState<DisplayableIdentity | null>(null)
   const searchRequestIdRef = useRef(0)
+  const identityInputRef = useRef<HTMLInputElement>(null)
 
   // Detect if input is a compressed public key (identity key)
   const isIdentityKey = useCallback((key: string): boolean => {
@@ -123,19 +123,6 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
 
     return () => { clearTimeout(timer) }
   }, [searchInput, wallet, isIdentityKey])
-
-  const handleIdentitySelect = useCallback((identity: DisplayableIdentity | null) => {
-    setSelectedIdentity(identity)
-    if (identity) {
-      setIdentities([])
-      setRecipient(identity.identityKey)
-      setPublicKeyInput(identity.identityKey)
-      setRecipientName(identity.name ?? '')
-      setRecipientAvatarURL(identity.avatarURL ?? '')
-    } else {
-      setSelectedIdentity(null)
-    }
-  }, [])
 
   const getInitials = (name: string, key: string): string => {
     if (!name || name.trim() === '') return key.slice(0, 2).toUpperCase()
@@ -182,13 +169,44 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   // Select a recipient from the shortlist / issuer shortcut and advance the wizard.
   const pickRecipient = (identityKey: string, name = '', avatarURL = '') => {
     setRecipient(identityKey)
-    setPublicKeyInput(identityKey)
     setRecipientName(name)
     setRecipientAvatarURL(avatarURL)
     setSearchInput('')
     setIdentities([])
-    setSelectedIdentity(null)
     setStep('amount')
+  }
+
+  // Tapping a search result is an explicit choice — advance immediately, same
+  // as the contacts shortlist. The Amount step's "To: <name>" header is the
+  // selection feedback; lingering on the search view reads as a dead click.
+  const handleIdentitySelect = (identity: DisplayableIdentity) => {
+    pickRecipient(identity.identityKey, identity.name ?? '', identity.avatarURL ?? '')
+  }
+
+  // One handler for typed, pasted, and clipboard-button input — a full valid
+  // identity key selects the recipient; anything else feeds the fuzzy search.
+  const applyRecipientText = (raw: string) => {
+    setSearchInput(raw)
+    const trimmed = raw.trim()
+    if (isIdentityKey(trimmed)) {
+      try {
+        PublicKey.fromString(trimmed)
+        setRecipient(trimmed)
+        setRecipientName('')
+        setRecipientAvatarURL('')
+      } catch {
+        setRecipient('')
+      }
+    } else {
+      setRecipient('')
+    }
+  }
+
+  const [scanOpen, setScanOpen] = useState(false)
+  const handleScanResult = (text: string) => {
+    setScanOpen(false)
+    applyRecipientText(text.trim())
+    identityInputRef.current?.focus()
   }
 
   const confirmRecipient = () => {
@@ -254,12 +272,10 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
     setRecipient('')
     setRecipientName('')
     setRecipientAvatarURL('')
-    setPublicKeyInput('')
     setSentTxid('')
     setSendError('')
     setSearchInput('')
     setIdentities([])
-    setSelectedIdentity(null)
   }
 
   const shareReceipt = async () => {
@@ -279,7 +295,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
 
   // Meridian neutral pill — small label
   const SectionLabel = ({ children }: { children: React.ReactNode }) => (
-    <div className="text-[11px] font-medium tracking-[1.2px] uppercase text-faint-foreground mb-[14px]">
+    <div className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground mb-[14px]">
       {children}
     </div>
   )
@@ -313,61 +329,114 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   // ---------------------------------------------------------------------------
 
   const renderRecipient = () => (
+    // No in-card heading — the page/tab context already says "Send"; the
+    // search field is the action (mirrors the header-less Receive card).
     <div className="flex flex-col min-h-0 flex-1">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-5 pt-4 pb-0">
-        <div className="text-[19px] font-semibold">Send money</div>
-      </div>
-
-      {/* Search bar */}
-      <div className="px-5 pt-4">
-        <div className="flex items-center gap-2.5 rounded-[14px] border border-border bg-card px-3.5 py-3">
-          <Search className="h-[17px] w-[17px] flex-none text-subtle-foreground" />
-          <input
-            {...noAutofill}
-            name="mandala-recipient-search"
-            type="text"
-            value={searchInput}
-            onChange={e => { setSearchInput(e.target.value); setSelectedIdentity(null) }}
-            placeholder="Name, @handle or email"
-            className="min-w-0 flex-1 bg-transparent text-[13.5px] text-foreground placeholder:text-subtle-foreground outline-none"
-          />
-          {isSearching && <Spinner size="sm" tone="brand" />}
+      {/* Search bar — one field for both name/@handle/email search and a
+          pasted identity key, so there's no second input further down. */}
+      <div className="px-5 pt-5">
+        <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md border border-border bg-card px-3.5 py-3">
+            <Search className="h-[17px] w-[17px] flex-none text-subtle-foreground" />
+            <input
+              {...noAutofill}
+              ref={identityInputRef}
+              name="mandala-recipient-search"
+              type="text"
+              value={searchInput}
+              onChange={e => applyRecipientText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && recipient) confirmRecipient() }}
+              placeholder="Name, @handle, email or identity key"
+              className="min-w-0 flex-1 bg-transparent text-[13.5px] text-foreground placeholder:text-subtle-foreground outline-none"
+            />
+            {isSearching && <Spinner size="sm" tone="brand" />}
+          </div>
+          <button
+            type="button"
+            onClick={() => setScanOpen(true)}
+            aria-label="Scan an identity key QR code"
+            title="Scan an identity key QR code"
+            className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <QrCode className="h-[17px] w-[17px]" strokeWidth={1.9} />
+          </button>
+          <QrScanModal open={scanOpen} onClose={() => setScanOpen(false)} onResult={handleScanResult} />
         </div>
 
-        {/* Search results dropdown */}
-        {searchInput && identities.length > 0 && !selectedIdentity && (
-          <div className="mt-2 rounded-[--radius-md] bg-popover shadow-[var(--shadow-pop)] overflow-hidden">
-            {identities.map(identity => (
-              <div
-                key={identity.identityKey}
-                onClick={() => handleIdentitySelect(identity)}
-                className="flex cursor-pointer items-center gap-3 border-b border-separator p-3 transition-colors last:border-b-0 hover:bg-muted active:bg-accent"
-              >
-                {identity.avatarURL ? (
-                  <img src={identity.avatarURL} alt={identity.name} className="h-10 w-10 rounded-full flex-none" />
-                ) : (
-                  <div className="grid h-10 w-10 flex-none place-items-center rounded-full bg-primary text-[13px] font-semibold text-primary-foreground">
-                    {getInitials(identity.name || '', identity.identityKey)}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14px] font-semibold">{identity.name || 'Unknown'}</div>
-                  <div className="tabular truncate text-[11.5px] text-subtle-foreground mt-0.5">@{identity.identityKey.slice(0, 16)}…</div>
-                </div>
-                {identity.badgeLabel && (
-                  <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-medium text-accent-foreground">
-                    {identity.badgeLabel}
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        {(() => {
+          const trimmed = searchInput.trim()
+          const pastedKey = isIdentityKey(trimmed)
 
-        {searchInput && identities.length === 0 && !isSearching && (
-          <p className="mt-2 text-[13px] text-subtle-foreground">No identities found</p>
-        )}
+          // Pasted-key path: skip the fuzzy dropdown — show an explicit
+          // "recipient selected" card (or flag the bad key) so the paste
+          // visibly landed before the user commits.
+          if (pastedKey) {
+            return recipient ? (
+              <div className="mt-3 rounded-md border border-border bg-card px-4 py-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-9 w-9 flex-none place-items-center rounded-full bg-primary text-[12px] font-semibold text-primary-foreground">
+                    {recipient.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 text-[13px] font-semibold text-success">
+                      <CheckCircle2 className="h-[14px] w-[14px] flex-none" />
+                      Valid identity key
+                    </div>
+                    <div className="tabular truncate text-[12px] text-subtle-foreground mt-0.5">
+                      {recipient.slice(0, 20)}…{recipient.slice(-6)}
+                    </div>
+                  </div>
+                </div>
+                <Button onClick={confirmRecipient} className="mt-3 w-full" size="lg">
+                  Continue
+                </Button>
+              </div>
+            ) : (
+              <p className="mt-1.5 text-[12px] text-destructive">
+                Not a valid identity key — check it was copied completely.
+              </p>
+            )
+          }
+
+          // Free-text search path: unchanged dropdown behaviour.
+          if (searchInput && identities.length > 0) {
+            return (
+              <div className="mt-2 rounded-md bg-popover shadow-[var(--shadow-pop)] overflow-hidden">
+                {identities.map(identity => (
+                  <button
+                    key={identity.identityKey}
+                    type="button"
+                    onClick={() => handleIdentitySelect(identity)}
+                    className="flex w-full items-center gap-3 border-b border-separator p-3 text-left transition-colors last:border-b-0 hover:bg-muted active:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  >
+                    {identity.avatarURL ? (
+                      <img src={identity.avatarURL} alt={identity.name} className="h-10 w-10 rounded-full flex-none" />
+                    ) : (
+                      <div className="grid h-10 w-10 flex-none place-items-center rounded-full bg-primary text-[13px] font-semibold text-primary-foreground">
+                        {getInitials(identity.name || '', identity.identityKey)}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[14px] font-semibold">{identity.name || 'Unknown'}</div>
+                      <div className="tabular truncate text-[11.5px] text-subtle-foreground mt-0.5">@{identity.identityKey.slice(0, 16)}…</div>
+                    </div>
+                    {identity.badgeLabel && (
+                      <span className="rounded-full bg-accent px-2.5 py-0.5 text-[11px] font-medium text-accent-foreground">
+                        {identity.badgeLabel}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )
+          }
+
+          if (searchInput && identities.length === 0 && !isSearching) {
+            return <p className="mt-2 text-[13px] text-subtle-foreground">No identities found</p>
+          }
+
+          return null
+        })()}
       </div>
 
       {/* Contacts shortlist — recency-first, tap to select (no search needed).
@@ -381,7 +450,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
                 key={c.identityKey}
                 type="button"
                 onClick={() => pickRecipient(c.identityKey, c.name ?? '', c.avatarURL ?? '')}
-                className="flex w-full items-center gap-3 py-[11px] hover:bg-muted/60 active:bg-accent transition-colors -mx-1 px-1 rounded-[--radius]"
+                className="flex w-full items-center gap-3 py-[11px] hover:bg-muted/60 active:bg-accent transition-colors -mx-1 px-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {c.avatarURL ? (
                   <img src={c.avatarURL} alt={c.name ?? ''} className="h-10 w-10 flex-none rounded-full object-cover" />
@@ -405,90 +474,29 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         </div>
       )}
 
-      {/* Return to issuer shortcut — shown when token is locked */}
-      {assetId && metas[assetId]?.issuer && (
+      {/* Return to issuer shortcut — shown when token is locked and the
+          current user isn't the issuer themselves (they'd be sending to
+          their own identity key). */}
+      {assetId && metas[assetId]?.issuer && metas[assetId].issuer !== identityKey && (
         <div className="px-5 pt-4">
           <button
             type="button"
             onClick={() => {
               const iss = metas[assetId].issuer as string
               setRecipient(iss)
-              setPublicKeyInput(iss)
               setRecipientName('Issuer')
               setRecipientAvatarURL('')
               setSearchInput('')
               setIdentities([])
-              setSelectedIdentity(null)
-              setStep('amount')
+                        setStep('amount')
             }}
-            className="flex w-full items-center justify-center gap-2 rounded-[--radius-md] border border-border bg-card px-3.5 py-2.5 text-[14px] font-medium text-foreground transition-colors hover:bg-accent active:scale-[0.97]"
+            className="flex w-full items-center justify-center gap-2 rounded-md border border-border bg-card px-3.5 py-2.5 text-[14px] font-medium text-foreground transition-colors hover:bg-accent active:scale-[0.97]"
           >
             <Send className="h-[15px] w-[15px]" /> Return to issuer
           </button>
         </div>
       )}
 
-      {/* Identity key paste — de-emphasised, at the bottom per 3a design */}
-      <div className="mt-auto px-5 pb-6 pt-4">
-        <button
-          type="button"
-          onClick={() => {
-            // Expand to reveal the raw key entry field inline — toggle a local input
-          }}
-          className="sr-only"
-        />
-        {/* Dashed "Send to identity key" area */}
-        <div className="relative">
-          <div className="flex items-center justify-center gap-2.5 rounded-[13px] border border-dashed border-border/60 px-4 py-[13px] text-subtle-foreground">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-              <rect x="3" y="14" width="7" height="7" rx="1"/>
-              <path d="M14 14h3v3M20 20v.01M17 20v.01M20 17v.01" strokeLinecap="round"/>
-            </svg>
-            <span className="text-[12.5px] font-medium">Send to an identity key</span>
-          </div>
-          {/* Actual input overlaid — always present but styled softly */}
-          <input
-            type="text"
-            value={publicKeyInput}
-            onChange={e => {
-              const val = e.target.value.trim()
-              setPublicKeyInput(val)
-              if (val) {
-                try {
-                  PublicKey.fromString(val)
-                  setRecipient(val)
-                  setRecipientName('')
-                  setRecipientAvatarURL('')
-                  setSearchInput('')
-                  setIdentities([])
-                  setSelectedIdentity(null)
-                } catch {
-                  setRecipient('')
-                }
-              } else {
-                setRecipient('')
-              }
-            }}
-            onKeyDown={e => { if (e.key === 'Enter' && recipient) confirmRecipient() }}
-            placeholder="Paste identity key…"
-            className="absolute inset-0 w-full h-full rounded-[13px] bg-transparent px-4 py-[13px] text-[12.5px] text-foreground placeholder:text-transparent opacity-0 focus:opacity-100 focus:bg-card focus:border focus:border-primary focus:placeholder:text-subtle-foreground outline-none transition-opacity"
-            autoComplete="off"
-          />
-        </div>
-        {publicKeyInput && !recipient && (
-          <p className="mt-1.5 text-[12px] text-destructive">Invalid public key</p>
-        )}
-        {recipient && publicKeyInput && (
-          <Button
-            onClick={confirmRecipient}
-            className="mt-3 w-full"
-            size="lg"
-          >
-            Continue
-          </Button>
-        )}
-      </div>
     </div>
   )
 
@@ -537,7 +545,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
 
       {/* Big amount display */}
       <div className="px-6 pt-9 text-center">
-        <div className="text-[11px] font-medium tracking-[1.6px] uppercase text-subtle-foreground">
+        <div className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground">
           Sending · {assetId ? labelFor(assetId) : 'Select token'}
         </div>
         <div className="mt-3.5 font-semibold text-[56px] leading-none tracking-[-2px] tabular">
@@ -552,7 +560,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
             <button
               type="button"
               onClick={handleMax}
-              className="text-[11px] font-semibold text-primary border border-primary/30 rounded-full px-2.5 py-[5px] hover:bg-primary/10 active:scale-[0.97] transition-all"
+              className="text-[11px] font-semibold text-primary border border-primary/30 rounded-full px-2.5 py-[5px] hover:bg-primary/10 active:scale-[0.97] transition-[background-color,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Max
             </button>
@@ -562,7 +570,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
 
       {/* Note field */}
       <div className="px-5 pt-[22px]">
-        <div className="flex items-center gap-2.5 rounded-[12px] border border-border bg-card px-3.5 py-3">
+        <div className="flex items-center gap-2.5 rounded-md border border-border bg-card px-3.5 py-3">
           <svg className="text-muted-foreground" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9">
             <path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
@@ -586,7 +594,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
               onClick={() => handleKeypad(key)}
               disabled={key === '.' && decimals === 0}
               className={cn(
-                'py-[11px] font-medium text-[23px] flex items-center justify-center transition-transform active:scale-[0.97] select-none min-h-[44px]',
+                'py-[11px] font-medium text-[23px] flex items-center justify-center rounded transition-transform duration-150 active:scale-[0.97] select-none min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 key === '.' && decimals === 0 && 'opacity-20 cursor-not-allowed'
               )}
             >
@@ -630,7 +638,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
 
       {/* Review card */}
       <div className="px-5 pt-[22px]">
-        <div className="rounded-[18px] border border-border bg-card overflow-hidden shadow-[var(--shadow-card)]">
+        <div className="rounded-lg border border-border bg-card overflow-hidden shadow-[var(--shadow-card)]">
           {/* Recipient row */}
           <div className="flex items-center gap-3 px-[18px] py-4">
             <RecipientAvatar size="md" />
@@ -642,7 +650,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
                 {recipient.slice(0, 24)}…
               </div>
             </div>
-            <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-success bg-success/10 px-2 py-1 rounded-[6px]">
+            <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-success bg-success/10 px-2 py-1 rounded-sm">
               <CheckCircle2 className="h-[11px] w-[11px]" />
               Verified
             </span>
@@ -676,12 +684,12 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
 
       {/* Pause guard */}
       {isPaused && !devMode && (
-        <div className="mx-5 mt-4 rounded-[--radius-md] bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
+        <div className="mx-5 mt-4 rounded-md bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
           Transfers are temporarily disabled by the issuer.
         </div>
       )}
       {isPaused && devMode && (
-        <div className="mx-5 mt-4 rounded-[--radius-md] bg-warning/10 px-4 py-3 text-[13px] text-warning">
+        <div className="mx-5 mt-4 rounded-md bg-warning/10 px-4 py-3 text-[13px] text-warning">
           <span className="font-semibold">Developer mode:</span> frontend pause guard bypassed. This
           asset is paused, so the overlay should reject the transfer server-side — send to verify.
         </div>
@@ -689,7 +697,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
 
       {/* Send failure surface */}
       {sendError && (
-        <div className="mx-5 mt-4 rounded-[--radius-md] bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
+        <div className="mx-5 mt-4 rounded-md bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
           {sendError}
         </div>
       )}
@@ -775,7 +783,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
           type="button"
           onClick={() => void shareReceipt()}
           disabled={!sentTxid}
-          className="flex w-full items-center justify-center gap-2 rounded-[14px] border border-border bg-card px-4 py-[15px] text-[14px] font-semibold text-primary transition-colors hover:bg-accent active:scale-[0.97] disabled:opacity-40"
+          className="flex w-full items-center justify-center gap-2 rounded-md border border-border bg-card px-4 py-[15px] text-[14px] font-semibold text-primary transition-colors hover:bg-accent active:scale-[0.97] disabled:opacity-40"
         >
           {receiptCopied
             ? <><CheckCircle2 className="h-[15px] w-[15px] text-success" />Txid copied</>
@@ -790,7 +798,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="flex flex-col rounded-[--radius-lg] bg-background shadow-[var(--shadow-card)] border border-border overflow-hidden min-h-[520px]">
+    <div className="flex flex-col rounded-lg bg-card shadow-[var(--shadow-card)] border border-border overflow-hidden min-h-[520px]">
       {step === 'recipient' && renderRecipient()}
       {step === 'amount' && renderAmount()}
       {step === 'review' && renderReview()}

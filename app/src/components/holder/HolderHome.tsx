@@ -3,7 +3,7 @@
  *
  * Sections (top → bottom):
  *   1. Brand row  — BrandMark + currency switcher chip (corner) + notification bell + avatar chip
- *   2. Hero       — greeting, labelled balance for CURRENT account
+ *   2. Hero       — labelled balance for CURRENT account
  *   3. Quick actions — Send | Contacts | Receive (wired to real tabs via onAction)
  *   4. RECENT activity — last 4 history rows for CURRENT account
  *
@@ -18,10 +18,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Bell, Send, Download, Users, RefreshCw, ChevronDown } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, Bell, Send, Download, Users, RefreshCw, ChevronDown } from 'lucide-react'
 import { HistoryRow } from '../../lib/mandala/history'
 import { currencySymbol, formatAmount } from '../../lib/mandala/amount'
 import { useHolderData } from '../../hooks/useHolderData'
+import { useWallet } from '../../context/WalletContext'
+import { CounterpartyDisplay } from '../CounterpartyDisplay'
 import { BrandMark } from '../ui/BrandMark'
 import { cn } from '@/lib/utils'
 
@@ -68,9 +70,17 @@ function relativeTime(when: number): string {
 // ---------------------------------------------------------------------------
 
 function shortCounterparty(cp: string): string {
-  if (!cp) return 'Unknown'
   if (cp.length <= 14) return cp
-  return `${cp.slice(0, 6)}…${cp.slice(-4)}`
+  return `${cp.slice(0, 12)}…`
+}
+
+/** Row title when there is no counterparty key to show (e.g. issuance). */
+function directionLabel(direction: HistoryRow['direction']): string {
+  switch (direction) {
+    case 'issued': return 'Issued'
+    case 'redeemed': return 'Redeemed'
+    default: return '—'
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -93,7 +103,7 @@ function QuickActionButton({
       type="button"
       onClick={onClick}
       className={cn(
-        'flex flex-1 flex-col items-center gap-[7px] rounded-[14px] py-[13px]',
+        'flex flex-1 flex-col items-center gap-[7px] rounded-md py-[13px]',
         'text-[11.5px] font-medium leading-none transition-transform duration-150 ease-out active:scale-[0.97]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         primary
@@ -108,40 +118,39 @@ function QuickActionButton({
 }
 
 function RecentRow({ row, decimals, ticker }: { row: HistoryRow; decimals: number; ticker?: string }) {
+  const { wallet } = useWallet()
   const isCredit = row.direction === 'received' || row.direction === 'issued'
   // Optimistic rows carry a placeholder txid until the overlay-accepted tx
   // replaces them on the next refetch.
   const isPending = row.txid.startsWith('pending-')
   const symbol = currencySymbol(ticker)
   const formatted = `${isCredit ? '+' : '−'}${symbol}${formatAmount(row.amount, decimals)}`
-  const cp = shortCounterparty(row.counterparty)
-  const initials = cp.slice(0, 2).toUpperCase()
+  const cp = row.counterparty !== '' ? shortCounterparty(row.counterparty) : directionLabel(row.direction)
   const when = isPending ? 'Sending…' : relativeTime(row.when)
 
   return (
     <div className={cn('flex items-center gap-[12px] border-t border-separator py-[9px]', isPending && 'opacity-60')}>
-      {/* Avatar circle */}
+      {/* Direction icon — inbound (positive) points down-left, outbound
+          (negative) points up-right (app-wide convention). */}
       <div
         className={cn(
           'flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full',
-          'text-[11px] font-semibold leading-none',
           isCredit ? 'bg-success/12 text-success' : 'bg-foreground/6 text-subtle-foreground'
         )}
         aria-hidden="true"
       >
-        {isCredit ? (
-          /* Up arrow */
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 19V5M5 12l7-7 7 7" />
-          </svg>
-        ) : (
-          initials
-        )}
+        {isCredit
+          ? <ArrowDownLeft size={15} strokeWidth={2} />
+          : <ArrowUpRight size={15} strokeWidth={2} />}
       </div>
 
-      {/* Name + timestamp */}
+      {/* Name + timestamp — resolved identity where known, truncated key otherwise */}
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-semibold leading-[1.2]">{cp}</div>
+        <div className="truncate text-[13px] font-semibold leading-[1.2]">
+          {row.counterparty !== ''
+            ? <CounterpartyDisplay identityKey={row.counterparty} wallet={wallet} />
+            : cp}
+        </div>
         {when && (
           <div className="mt-[2px] text-[11px] leading-[1.2] text-subtle-foreground">{when}</div>
         )}
@@ -192,10 +201,6 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const switcherRef = useRef<HTMLDivElement>(null)
 
-  // Derive greeting from local time
-  const hour = new Date().getHours()
-  const greeting =
-    hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
   // Avatar initials from identity key
   const initials = identityKey ? identityKey.slice(2, 4).toUpperCase() : '?'
@@ -238,9 +243,12 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
   // ── Currency switcher chip label ──────────────────────────────────────────
   const switcherLabel = (() => {
     if (!currentAsset) return '—'
-    const t = currentAsset.meta.ticker
-    const sym = t ? currencySymbol(t) : ''
-    return sym ? `${sym} ${t!.toUpperCase()}` : currentAsset.meta.label.slice(0, 6)
+    const t = currentAsset.meta.ticker?.toUpperCase()
+    if (!t) return currentAsset.meta.label.slice(0, 6)
+    const sym = currencySymbol(t).trim()
+    // Only prefix a real symbol ($, €…) — the fallback echoes the ticker,
+    // which would render "FUN FUN".
+    return sym !== '' && sym !== t ? `${sym} ${t}` : t
   })()
 
   // -------------------------------------------------------------------------
@@ -254,20 +262,22 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
         <BrandMark wordmark size="sm" />
 
         <div className="flex items-center gap-[9px]">
-          {/* Currency switcher chip */}
+          {/* Currency switcher chip — only rendered when there is actually
+              something to switch between; the balance header already names
+              the single asset. */}
+          {assets.length > 1 && (
           <div className="relative" ref={switcherRef}>
             <button
               type="button"
-              onClick={() => assets.length > 1 && setSwitcherOpen(o => !o)}
+              onClick={() => setSwitcherOpen(o => !o)}
               aria-label="Switch currency"
-              aria-haspopup={assets.length > 1 ? 'listbox' : undefined}
+              aria-haspopup="listbox"
               aria-expanded={switcherOpen}
               className={cn(
                 'flex items-center gap-[5px] rounded-full px-[10px] py-[5px]',
                 'text-[12px] font-semibold leading-none',
                 'border border-border bg-card text-foreground',
-                'transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                assets.length <= 1 && 'cursor-default'
+                'transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
               )}
             >
               {firstLoad ? (
@@ -275,24 +285,22 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
               ) : (
                 switcherLabel
               )}
-              {assets.length > 1 && (
-                <ChevronDown
-                  className={cn(
-                    'h-[11px] w-[11px] text-subtle-foreground transition-transform duration-150',
-                    switcherOpen && 'rotate-180'
-                  )}
-                  strokeWidth={2.2}
-                />
-              )}
+              <ChevronDown
+                className={cn(
+                  'h-[11px] w-[11px] text-subtle-foreground transition-transform duration-150',
+                  switcherOpen && 'rotate-180'
+                )}
+                strokeWidth={2.2}
+              />
             </button>
 
             {/* Dropdown */}
-            {switcherOpen && assets.length > 1 && (
+            {switcherOpen && (
               <div
                 role="listbox"
                 className={cn(
                   'absolute right-0 top-[calc(100%+6px)] z-50 min-w-[160px]',
-                  'rounded-[14px] border border-border bg-popover shadow-[var(--shadow-pop)]',
+                  'rounded-md border border-border bg-popover shadow-[var(--shadow-pop)]',
                   'overflow-hidden py-[6px]'
                 )}
               >
@@ -318,7 +326,7 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
                     >
                       <div
                         className={cn(
-                          'flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[7px]',
+                          'flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-sm',
                           'text-[11px] font-bold leading-none',
                           badge.bg,
                           badge.text
@@ -350,6 +358,7 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
               </div>
             )}
           </div>
+          )}
 
           {/* Bell */}
           <button
@@ -372,13 +381,8 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
 
       {/* ── Hero ── */}
       <div className="px-[26px] pt-[20px]">
-        {/* Greeting */}
-        <p className="text-[13px] font-normal leading-none text-muted-foreground">
-          {greeting}
-        </p>
-
         {/* Account label */}
-        <p className="mt-[16px] text-[11px] font-medium uppercase leading-none tracking-[1.4px] text-faint-foreground">
+        <p className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground leading-none">
           {currentAsset ? currentAsset.meta.label : 'Balance'}
         </p>
 
@@ -394,7 +398,7 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
             const frac = dotIdx >= 0 ? full.slice(dotIdx) : ''
             return (
               <div className="mt-[7px] flex items-baseline gap-[2px]">
-                <span className="tabular text-[47px] font-semibold leading-[0.95] tracking-[-1.5px]">
+                <span className="tabular text-[44px] font-semibold leading-none tracking-[-1.5px]">
                   {sym}{whole}
                 </span>
                 {frac && (
@@ -407,7 +411,7 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
           })()
         ) : (
           <div className="mt-[7px] flex items-baseline">
-            <span className="text-[47px] font-semibold leading-[0.95] tracking-[-1.5px] text-subtle-foreground">—</span>
+            <span className="text-[44px] font-semibold leading-none tracking-[-1.5px] text-subtle-foreground">—</span>
           </div>
         )}
 
@@ -465,7 +469,7 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
       {recentRows.length > 0 && (
         <div className="px-[26px] pt-[22px] pb-[24px]">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-medium uppercase leading-none tracking-[1.2px] text-faint-foreground">
+            <p className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground leading-none">
               Recent
             </p>
           </div>

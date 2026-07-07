@@ -122,7 +122,7 @@ export default function TokenDemo() {
     return (
       <div className="grid min-h-screen place-items-center px-6">
         <div className="flex max-w-sm flex-col items-center gap-3 text-center animate-in">
-          <div className="grid h-12 w-12 place-items-center rounded-[13px] bg-destructive/10">
+          <div className="grid h-12 w-12 place-items-center rounded-md bg-destructive/10">
             <AlertTriangle className="h-6 w-6 text-destructive" />
           </div>
           <h2 className="text-[17px] font-semibold tracking-[-0.01em]">Couldn't connect</h2>

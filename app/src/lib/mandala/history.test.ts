@@ -198,6 +198,57 @@ describe('parseActionsToHistory', () => {
   })
 })
 
+
+describe('counterparty from persistent action labels', () => {
+  const KEY = '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
+
+  it('sent: reads the to-<key> label when outputs carry no customInstructions (spent/relinquished)', () => {
+    const rows = parseActionsToHistory([
+      {
+        txid: 'old-send',
+        description: 'Send 22 of x.0',
+        isOutgoing: true,
+        labels: ['mandala', 'transfer', `to-${KEY}`],
+        outputs: [
+          { outputIndex: 0, outputDescription: 'FT to recipient', tags: ['mandala', 'sent', 'x.0'] }
+        ]
+      }
+    ] as any)
+    const row = rows.find(r => r.txid === 'old-send')!
+    expect(row.direction).toBe('sent')
+    expect(row.counterparty).toBe(KEY)
+  })
+
+  it('received: reads the from-<key> label when customInstructions are gone', () => {
+    const rows = parseActionsToHistory([
+      {
+        txid: 'old-recv',
+        description: 'Receive 40 of x.0',
+        isOutgoing: false,
+        labels: ['mandala', 'receive', `from-${KEY}`],
+        outputs: [
+          { outputIndex: 0, outputDescription: 'received FT', tags: ['mandala', 'received', 'x.0'] }
+        ]
+      }
+    ] as any)
+    const row = rows.find(r => r.txid === 'old-recv')!
+    expect(row.direction).toBe('received')
+    expect(row.counterparty).toBe(KEY)
+  })
+
+  it('kind classification ignores the counterparty labels regardless of order', () => {
+    const rows = parseActionsToHistory([
+      {
+        txid: 'ordered',
+        isOutgoing: true,
+        labels: ['mandala', `to-${KEY}`, 'transfer'],
+        outputs: [{ outputIndex: 0, tags: ['mandala', 'x.0'] }]
+      }
+    ] as any)
+    expect(rows.find(r => r.txid === 'ordered')!.kind).toBe('transfer')
+  })
+})
+
 describe('exportTransactionsCsv', () => {
   it('CSV has a header and one row per history entry', () => {
     const rows = parseActionsToHistory(actions as any)

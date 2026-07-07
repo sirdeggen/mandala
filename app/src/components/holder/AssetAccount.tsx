@@ -49,7 +49,7 @@ export default function AssetAccount({ assetId, balance, decimals: decimalsProp 
       <AlertBanners assetId={assetId} />
 
       {/* Tab bar */}
-      <div className="flex rounded-[--radius-lg] bg-muted p-1">
+      <div className="flex rounded-lg bg-muted p-1">
         {([
           { key: 'send', icon: Send, label: 'Send' },
           { key: 'receive', icon: Download, label: 'Receive' },
@@ -60,7 +60,7 @@ export default function AssetAccount({ assetId, balance, decimals: decimalsProp 
             type="button"
             onClick={() => setTab(key)}
             className={cn(
-              'flex flex-1 items-center justify-center gap-1.5 rounded-[--radius] px-3 py-2 text-[13px] font-medium transition-colors',
+              'flex flex-1 items-center justify-center gap-1.5 rounded px-3 py-2 text-[13px] font-medium transition-colors',
               tab === key
                 ? 'bg-card text-foreground shadow-[var(--shadow-card)]'
                 : 'text-muted-foreground hover:text-foreground'

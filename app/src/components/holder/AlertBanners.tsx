@@ -64,13 +64,13 @@ export default function AlertBanners({ assetId }: Props) {
   return (
     <div className="space-y-2">
       {isPaused && (
-        <div className="flex items-start gap-3 rounded-[--radius-md] bg-warning/10 px-4 py-3 text-[13px] text-warning-foreground">
-          <ShieldOff className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+        <div className="flex items-start gap-3 rounded-md bg-warning/10 px-4 py-3 text-[13px] text-warning">
+          <ShieldOff className="mt-0.5 h-4 w-4 shrink-0" />
           <span>Transfers temporarily disabled by the issuer.</span>
         </div>
       )}
       {frozenAmount > 0 && (
-        <div className="flex items-start gap-3 rounded-[--radius-md] bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
+        <div className="flex items-start gap-3 rounded-md bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
             {formatCurrency(frozenAmount, decimals, ticker)} of your balance has been frozen.

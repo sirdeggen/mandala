@@ -4,7 +4,7 @@
 > system is, the design north-star, the architecture, how the issuer gates and
 > controls transfers, and the API surface (Overlay + app).
 
-_Last updated: 2026-06-30. Branch `mandala-stablecoin-spike`._
+_Last updated: 2026-07-07. Branch `master`._
 
 ---
 
@@ -12,8 +12,9 @@ _Last updated: 2026-06-30. Branch `mandala-stablecoin-spike`._
 
 A working demo of a **regulated fungible token (FT)** on BSV. An *issuer*
 registers an asset, mints (issues) units, and retains regulatory powers over
-the supply: **redeem** (burn) and **recover** (seize and re-issue to another
-holder). Ordinary holders **send** and **receive** units peer-to-peer. Every
+the supply: **redeem** (burn), pause, block/allow identities, **freeze**
+outputs and **reissue** from a frozen output (supply-conserving recovery).
+Ordinary holders **send** and **receive** units peer-to-peer. Every
 state change is a real on-chain BSV transaction; an **overlay service** indexes
 and polices admissible transactions; a **message box** carries the
 peer-to-peer handoff so a recipient can claim what was sent.
@@ -27,8 +28,8 @@ Two repos are in play:
   (the `tm_mandala` topic manager + `ls_mandala` lookup service). Both are
   **published to npm**; the app and overlay consume them as versioned deps.
 
-Current dep floor: `@bsv/templates@^1.8.0`, `@bsv/overlay-topics@^1.4.0`,
-`@bsv/sdk@^2.1.6` (both app and overlay pinned to the same templates version —
+Current dep floor: `@bsv/templates@^1.9.0`, `@bsv/overlay-topics@^1.5.0`,
+`@bsv/overlay@^2.2.0`, `@bsv/sdk@^2.1.6` (both app and overlay pinned to the same templates version —
 they MUST agree on assetId encoding, see §7).
 
 ---
@@ -88,7 +89,7 @@ OP_DUP OP_HASH160 <pubKeyHash> OP_EQUALVERIFY OP_CHECKSIG   ← standard P2PKH
 - The locking **key is wallet-derived and bound to the action**:
   `keyID = commitment(data)` where `commitment` = sha256 of a canonical JSON
   encoding of the action details. So a given auth UTXO is cryptographically
-  tied to one specific action (`register` / `issue` / `redeem` / `recover`).
+  tied to one specific action (`register` / `issue` / `redeem` / etc.).
 - `counterparty` defaults to `'self'` (issuer locks to itself). Passing another
   party's identity key would **transfer admin rights** to them (not surfaced in
   the UI yet — a natural feature hook).
@@ -100,9 +101,11 @@ OP_DUP OP_HASH160 <pubKeyHash> OP_EQUALVERIFY OP_CHECKSIG   ← standard P2PKH
 `MandalaActionDetails`: `{ kind, assetId?, amount?, priorOutpoint?, identityKey?,
 outpoint?, recipient?, mode?, bankRef?, ... }`.
 
-`kind ∈ {register, issue, redeem, recover, pause, unpause, blockIdentity,
+`kind ∈ {register, issue, redeem, pause, unpause, blockIdentity,
 unblockIdentity, allowIdentity, unallowIdentity, setAccessMode, freezeOutput,
-unfreezeOutput, reissue}`.
+unfreezeOutput, reissue}`. (`recover` was removed as a kind — recovery is the
+guarded `reissue`; legacy on-chain `recover` rows are still described
+gracefully by the app.)
 
 Field usage per kind (besides `kind` and `priorOutpoint`):
 
@@ -138,8 +141,8 @@ action-bound key only the issuer's wallet can derive.
   outpoint **is** the assetId.
 - **Issue** spends the prior auth → outputs `[FT to a holder, next auth]`.
 - **Redeem** spends FT inputs + prior auth → outputs `[next auth, FT change?]`.
-- **Recover** spends prior auth → outputs `[FT to a target holder, next auth]`,
-  seizing/re-issuing supply to an identity key the issuer names.
+- **Reissue** spends prior auth → outputs `[FT to the named recipient, next
+  auth]`, minting replacement units for a frozen (now evicted) outpoint.
 
 Each action's `priorOutpoint` records which auth UTXO it spent, so the chain is
 verifiable.
@@ -155,7 +158,7 @@ A transaction is only **admitted** to the overlay if it passes, in order
    `pubKeyHash`, **and** that `priorOutpoint` was actually spent by this tx.
    Only the genuine issuer can produce a matching key. `register` is exempt
    from the prior-outpoint check.
-2. **Authorized issuance accounting** — `issue`/`recover` credit
+2. **Authorized issuance accounting** — `issue`/`reissue` credit
    `+amount` to that asset's authorized supply delta; `redeem` credits
    `-amount` (so partial burns satisfy conservation).
 3. **FT key-linkage verification** — each FT output must carry a valid
@@ -335,12 +338,15 @@ React + Vite. Wallet access via `WalletContext` (`wallet`, `messageBoxClient`,
 
 | Component | Role |
 |---|---|
-| `IssuerDashboard.tsx` | Shell with section nav: Overview / Operations / Regulatory / Banking / Audit. |
-| `AssetOverview.tsx` | Per-asset status badges (paused?, access mode, # frozen, # blocked/allowed) via `resolveAssetState`. |
-| `RegulatoryControls.tsx` | Per-asset: pause/unpause; freeze/unfreeze output; block/allow identity; set access mode; reissue from frozen output. |
-| `BankingMock.tsx` | Mock linked bank accounts + simulated deposit feed; "receive deposit" mints via `issue` with `bankRef`; reconciliation view (bank balance vs net circulating supply). |
-| `AuditLog.tsx` | Ordered admin-action history per asset + verifiable CSV export. |
-| `IssuerPanel.tsx` | Register, Issue, Redeem (burn), Recover (seize) — embedded as the Operations tab of `IssuerDashboard`. |
+| `IssuerDashboard.tsx` | Shell with sidebar nav: Overview / Treasury / Operations / Activity / Banking. Section in the path (`/issuer/:section`), asset in `?asset=`. The top bar holds the asset switcher and (on Overview) the register-asset strip. |
+| `OverviewSection.tsx` | KPI tiles (in circulation, net issued, reserve ratio, restrictions) from the overlay's aggregated admin summary + `resolveAssetState`; embeds the audit log. |
+| `RegisterAssetStrip.tsx` | Compact "Register a new asset" strip (label/ticker/decimals) rendered in the dashboard top bar on Overview. |
+| `TreasurySection.tsx` | Issuer's own holdings of the asset: balance card + Send/Receive tabs (reuses the holder flows, asset-locked). |
+| `IssuerPanel.tsx` | Issue + Redeem (burn) cards — the top of the Operations section. |
+| `RegulatoryControls.tsx` | Per-asset: pause/unpause; freeze/unfreeze output; block/allow identity; set access mode; reissue from frozen output. Rest of Operations. |
+| `OverlayActivity.tsx` | Overlay-wide transaction feed (the Activity section): semantic per-tx summaries (issue / transfer A→B / self / redeem) with linkage-proof badges; cursor-paginated + virtualized. |
+| `BankingMock.tsx` | Simulated per-asset bank feed: add incoming/outgoing transfers (localStorage-persisted, per-row delete), reconciliation view (bank balance vs net supply via the admin summary). |
+| `AuditLog.tsx` | Ordered admin-action history per asset — paged newest-first, virtualized rows, full-history CSV export. |
 
 **Holder surfaces (`app/src/components/holder/`):**
 
@@ -375,15 +381,23 @@ React + Vite. Wallet access via `WalletContext` (`wallet`, `messageBoxClient`,
   `GET /admin/asset-state/:assetId` from the overlay and returns
   `AssetAdminStateView` (memoized, 10 s TTL). Shared by issuer and holder
   components.
-- `adminHistory.ts` — `resolveAdminHistory(assetId)`: fetches
-  `GET /admin/admin-history/:assetId` → `AdminHistoryRow[]`.
+- `adminHistory.ts` — `resolveAdminHistory(assetId)` (full history, for CSV
+  export), `resolveAdminHistoryPage(assetId, {limit, offset})` (paged,
+  newest-first — drives the audit log), `resolveAdminSummary(assetId)`
+  (aggregated `totalIssued`/`totalRedeemed` — drives KPIs + reconciliation).
   `describeAction(details)` formats each action kind into a human-readable
   string. `exportAdminHistoryCsv(rows)` emits per row: `txid`, `outputIndex`,
   `priorOutpoint`, `kind`, `canonicalDetailsJson`, `commitment`, `height`,
   `offset`, `description`.
-- `banking.ts` — mock banking state: `seedDeposits`, `bankBalance`,
-  `reconcile` (bank balance vs net circulating supply; redeem reduces supply,
-  not bank balance — correct handling prevents false drift).
+- `overlayActivity.ts` — client for `GET /admin/activity`: cursor-paged
+  semantic per-tx summaries (`{txid, when, assetId, kind, from, to, amount,
+  proofs}`); `flattenActivityPages` dedupes boundary tx groups re-served by
+  the inclusive cursor.
+- `banking.ts` + `mockBankStore.ts` — simulated per-asset bank feed:
+  `makeTransfer(amount, direction, assetId)` builds a synthetic transfer
+  ("Company {letter}" counterparty); the store persists to localStorage and
+  is shared (useSyncExternalStore) between the Banking page and the Overview
+  reserve-ratio KPI. `reconcile` compares bank balance vs net supply.
 - `history.ts` — `parseActionsToHistory(actions)` (pure, testable): classifies
   wallet `listActions` results into `HistoryRow[]` (direction: sent/received/
   issued/redeemed/admin). `loadHistory(wallet, assetId?)` calls the wallet.
@@ -489,7 +503,23 @@ Express endpoints directly on `server.app`:
 - `GET /admin/asset-state/:assetId` → `sharedStorage.getAssetState(assetId)` →
   JSON `AssetAdminStateView`. Used by `resolveAssetState` (app-side).
 - `GET /admin/admin-history/:assetId` → `sharedStorage.findAdminHistoryByAssetId
-  (assetId)` → JSON `AdminHistoryRow[]`. Used by `resolveAdminHistory` (app-side).
+  (assetId)` → JSON `AdminHistoryRow[]` (full — used for CSV export).
+- `GET /admin/admin-history-page/:assetId?limit=&offset=` → paged
+  newest-first (by `admitSeq`) `AdminHistoryRow[]`. Drives the audit log UI.
+- `GET /admin/admin-summary/:assetId` → mongo aggregation over admin history:
+  `{ totalIssued, totalRedeemed, actionCount }` (`issue`/`redeem` only —
+  `reissue` conserves supply). Drives Overview KPIs + Banking reconciliation
+  without shipping the history to the client.
+- `GET /admin/activity?assetId=&limit=&before=` → the operator-oversight
+  transaction feed (`overlay/src/activity.ts`): groups the append-only
+  `mandalaLinkageRecords` by txid, decodes amounts from the engine's raw-tx
+  store, walks inputs back to their linkage-proven source outputs to identify
+  the sender, and classifies each tx by token conservation (`issue` /
+  `transfer` / `self` / `redeem`). Cursor-paginated (`limit` clamped 1–500,
+  inclusive `before` cursor; boundary-straddling tx groups are dropped whole
+  and re-served complete — clients dedupe by txid). Boot creates the
+  supporting indexes (`linkage.createdAt`, `adminHistory.(assetId,
+  admitSeq)`).
 
 Both set `Access-Control-Allow-Origin: *` for local dev. These endpoints exist
 because the standard `ls_mandala` lookup path cannot return shaped objects — not
@@ -520,15 +550,26 @@ in `adminState.ts` and `adminHistory.ts` (not via `LookupResolver`).
    (basket insertion) on accept, acknowledge the message. Label resolved by
    SPV.
 5. **Redeem** (issuer): burn units (negative issuance keeps conservation).
-6. **Recover** (issuer): seize/re-issue units to a named identity key; notify
-   that recipient via message box.
+6. **Freeze → Reissue** (issuer): freeze a holder's outpoint, then reissue
+   replacement units to the rightful identity key (frozen coin evicted,
+   supply conserved); notify the recipient via message box.
 
 ---
 
 ## 11. State of the repo / open threads
 
-- Branch `mandala-stablecoin-spike`; extends `mandala-p2pkh-no-marker`. Package
-  versions bumped to `@bsv/templates@^1.8.0` and `@bsv/overlay-topics@^1.4.0`.
+- On `master`. Package versions: `@bsv/templates@^1.9.0`,
+  `@bsv/overlay-topics@^1.5.0`, `@bsv/overlay@^2.2.0`.
+- Issuer console restructured into Overview / Treasury / Operations /
+  Activity / Banking; registration lives in the Overview top bar; the
+  standalone Regulatory page merged into Operations.
+- **Activity feed shipped** (overlay `/admin/activity` + app page): overlay-wide
+  per-tx summaries with linkage-proven counterparties — the operator-oversight
+  showcase.
+- **Scale pass shipped**: cursor/offset pagination on activity + admin history,
+  server-side supply aggregation for KPIs, boot-time mongo indexes, and
+  virtualized infinite-scroll tables (`@tanstack/react-virtual`) — UI stays
+  snappy at thousands of transactions.
 - Phase A (new action kinds, `AssetAdminState`, state reducer, ordered replay,
   lookup-service admin fold, topic-manager control gates) is shipped in
   `@bsv/overlay-topics@1.4.0` / `@bsv/templates@1.8.0`.
@@ -556,12 +597,14 @@ in `adminState.ts` and `adminHistory.ts` (not via `LookupResolver`).
 | Admin protocol | `[2, 'mandala admin']` |
 | Basket | `mandala-tokens` |
 | Message box | `mandala-payments` |
-| Templates pkg | `@bsv/templates@^1.8.0` |
-| Overlay topics pkg | `@bsv/overlay-topics@^1.4.0` |
+| Templates pkg | `@bsv/templates@^1.9.0` |
+| Overlay topics pkg | `@bsv/overlay-topics@^1.5.0` |
 | FT script | `<assetId> <amount> OP_2DROP` + P2PKH (8 chunks) |
 | Admin script | `[<json> OP_DROP]` + P2PKH (5 or 7 chunks) |
 | assetId on-chain | reversed txid (`tx.hash()` order) + LE vout, 36 bytes |
 | assetId string | `<txid>.<vout>` |
 | Admin state endpoint | `GET /admin/asset-state/:assetId` |
-| Admin history endpoint | `GET /admin/admin-history/:assetId` |
-| Action kinds | register, issue, redeem, recover, pause, unpause, blockIdentity, unblockIdentity, allowIdentity, unallowIdentity, setAccessMode, freezeOutput, unfreezeOutput, reissue |
+| Admin history endpoints | `GET /admin/admin-history/:assetId` (full) · `/admin/admin-history-page/:assetId?limit=&offset=` (paged) |
+| Admin summary endpoint | `GET /admin/admin-summary/:assetId` |
+| Activity endpoint | `GET /admin/activity?assetId=&limit=&before=` |
+| Action kinds | register, issue, redeem, pause, unpause, blockIdentity, unblockIdentity, allowIdentity, unallowIdentity, setAccessMode, freezeOutput, unfreezeOutput, reissue (`recover` legacy-only) |

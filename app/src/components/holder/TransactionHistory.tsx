@@ -1,18 +1,11 @@
-import { useEffect, useState } from 'react'
 import { ArrowUpRight, ArrowDownLeft, Download } from 'lucide-react'
-import { IdentityClient } from '@bsv/sdk'
 import { useWallet } from '../../context/WalletContext'
 import { exportTransactionsCsv, HistoryRow } from '../../lib/mandala/history'
 import { useHolderData } from '../../hooks/useHolderData'
 import { formatCurrency } from '../../lib/mandala/amount'
+import { CounterpartyDisplay } from '../CounterpartyDisplay'
 import { Button } from '../ui/button'
 import { Spinner } from '../ui/spinner'
-
-interface ResolvedIdentity {
-  name?: string
-  badgeLabel?: string
-  avatarURL?: string
-}
 
 interface Props {
   assetId: string
@@ -20,69 +13,11 @@ interface Props {
   ticker?: string
 }
 
-// Abbreviate a key (or any long string) to first 8 + "…"
-function abbreviate(key: string): string {
-  if (key.length <= 12) return key
-  return `${key.slice(0, 8)}…`
-}
-
 function DirectionIcon({ direction }: { direction: HistoryRow['direction'] }) {
   const isSent = direction === 'sent' || direction === 'redeemed'
   return isSent
     ? <ArrowUpRight className="h-4 w-4 shrink-0 text-destructive" />
     : <ArrowDownLeft className="h-4 w-4 shrink-0 text-success" />
-}
-
-interface CounterpartyProps {
-  identityKey: string
-  wallet: import('@bsv/sdk').WalletInterface | null
-}
-
-function CounterpartyDisplay({ identityKey, wallet }: CounterpartyProps) {
-  const [resolved, setResolved] = useState<ResolvedIdentity | null>(null)
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (!identityKey || wallet == null) return
-    let cancelled = false
-    setLoading(true)
-    const client = new IdentityClient(wallet as any)
-    client.resolveByIdentityKey({ identityKey })
-      .then(results => {
-        if (!cancelled && results.length > 0) {
-          const r = results[0]
-          setResolved({
-            name: r.name,
-            badgeLabel: r.badgeLabel,
-            avatarURL: r.avatarURL
-          })
-        }
-      })
-      .catch(() => { /* fall back to abbreviated key */ })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [identityKey, wallet])
-
-  if (!identityKey) return <span className="text-subtle-foreground">—</span>
-  if (loading) return <span className="animate-pulse text-subtle-foreground">{abbreviate(identityKey)}</span>
-
-  if (resolved?.name) {
-    return (
-      <span className="flex items-center gap-1.5">
-        {resolved.avatarURL && (
-          <img src={resolved.avatarURL} alt={resolved.name} className="h-5 w-5 rounded-full" />
-        )}
-        <span className="font-medium">{resolved.name}</span>
-        {resolved.badgeLabel && (
-          <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-accent-foreground">
-            {resolved.badgeLabel}
-          </span>
-        )}
-      </span>
-    )
-  }
-
-  return <span className="tabular text-subtle-foreground">{abbreviate(identityKey)}</span>
 }
 
 export default function TransactionHistory({ assetId, decimals, ticker }: Props) {
@@ -135,31 +70,49 @@ export default function TransactionHistory({ assetId, decimals, ticker }: Props)
         </div>
       )}
 
-      {rows.map((row, i) => {
-        const isSent = row.direction === 'sent' || row.direction === 'redeemed'
-        return (
-          <div
-            key={`${row.txid}-${i}`}
-            className="flex items-center gap-3 rounded-[--radius-md] border border-separator p-3 transition-colors hover:bg-muted/40"
-          >
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted">
-              <DirectionIcon direction={row.direction} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-medium capitalize">{row.direction}</p>
-              <div className="mt-0.5 text-[12px]">
-                <CounterpartyDisplay identityKey={row.counterparty} wallet={wallet} />
-              </div>
-            </div>
-            <div className="text-right">
-              <p className={`tabular text-[16px] font-semibold leading-none ${isSent ? 'text-destructive' : 'text-success'}`}>
-                {isSent ? '−' : '+'}{formatCurrency(row.amount, decimals, ticker)}
-              </p>
-              <p className="mt-0.5 text-[11px] text-subtle-foreground">—</p>
-            </div>
-          </div>
-        )
-      })}
+      {rows.length > 0 && (
+        <div className="overflow-hidden rounded-md border border-separator">
+          <table className="w-full border-collapse text-left">
+            <thead>
+              <tr className="border-b border-separator bg-muted/40">
+                <th className="px-3 py-2 text-[11px] font-medium uppercase tracking-[0.8px] text-subtle-foreground">Type</th>
+                <th className="px-3 py-2 text-[11px] font-medium uppercase tracking-[0.8px] text-subtle-foreground">Counterparty</th>
+                <th className="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[0.8px] text-subtle-foreground">Amount</th>
+                <th className="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[0.8px] text-subtle-foreground">Tx</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => {
+                const isSent = row.direction === 'sent' || row.direction === 'redeemed'
+                return (
+                  <tr
+                    key={`${row.txid}-${i}`}
+                    className="border-b border-separator last:border-b-0 transition-colors hover:bg-muted/40"
+                  >
+                    <td className="px-3 py-2.5">
+                      <span className="flex items-center gap-2">
+                        <DirectionIcon direction={row.direction} />
+                        <span className="text-[13px] font-medium capitalize">{row.direction}</span>
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-[12px]">
+                      <CounterpartyDisplay identityKey={row.counterparty} wallet={wallet} />
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <span className={`tabular text-[14px] font-semibold ${isSent ? 'text-destructive' : 'text-success'}`}>
+                        {isSent ? '−' : '+'}{formatCurrency(row.amount, decimals, ticker)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-mono text-[11px] text-subtle-foreground" title={row.txid}>
+                      {row.txid.slice(0, 10)}…
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

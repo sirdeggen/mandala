@@ -248,7 +248,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // ---------------------------------------------------------------------------
   if (assets.length === 0) {
     return (
-      <div className="bg-card border border-border rounded-[14px] p-[24px_20px] text-center">
+      <div className="bg-card border border-border rounded-md p-[24px_20px] text-center">
         <p className="text-[13px] text-subtle-foreground">Register an asset first.</p>
       </div>
     )
@@ -286,7 +286,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
             <Select
               value={selectedAssetId}
               onChange={e => { setSelectedAssetId(e.target.value) }}
-              className="bg-card border border-border rounded-[10px] px-3 py-[7px] text-[12px] font-medium"
+              className="bg-card border border-border rounded px-3 py-[7px] text-[12px] font-medium"
             >
               <option value="">Select asset…</option>
               {assets.map(a => (
@@ -298,7 +298,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
       </div>
 
       {/* Live state strip */}
-      <div className="bg-card border border-border rounded-[12px] px-5 py-[14px] flex items-center gap-0">
+      <div className="bg-card border border-border rounded-md px-5 py-[14px] flex items-center gap-0">
         {/* Status */}
         <div className="flex-1 min-w-0">
           <div className="text-[10.5px] text-subtle-foreground mb-[7px] font-medium">Status</div>
@@ -358,7 +358,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
       {/* Control cards grid */}
       <div className="grid grid-cols-2 gap-[14px]">
         {/* Card 1 — Transfers */}
-        <div className="bg-card border border-border rounded-[14px] p-[16px_18px]">
+        <div className="bg-card border border-border rounded-md p-[16px_18px]">
           <div className="text-[13.5px] font-semibold mb-[10px]">Transfers</div>
           <p className="text-[12px] text-subtle-foreground leading-[1.5]">
             {isPaused
@@ -368,7 +368,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
           <button
             onClick={handlePauseToggle}
             disabled={busy || asset == null}
-            className={`w-full rounded-[11px] py-3 text-[13px] font-semibold mt-[14px] flex items-center justify-center gap-2 disabled:opacity-50 ${
+            className={`w-full rounded py-3 text-[13px] font-semibold mt-[14px] flex items-center justify-center gap-2 disabled:opacity-50 ${
               isPaused
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-destructive text-destructive-foreground'
@@ -380,18 +380,18 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
         </div>
 
         {/* Card 2 — Access mode */}
-        <div className="bg-card border border-border rounded-[14px] p-[16px_18px]">
+        <div className="bg-card border border-border rounded-md p-[16px_18px]">
           <div className="text-[13.5px] font-semibold mb-[10px]">Access mode</div>
           <p className="text-[12px] text-subtle-foreground leading-[1.5]">
             Denylist = anyone except blocked. Allowlist = only allowed identities.
           </p>
           {/* Segmented control */}
-          <div className="flex bg-muted rounded-[9px] p-[3px] mt-[13px]">
+          <div className="flex bg-muted rounded p-[3px] mt-[13px]">
             <button
               onClick={() => setNewAccessMode('denylist')}
               className={
                 newAccessMode === 'denylist'
-                  ? 'flex-1 text-center py-2 bg-card rounded-[7px] font-semibold text-[12px] shadow-[0_1px_2px_rgba(27,30,36,.08)] text-foreground'
+                  ? 'flex-1 text-center py-2 bg-card rounded-sm font-semibold text-[12px] shadow-[0_1px_2px_var(--separator)] text-foreground'
                   : 'flex-1 text-center py-2 font-medium text-[12px] text-subtle-foreground cursor-pointer'
               }
             >
@@ -401,7 +401,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
               onClick={() => setNewAccessMode('allowlist')}
               className={
                 newAccessMode === 'allowlist'
-                  ? 'flex-1 text-center py-2 bg-card rounded-[7px] font-semibold text-[12px] shadow-[0_1px_2px_rgba(27,30,36,.08)] text-foreground'
+                  ? 'flex-1 text-center py-2 bg-card rounded-sm font-semibold text-[12px] shadow-[0_1px_2px_var(--separator)] text-foreground'
                   : 'flex-1 text-center py-2 font-medium text-[12px] text-subtle-foreground cursor-pointer'
               }
             >
@@ -411,7 +411,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
           <button
             onClick={handleSetAccessMode}
             disabled={busy || asset == null}
-            className="w-full rounded-[11px] py-[11px] text-[13px] font-semibold mt-3 flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full rounded py-[11px] text-[13px] font-semibold mt-3 flex items-center justify-center gap-2 disabled:opacity-50"
             style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
           >
             {busyAction === 'accessMode' && <Spinner size="sm" tone="current" />}
@@ -420,13 +420,13 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
         </div>
 
         {/* Card 3 — Freeze output */}
-        <div className="bg-card border border-border rounded-[14px] p-[16px_18px]">
+        <div className="bg-card border border-border rounded-md p-[16px_18px]">
           <div className="text-[13.5px] font-semibold mb-[6px]">Freeze output</div>
           <input
             value={freezeOutpoint}
             onChange={e => setFreezeOutpoint(e.target.value)}
             placeholder="txid.vout"
-            className="bg-muted border border-[rgba(27,30,36,.12)] rounded-[10px] px-[13px] py-[11px] font-mono text-[12px] text-subtle-foreground placeholder:text-subtle-foreground w-full mt-3 outline-none focus:border-[rgba(27,30,36,.3)]"
+            className="bg-muted border border-border rounded px-[13px] py-[11px] font-mono text-[12px] text-subtle-foreground placeholder:text-subtle-foreground w-full mt-3 outline-none focus:border-ring"
           />
           {hasFrozen && (
             <Select
@@ -449,7 +449,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
             <button
               onClick={handleFreeze}
               disabled={busy || freezeOutpoint.trim() === '' || asset == null}
-              className="flex-1 rounded-[11px] py-[11px] text-[13px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+              className="flex-1 rounded py-[11px] text-[13px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
               style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
             >
               {busyAction === 'freeze' && <Spinner size="sm" tone="current" />}
@@ -458,7 +458,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
             <button
               onClick={handleUnfreeze}
               disabled={busy || (freezeOutpoint.trim() === '' && selectedFreezeRef === '') || asset == null}
-              className="flex-1 rounded-[11px] py-[11px] text-[13px] font-semibold bg-card border border-border text-foreground flex items-center justify-center gap-2 disabled:opacity-50"
+              className="flex-1 rounded py-[11px] text-[13px] font-semibold bg-card border border-border text-foreground flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {busyAction === 'unfreeze' && <Spinner size="sm" tone="current" />}
               Unfreeze
@@ -467,7 +467,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
         </div>
 
         {/* Card 4 — Block / allow identity */}
-        <div className="bg-card border border-border rounded-[14px] p-[16px_18px]">
+        <div className="bg-card border border-border rounded-md p-[16px_18px]">
           <div className="text-[13.5px] font-semibold mb-[10px]">Block / allow identity</div>
 
           {/* Identity search */}
@@ -484,7 +484,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
             </p>
           )}
           {identitySearch.inputValue && identitySearch.identities.length > 0 && !identitySearch.selectedIdentity && (
-            <div className="mt-2 max-h-48 overflow-auto rounded-[--radius-md] bg-popover shadow-[var(--shadow-pop)]">
+            <div className="mt-2 max-h-48 overflow-auto rounded-md bg-popover shadow-[var(--shadow-pop)]">
               {identitySearch.identities.map(identity => {
                 if (typeof identity === 'string') return null
                 return (
@@ -528,7 +528,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
             <button
               onClick={() => handleIdentityAction('blockIdentity')}
               disabled={busy || identityKeyEmpty || asset == null}
-              className="flex-1 rounded-[11px] py-[11px] text-[13px] font-semibold bg-card border border-destructive/40 text-destructive flex items-center justify-center gap-2 disabled:opacity-50"
+              className="flex-1 rounded py-[11px] text-[13px] font-semibold bg-card border border-destructive/40 text-destructive flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {busyAction === 'blockIdentity' && <Spinner size="sm" tone="current" />}
               Block
@@ -536,7 +536,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
             <button
               onClick={() => handleIdentityAction('allowIdentity')}
               disabled={busy || identityKeyEmpty || asset == null}
-              className="flex-1 rounded-[11px] py-[11px] text-[13px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+              className="flex-1 rounded py-[11px] text-[13px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
               style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
             >
               {busyAction === 'allowIdentity' && <Spinner size="sm" tone="current" />}
@@ -549,7 +549,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
             <button
               onClick={() => handleIdentityAction('unblockIdentity')}
               disabled={busy || identityKeyEmpty || asset == null}
-              className="flex-1 rounded-[11px] py-[9px] text-[12px] font-medium text-subtle-foreground bg-muted flex items-center justify-center gap-2 disabled:opacity-40"
+              className="flex-1 rounded py-[9px] text-[12px] font-medium text-subtle-foreground bg-muted flex items-center justify-center gap-2 disabled:opacity-40"
             >
               {busyAction === 'unblockIdentity' && <Spinner size="sm" tone="current" />}
               Unblock
@@ -557,7 +557,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
             <button
               onClick={() => handleIdentityAction('unallowIdentity')}
               disabled={busy || identityKeyEmpty || asset == null}
-              className="flex-1 rounded-[11px] py-[9px] text-[12px] font-medium text-subtle-foreground bg-muted flex items-center justify-center gap-2 disabled:opacity-40"
+              className="flex-1 rounded py-[9px] text-[12px] font-medium text-subtle-foreground bg-muted flex items-center justify-center gap-2 disabled:opacity-40"
             >
               {busyAction === 'unallowIdentity' && <Spinner size="sm" tone="current" />}
               Unallow
@@ -567,7 +567,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
       </div>
 
       {/* Reissue from frozen — slim strip */}
-      <div className="bg-[#EFE9DD] border-dashed border border-[rgba(27,30,36,.18)] rounded-[12px] p-[14px_18px] mt-[14px]">
+      <div className="bg-muted border border-dashed border-input-border rounded-md p-[14px_18px] mt-[14px]">
         {!hasFrozen ? (
           <div className="flex items-center justify-between">
             <div>
@@ -604,7 +604,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
               aria-readonly="true"
               tabIndex={-1}
               placeholder="Select a frozen output"
-              className="bg-muted border border-[rgba(27,30,36,.12)] rounded-[10px] px-[13px] py-[11px] font-mono text-[12px] text-foreground w-full mt-2 outline-none cursor-not-allowed"
+              className="bg-muted border border-border rounded px-[13px] py-[11px] font-mono text-[12px] text-foreground w-full mt-2 outline-none cursor-not-allowed"
             />
             <p className="text-[11px] text-subtle-foreground mt-1">
               Locked to the frozen output's amount — reissuing a different value is rejected by the overlay, so circulation stays constant.
@@ -620,7 +620,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
                 disabled={!!(reissueRecipient && reissuePublicKeyInput)}
               />
               {reissueIdentitySearch.inputValue && reissueIdentitySearch.identities.length > 0 && !reissueIdentitySearch.selectedIdentity && (
-                <div className="mt-2 max-h-48 overflow-auto rounded-[--radius-md] bg-popover shadow-[var(--shadow-pop)]">
+                <div className="mt-2 max-h-48 overflow-auto rounded-md bg-popover shadow-[var(--shadow-pop)]">
                   {reissueIdentitySearch.identities.map(identity => {
                     if (typeof identity === 'string') return null
                     return (
@@ -666,7 +666,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
             <button
               onClick={handleReissue}
               disabled={busy || reissueOutpoint === '' || reissueAmount === '' || (reissueRecipient === '' && reissuePublicKeyInput.trim() === '') || asset == null}
-              className="w-full rounded-[11px] py-[11px] text-[13px] font-semibold mt-3 flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full rounded py-[11px] text-[13px] font-semibold mt-3 flex items-center justify-center gap-2 disabled:opacity-50"
               style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
             >
               {busyAction === 'reissue' && <Spinner size="sm" tone="current" />}

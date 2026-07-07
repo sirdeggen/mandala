@@ -25,43 +25,40 @@ export default function RegisterAssetStrip() {
     })
   }
 
-  const labelCls = 'block text-[11px] font-medium text-subtle-foreground mb-[7px]'
+  const labelCls = 'block text-[10px] font-medium text-subtle-foreground mb-[4px]'
 
   return (
-    <div
-      className="rounded-[12px] border-dashed border p-[14px_18px]"
-      style={{ background: '#EFE9DD', borderColor: 'rgba(27,30,36,.18)' }}
-    >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="rounded border border-dashed border-input-border bg-muted px-[14px] py-[9px]">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="shrink-0">
-          <p className="text-[13.5px] font-semibold leading-tight">Register a new asset</p>
-          <p className="text-[11.5px] text-subtle-foreground mt-0.5">
+          <p className="text-[12.5px] font-semibold leading-tight">Register a new asset</p>
+          <p className="text-[10.5px] text-subtle-foreground mt-0.5 leading-tight">
             Rare — most issuers run a single stablecoin
           </p>
         </div>
 
-        <div className="flex flex-wrap items-end gap-2 flex-1 sm:justify-end">
-          <div className="flex flex-col min-w-[110px]">
+        <div className="flex flex-wrap items-end gap-2 flex-1 justify-end">
+          <div className="flex flex-col min-w-[100px]">
             <label className={labelCls} htmlFor="reg-label">Label</label>
             <Input
               id="reg-label"
               value={label}
               onChange={e => setLabel(e.target.value)}
               placeholder="e.g. Gold Coin"
-              className="bg-white border border-[rgba(27,30,36,.14)] rounded-[8px] px-[11px] py-[8px] text-[12.5px] placeholder:text-subtle-foreground"
+              className="h-[30px] bg-input border-input-border rounded-sm px-[10px] py-0 text-[12px] placeholder:text-subtle-foreground"
             />
           </div>
-          <div className="flex flex-col min-w-[72px]">
+          <div className="flex flex-col min-w-[64px]">
             <label className={labelCls} htmlFor="reg-ticker">Ticker</label>
             <Input
               id="reg-ticker"
               value={ticker}
               onChange={e => setTicker(e.target.value)}
               placeholder="USD"
-              className="bg-white border border-[rgba(27,30,36,.14)] rounded-[8px] px-[11px] py-[8px] text-[12.5px] placeholder:text-subtle-foreground"
+              className="h-[30px] bg-input border-input-border rounded-sm px-[10px] py-0 text-[12px] placeholder:text-subtle-foreground"
             />
           </div>
-          <div className="flex flex-col min-w-[64px]">
+          <div className="flex flex-col min-w-[56px]">
             <label className={labelCls} htmlFor="reg-decimals">Decimals</label>
             <Input
               id="reg-decimals"
@@ -71,14 +68,13 @@ export default function RegisterAssetStrip() {
               value={decimals}
               onChange={e => setDecimals(e.target.value)}
               placeholder="0"
-              className="bg-white border border-[rgba(27,30,36,.14)] rounded-[8px] px-[11px] py-[8px] text-[12.5px] placeholder:text-subtle-foreground tabular-nums"
+              className="h-[30px] bg-input border-input-border rounded-sm px-[10px] py-0 text-[12px] placeholder:text-subtle-foreground tabular-nums"
             />
           </div>
           <button
             onClick={handleRegister}
             disabled={register.isPending || label.trim() === ''}
-            className="shrink-0 rounded-[8px] border px-4 py-[8px] text-[12.5px] font-medium transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
-            style={{ background: '#fff', borderColor: 'rgba(27,30,36,.2)', color: '#23405E' }}
+            className="h-[30px] shrink-0 rounded-sm border border-input-border bg-card px-3 text-[12px] font-medium text-primary transition-[opacity,background-color] duration-150 hover:bg-accent disabled:opacity-40 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {register.isPending && <Spinner size="sm" tone="current" />}
             {register.isPending ? 'Registering…' : 'Register asset'}

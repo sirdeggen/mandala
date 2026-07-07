@@ -66,14 +66,14 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
   )
 
   // Shared input style
-  const inputCls = 'bg-muted border border-[rgba(27,30,36,.12)] rounded-[10px] px-[13px] py-[11px] text-[13px] text-subtle-foreground placeholder:text-subtle-foreground w-full'
+  const inputCls = 'bg-muted border border-border rounded px-[13px] py-[11px] text-[13px] text-subtle-foreground placeholder:text-subtle-foreground w-full'
   const labelCls = 'block text-[11px] font-medium text-subtle-foreground mb-[7px]'
 
   return (
     <div className="space-y-5">
       {/* Page heading */}
       <div className="mb-1">
-        <h1 style={{ fontSize: 27, fontWeight: 600, letterSpacing: '-0.5px', lineHeight: 1.15 }}>
+        <h1 className="text-[27px] font-semibold tracking-[-0.5px] leading-tight">
           Operations
         </h1>
         <p className="text-subtle-foreground text-[13.5px] mt-1">
@@ -84,11 +84,10 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
       {/* Issue + Redeem: 2-col grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {/* Issue card */}
-        <div className="bg-card border border-border rounded-[14px] p-[18px] flex flex-col gap-4">
+        <div className="bg-card border border-border rounded-md p-[18px] flex flex-col gap-4">
           <div className="flex items-center gap-3">
             <div
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px]"
-              style={{ background: 'rgba(35,64,94,.1)', color: '#23405E' }}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded bg-primary/10 text-primary"
             >
               <Sparkles className="h-[18px] w-[18px]" />
             </div>
@@ -137,18 +136,17 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
             disabled={busy || effectiveIssueAsset === '' || issueAmount === ''}
             loading={issue.isPending}
             loadingText="Issuing…"
-            className="w-full rounded-[11px] bg-primary text-primary-foreground mt-auto"
+            className="w-full rounded bg-primary text-primary-foreground mt-auto"
           >
             Issue Tokens
           </Button>
         </div>
 
         {/* Redeem card */}
-        <div className="bg-card border border-border rounded-[14px] p-[18px] flex flex-col gap-4">
+        <div className="bg-card border border-border rounded-md p-[18px] flex flex-col gap-4">
           <div className="flex items-center gap-3">
             <div
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px]"
-              style={{ background: 'rgba(180,112,58,.12)', color: '#B4703A' }}
+              className="grid h-9 w-9 shrink-0 place-items-center rounded bg-warning/10 text-warning"
             >
               <Flame className="h-[18px] w-[18px]" />
             </div>
@@ -195,7 +193,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
           <button
             onClick={handleRedeem}
             disabled={busy || effectiveRedeemAsset === '' || redeemAmount === ''}
-            className="w-full rounded-[11px] mt-auto py-[10px] px-4 text-[13.5px] font-medium transition-opacity disabled:opacity-40 bg-background border border-destructive/40 text-destructive flex items-center justify-center gap-2"
+            className="w-full rounded mt-auto py-[10px] px-4 text-[13.5px] font-medium transition-opacity disabled:opacity-40 bg-background border border-destructive/40 text-destructive flex items-center justify-center gap-2"
           >
             {redeem.isPending && <Spinner size="sm" tone="current" />}
             {redeem.isPending ? 'Redeeming…' : 'Redeem (burn)'}
