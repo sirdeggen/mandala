@@ -300,6 +300,22 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
     </div>
   )
 
+  // Spendable-balance context bar — pinned to the top of the card on the
+  // recipient and review steps so the available amount stays on screen through
+  // the whole flow. The amount step already shows it inline beside Max, where
+  // it sits closest to the number being typed.
+  const AvailableStrip = () =>
+    selectedBalance != null && assetId !== '' ? (
+      <div className="flex items-center justify-between border-b border-separator bg-muted/60 px-5 py-2.5">
+        <span className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground">
+          Available
+        </span>
+        <span className="tabular text-[13px] font-semibold">
+          {formatAmount(selectedBalance.amount, decimals)} {labelFor(assetId)}
+        </span>
+      </div>
+    ) : null
+
   // Back button — white circle with left chevron (faithful to 3a/3b/3c)
   const BackButton = ({ onClick }: { onClick: () => void }) => (
     <button
@@ -799,6 +815,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
 
   return (
     <div className="flex flex-col rounded-lg bg-card shadow-[var(--shadow-card)] border border-border overflow-hidden min-h-[520px]">
+      {(step === 'recipient' || step === 'review') && <AvailableStrip />}
       {step === 'recipient' && renderRecipient()}
       {step === 'amount' && renderAmount()}
       {step === 'review' && renderReview()}
