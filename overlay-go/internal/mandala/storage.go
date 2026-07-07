@@ -189,6 +189,18 @@ func (s *Store) StoreLinkage(ctx context.Context, r LinkageRow) error {
 	return err
 }
 
+func (s *Store) GetLinkageRow(ctx context.Context, txid string, vout uint32) (*LinkageRow, error) {
+	var r LinkageRow
+	err := s.linkage.FindOne(ctx, bson.D{{Key: "txid", Value: txid}, {Key: "outputIndex", Value: vout}}).Decode(&r)
+	if err == mongo.ErrNoDocuments {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 func (s *Store) ListLinkage(ctx context.Context, limit int64, before *time.Time) ([]LinkageRow, error) {
 	filter := bson.D{}
 	if before != nil {

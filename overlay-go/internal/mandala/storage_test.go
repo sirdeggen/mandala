@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
@@ -98,5 +99,133 @@ func TestGetAssetStateDefault(t *testing.T) {
 	st, err := s.GetAssetState(context.Background(), "missing.0")
 	if err != nil || st.AccessMode != "denylist" || st.BlockedIdentities == nil {
 		t.Fatalf("%+v %v", st, err)
+	}
+}
+
+// TestLinkageReadsTSShapeDocument inserts a raw document in the EXACT shape
+// the TS overlay writes (camelCase keys; protocolID as a 2-element BSON
+// array; encryptedLinkage/encryptedLinkageProof as BSON arrays of numbers,
+// not binary) and verifies the Go store reads it back correctly. This is
+// the "existing demo data survives" direction: old TS-written documents
+// must still decode cleanly through the Go port.
+func TestLinkageReadsTSShapeDocument(t *testing.T) {
+	ctx := context.Background()
+	s := NewStore(testDB(t))
+
+	tsDoc := bson.D{
+		{Key: "txid", Value: "deadbeef"},
+		{Key: "outputIndex", Value: int32(0)},
+		{Key: "identityKey", Value: "02aa"},
+		{Key: "linkage", Value: bson.D{
+			{Key: "prover", Value: "02aa"},
+			{Key: "verifier", Value: "02bb"},
+			{Key: "counterparty", Value: "02cc"},
+			{Key: "protocolID", Value: bson.A{int32(2), "mandala token"}},
+			{Key: "keyID", Value: "k1"},
+			{Key: "encryptedLinkage", Value: bson.A{int32(1), int32(2), int32(3)}},
+			{Key: "encryptedLinkageProof", Value: bson.A{int32(0)}},
+			{Key: "proofType", Value: int32(0)},
+		}},
+		{Key: "createdAt", Value: time.Now()},
+	}
+	if _, err := s.linkage.InsertOne(ctx, tsDoc); err != nil {
+		t.Fatal(err)
+	}
+
+	row, err := s.GetLinkageRow(ctx, "deadbeef", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row == nil {
+		t.Fatal("expected linkage row, got nil")
+	}
+	l := row.Linkage
+	if l.Prover != "02aa" || l.Verifier != "02bb" || l.Counterparty != "02cc" {
+		t.Fatalf("identity fields: %+v", l)
+	}
+	if l.ProtocolID.SecurityLevel != 2 || l.ProtocolID.Name != "mandala token" {
+		t.Fatalf("protocolID: %+v", l.ProtocolID)
+	}
+	if l.KeyID != "k1" || l.ProofType != 0 {
+		t.Fatalf("keyID/proofType: %+v", l)
+	}
+	if string(l.EncryptedLinkage) != "\x01\x02\x03" {
+		t.Fatalf("encryptedLinkage: %v", []byte(l.EncryptedLinkage))
+	}
+	if string(l.EncryptedLinkageProof) != "\x00" {
+		t.Fatalf("encryptedLinkageProof: %v", []byte(l.EncryptedLinkageProof))
+	}
+}
+
+// TestStoreLinkageWritesTSShape writes a LinkageRow via the Go store's
+// StoreLinkage, then decodes the RAW document with a plain bson.M and
+// asserts the on-the-wire shape matches what the TS overlay would have
+// written: camelCase field names, protocolID as a 2-element bson.A, and
+// encryptedLinkage/encryptedLinkageProof as bson.A of numbers rather than
+// BSON binary.
+func TestStoreLinkageWritesTSShape(t *testing.T) {
+	ctx := context.Background()
+	s := NewStore(testDB(t))
+
+	row := LinkageRow{
+		Txid:        "cafef00d",
+		OutputIndex: 2,
+		IdentityKey: "02dd",
+		Linkage: SpecificLinkage{
+			Prover:                "02aa",
+			Verifier:              "02bb",
+			Counterparty:          "02cc",
+			ProtocolID:            ProtocolID{SecurityLevel: 2, Name: "mandala token"},
+			KeyID:                 "k1",
+			EncryptedLinkage:      NumBytes{1, 2, 3},
+			EncryptedLinkageProof: NumBytes{0},
+			ProofType:             0,
+		},
+		CreatedAt: time.Now(),
+	}
+	if err := s.StoreLinkage(ctx, row); err != nil {
+		t.Fatal(err)
+	}
+
+	var raw bson.M
+	if err := s.linkage.FindOne(ctx, bson.D{{Key: "txid", Value: "cafef00d"}}).Decode(&raw); err != nil {
+		t.Fatal(err)
+	}
+
+	// Nested subdocuments decode as bson.D (order-preserving) by default,
+	// even when the top-level target is a bson.M — flatten to a map for
+	// key-presence assertions.
+	linkageD, ok := raw["linkage"].(bson.D)
+	if !ok {
+		t.Fatalf("linkage subdoc: got %T: %+v", raw["linkage"], raw["linkage"])
+	}
+	linkage := make(bson.M, len(linkageD))
+	for _, e := range linkageD {
+		linkage[e.Key] = e.Value
+	}
+
+	// camelCase TS key names must be present (not lowercased Go defaults).
+	for _, key := range []string{"prover", "verifier", "counterparty", "protocolID", "keyID", "encryptedLinkage", "encryptedLinkageProof", "proofType"} {
+		if _, ok := linkage[key]; !ok {
+			t.Fatalf("missing TS-shape key %q in %+v", key, linkage)
+		}
+	}
+	for _, badKey := range []string{"protocolid", "keyid", "encryptedlinkage", "encryptedlinkageproof", "prooftype"} {
+		if _, ok := linkage[badKey]; ok {
+			t.Fatalf("found lowercased Go-default key %q; want TS camelCase", badKey)
+		}
+	}
+
+	protocolID, ok := linkage["protocolID"].(bson.A)
+	if !ok || len(protocolID) != 2 {
+		t.Fatalf("protocolID: got %T len %v: %+v", linkage["protocolID"], len(protocolID), linkage["protocolID"])
+	}
+
+	encLinkage, ok := linkage["encryptedLinkage"].(bson.A)
+	if !ok {
+		t.Fatalf("encryptedLinkage: got %T (want bson.A of numbers, not binary): %+v", linkage["encryptedLinkage"], linkage["encryptedLinkage"])
+	}
+	if len(encLinkage) != 3 {
+		t.Fatalf("encryptedLinkage length: %+v", encLinkage)
 	}
 }
