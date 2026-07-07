@@ -1,6 +1,7 @@
 package mandala
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"testing"
@@ -42,6 +43,9 @@ func TestDecodeAdminGoldenVectors(t *testing.T) {
 		d, err := DecodeAdmin(s)
 		if err != nil {
 			t.Fatalf("vector %d: %v", i, err)
+		}
+		if !bytes.Equal(d.PubKeyHash[:], av.PubKeyHash) {
+			t.Fatalf("vector %d: pubKeyHash mismatch: got %x want %x", i, d.PubKeyHash[:], av.PubKeyHash)
 		}
 		if (av.PublicData == nil) != (d.PublicData == nil) {
 			t.Fatalf("vector %d: publicData presence mismatch", i)

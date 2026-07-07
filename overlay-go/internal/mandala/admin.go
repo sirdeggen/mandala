@@ -47,6 +47,72 @@ func DecodeAdmin(s *script.Script) (*AdminDecoded, error) {
 	return d, nil
 }
 
+// encodeJSONString replicates JS `JSON.stringify` string-escaping semantics
+// EXACTLY (this differs from Go's encoding/json, which HTML-escapes `<` `>`
+// `&` and U+2028/U+2029 even with SetEscapeHTML(false)). Only `"`, `\`, and
+// control characters below 0x20 are escaped; every other rune — including
+// `<` `>` `&`, non-ASCII letters, line/paragraph separators, and emoji —
+// passes through as raw UTF-8, matching JS.
+func encodeJSONString(s string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	for _, r := range s {
+		switch r {
+		case '"':
+			b.WriteString(`\"`)
+		case '\\':
+			b.WriteString(`\\`)
+		case '\b':
+			b.WriteString(`\b`)
+		case '\t':
+			b.WriteString(`\t`)
+		case '\n':
+			b.WriteString(`\n`)
+		case '\f':
+			b.WriteString(`\f`)
+		case '\r':
+			b.WriteString(`\r`)
+		default:
+			if r < 0x20 {
+				fmt.Fprintf(&b, `\u%04x`, r)
+			} else {
+				b.WriteRune(r)
+			}
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
+}
+
+// encodeJSONNumber replicates JS `Number.prototype.toString()` as used by
+// `JSON.stringify` for a float64. Go's strconv 'g'/'f' formatting diverges
+// from JS in the exponential-notation threshold and exponent rendering, so
+// this reimplements the JS rules directly.
+func encodeJSONNumber(x float64) string {
+	if math.IsNaN(x) || math.IsInf(x, 0) {
+		// JSON.stringify(NaN) === JSON.stringify(Infinity) === "null"
+		return "null"
+	}
+	if x == 0 {
+		// JSON.stringify(-0) === "0"
+		return "0"
+	}
+	abs := math.Abs(x)
+	if abs >= 1e-6 && abs < 1e21 {
+		return strconv.FormatFloat(x, 'f', -1, 64)
+	}
+	// Outside JS's decimal-notation range: format like JS's exponential form,
+	// e.g. Go "5e-07" -> JS "5e-7", Go "1e+21" -> JS "1e+21".
+	s := strconv.FormatFloat(x, 'e', -1, 64)
+	idx := strings.IndexByte(s, 'e')
+	mantissa, expPart := s[:idx], s[idx+1:]
+	sign, digits := expPart[:1], strings.TrimLeft(expPart[1:], "0")
+	if digits == "" {
+		digits = "0"
+	}
+	return mantissa + "e" + sign + digits
+}
+
 // canonicalize matches the TS commitment() canonical form: objects get
 // byte-sorted keys, arrays keep order, primitives use JS JSON.stringify
 // formatting (Appendix A §1.4).
@@ -61,17 +127,9 @@ func canonicalize(v any, b *strings.Builder) error {
 			b.WriteString("false")
 		}
 	case string:
-		enc, err := json.Marshal(x)
-		if err != nil {
-			return err
-		}
-		b.Write(enc)
+		b.WriteString(encodeJSONString(x))
 	case float64:
-		if x == math.Trunc(x) && math.Abs(x) < 1e21 {
-			b.WriteString(strconv.FormatFloat(x, 'f', -1, 64))
-		} else {
-			b.WriteString(strconv.FormatFloat(x, 'g', -1, 64))
-		}
+		b.WriteString(encodeJSONNumber(x))
 	case json.Number:
 		b.WriteString(x.String())
 	case []any:
@@ -96,8 +154,7 @@ func canonicalize(v any, b *strings.Builder) error {
 			if i > 0 {
 				b.WriteByte(',')
 			}
-			enc, _ := json.Marshal(k)
-			b.Write(enc)
+			b.WriteString(encodeJSONString(k))
 			b.WriteByte(':')
 			if err := canonicalize(x[k], b); err != nil {
 				return err
