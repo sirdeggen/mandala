@@ -1,6 +1,7 @@
 package mandala
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -100,7 +101,11 @@ func (m *TopicManager) IdentifyAdmissibleOutputs(ctx context.Context, beef *tran
 		if !ok || details == nil {
 			continue
 		}
-		if !m.verifyAdminOutput(tx, idx, details) {
+		admin, err := m.verifyAdminOutput(tx, idx, details)
+		if err != nil {
+			return none, m.reject(err)
+		}
+		if !admin {
 			continue
 		}
 		adminIdx = append(adminIdx, idx)
@@ -118,8 +123,12 @@ func (m *TopicManager) IdentifyAdmissibleOutputs(ctx context.Context, beef *tran
 		}
 	}
 
-	// §3.3 verify FT outputs by key linkage. Missing linkage or a failed pkh
-	// match -> silent skip (not admitted, no error).
+	// §3.3 verify FT outputs by key linkage. Missing linkage -> silent skip;
+	// a clean pkh MISMATCH -> silent skip; a verification ERROR (tampered
+	// ciphertext, bad point, malformed linkage) PROPAGATES and rejects the
+	// whole tx (§2.5 "errors propagate as failure"; TS parity: verifyFtOutputs
+	// calls verifyKeyLinkage directly, uncaught — linkageControlsPubKeyHash's
+	// error-swallowing is not used in the output-admission loop).
 	outLinkByIndex := map[uint32]*SpecificLinkage{}
 	for _, o := range payload.Outputs {
 		outLinkByIndex[o.Index] = o.Linkage
@@ -130,10 +139,14 @@ func (m *TopicManager) IdentifyAdmissibleOutputs(ctx context.Context, beef *tran
 		if l == nil {
 			continue
 		}
-		if !m.verifier.LinkageControlsPKH(ctx, l, f.pubKeyHash[:]) {
+		identity, pkh, err := m.verifier.VerifyKeyLinkage(ctx, l)
+		if err != nil {
+			return none, m.reject(fmt.Errorf("output %d linkage verification: %w", f.index, err))
+		}
+		if !bytes.Equal(pkh, f.pubKeyHash[:]) {
 			continue
 		}
-		f.identityKey = l.Counterparty
+		f.identityKey = identity
 		admitted = append(admitted, f)
 	}
 
@@ -177,19 +190,26 @@ func (m *TopicManager) reject(err error) error {
 // verifyAdminOutput implements §3.2a-e: MandalaAdmin.decode, pkh
 // re-derivation via the admin wallet (Commitment(details) keyID), and the
 // priorOutpoint-spent check (register exempt).
-func (m *TopicManager) verifyAdminOutput(tx *transaction.Transaction, idx uint32, details ActionDetails) bool {
+//
+// A non-nil error means key DERIVATION failed (e.g. malformed
+// details.counterparty hex) and must reject the whole tx (TS parity:
+// adminWallet.getPublicKey is awaited uncaught in verifyAdminOutput). Script
+// decode failure (not admin-shaped) is shape classification, not
+// verification, and stays a silent (false, nil) skip — as does a clean pkh
+// mismatch or an unspent priorOutpoint.
+func (m *TopicManager) verifyAdminOutput(tx *transaction.Transaction, idx uint32, details ActionDetails) (bool, error) {
 	decoded, err := DecodeAdmin(tx.Outputs[idx].LockingScript)
 	if err != nil {
-		return false
+		return false, nil
 	}
 	expected, err := m.admin.ExpectedPKH(details)
 	if err != nil {
-		return false
+		return false, fmt.Errorf("admin output %d key derivation: %w", idx, err)
 	}
 	if expected != decoded.PubKeyHash {
-		return false
+		return false, nil
 	}
-	return priorOutpointSpent(tx, details)
+	return priorOutpointSpent(tx, details), nil
 }
 
 // priorOutpointSpent chains every admin action to spending the previous

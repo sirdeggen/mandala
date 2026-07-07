@@ -341,6 +341,37 @@ func TestWrongPKHLinkageSilentlySkipsOutput(t *testing.T) {
 	wantAdmitted(t, res) // consume-only: no admissions, no error
 }
 
+func TestTamperedOutputLinkagePropagatesError(t *testing.T) {
+	h := newHarness(t)
+	// Tamper the CHANGE output's linkage ciphertext past the 32-byte IV: a
+	// decrypt/GCM-auth ERROR here must reject the WHOLE tx (§3.3 + §2.5 "errors
+	// propagate as failure"; TS parity: verifyFtOutputs calls verifyKeyLinkage
+	// directly, uncaught — only linkageControlsPubKeyHash swallows errors, and
+	// the admission loop does not use that helper). The other output (index 0,
+	// valid linkage) must NOT be admitted on its own.
+	bad := make(NumBytes, len(h.payload.Outputs[1].Linkage.EncryptedLinkage))
+	copy(bad, h.payload.Outputs[1].Linkage.EncryptedLinkage)
+	bad[40] ^= 0xff
+	h.payload.Outputs[1].Linkage.EncryptedLinkage = bad
+	res, err := h.run(t, []uint32{0})
+	if err == nil {
+		t.Fatalf("expected tampered output-linkage verification error, got admits %v", res.OutputsToAdmit)
+	}
+	if len(res.OutputsToAdmit) != 0 {
+		t.Fatalf("expected no admits on whole-tx rejection, got %v", res.OutputsToAdmit)
+	}
+	// Must fail because the decrypt/verification error propagated, NOT because
+	// the tampered output was silently skipped and conservation happened to
+	// notice the resulting imbalance (that would mask the real bug: a second,
+	// still-valid output could slip through in a less symmetric transfer).
+	if strings.Contains(err.Error(), "conservation violated") {
+		t.Fatalf("should fail in output linkage verification, not conservation: %v", err)
+	}
+	if !strings.Contains(err.Error(), "linkage verification") {
+		t.Fatalf("expected a linkage verification error, got: %v", err)
+	}
+}
+
 func TestBadInputLinkageThrowsDuringScreening(t *testing.T) {
 	h := newHarness(t)
 	// Tamper the INPUT linkage ciphertext: §3.5 sanctions screening must
@@ -398,6 +429,37 @@ func TestPauseBlocksPeerTransferButNotAdmin(t *testing.T) {
 		_, err := h.run(t, []uint32{0})
 		wantReject(t, err, "control gate rejected")
 	})
+}
+
+func TestMalformedAdminCounterpartyHexPropagatesError(t *testing.T) {
+	h := newHarness(t)
+	// details.counterparty = "zz" is not valid hex: AdminWallet.ExpectedPKH's
+	// ec.PublicKeyFromString fails deriving the expected lock key (§3.2c key
+	// derivation, not script-shape classification). That error must reject
+	// the WHOLE tx (TS parity: adminWallet.getPublicKey is awaited uncaught in
+	// verifyAdminOutput), not just silently skip the admin output while still
+	// admitting the two otherwise-valid FT outputs.
+	prior := h.addPriorAuthInput(0x77, 1)
+	details := ActionDetails{
+		"kind": "unpause", "assetId": h.assetID, "priorOutpoint": prior,
+		"counterparty": "zz",
+	}
+	// Can't use h.addAdminOutput here: it calls ExpectedPKH to build a
+	// correctly-locked output, which would itself fail for this malformed
+	// counterparty. Build a plain P2PKH shape with an arbitrary pkh instead —
+	// the malformed hex must be rejected before any pkh comparison happens.
+	h.tx.AddOutput(&transaction.TransactionOutput{Satoshis: 1, LockingScript: p2pkhScript(t, [20]byte{0xde, 0xad, 0xbe, 0xef})})
+	h.payload.Admin = append(h.payload.Admin, IndexedAdmin{
+		Index:         uint32(len(h.tx.Outputs) - 1),
+		ActionDetails: details,
+	})
+	res, err := h.run(t, []uint32{0})
+	if err == nil {
+		t.Fatalf("expected malformed admin counterparty hex to reject the whole tx, got admits %v", res.OutputsToAdmit)
+	}
+	if len(res.OutputsToAdmit) != 0 {
+		t.Fatalf("expected no admits (not even the two valid FT outputs) on whole-tx rejection, got %v", res.OutputsToAdmit)
+	}
 }
 
 func TestDenylistRejectsBlockedParty(t *testing.T) {
