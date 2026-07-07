@@ -79,8 +79,11 @@ export interface ActivityPage {
 }
 
 /** Extra linkage rows fetched past the page size so a tx whose outputs straddle
- *  the boundary can be dropped whole and re-served complete on the next page. */
-const GROUP_OVERLAP = 8
+ *  the boundary can be dropped whole and re-served complete on the next page.
+ *  Must be ≥ the most linkage rows one tx can carry: a transfer writes up to
+ *  9 (recipient + 8 split change outputs — MAX_FT_CHANGE_OUTPUTS in the app),
+ *  or a limit-1 page filled by one such tx never advances its cursor. */
+const GROUP_OVERLAP = 9
 
 interface FtOutput { outputIndex: number, identityKey: string, amount: number, assetId: string }
 

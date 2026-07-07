@@ -117,6 +117,20 @@ describe('buildActivity pagination', () => {
     expect(rows.some(r => new Date(r.createdAt).toISOString() === page.nextCursor)).toBe(true)
   })
 
+  it('still cursors past a max-split transfer at limit 1 (9 linkage rows in one tx)', async () => {
+    // A transfer writes up to 9 output-linkage rows (recipient + 8 split
+    // change). The overlap must cover a whole such group, or a limit-1 page
+    // whose newest tx is a max-split transfer fills the entire fetch window
+    // with one txid and pagination dies (hasMore true, but byTx.size === 1).
+    const rows = [
+      ...Array.from({ length: 9 }, (_, i) => link('big', i, 'a', '2026-07-07T10:00:00.000Z')),
+      link('older', 0, 'a', '2026-07-07T09:00:00.000Z'),
+      link('oldest', 0, 'a', '2026-07-07T08:00:00.000Z')
+    ]
+    const page = await buildActivity(pagingDeps(rows), { limit: 1 })
+    expect(page.nextCursor).not.toBeNull()
+  })
+
   it('clamps limit into [1, 500]', async () => {
     let requested = 0
     const deps: ActivityDeps = {
@@ -125,8 +139,8 @@ describe('buildActivity pagination', () => {
       findRawTxs: async () => new Map()
     }
     await buildActivity(deps, { limit: 99999 })
-    expect(requested).toBeLessThanOrEqual(508) // 500 + overlap
+    expect(requested).toBeLessThanOrEqual(509) // 500 + overlap
     await buildActivity(deps, { limit: 0 })
-    expect(requested).toBeGreaterThanOrEqual(9) // 1 + overlap
+    expect(requested).toBeGreaterThanOrEqual(10) // 1 + overlap
   })
 })
