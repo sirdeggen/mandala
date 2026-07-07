@@ -1,0 +1,596 @@
+package enginestore
+
+// Task 12 tests: in-repo Mongo implementation of go-overlay-services v1.3.2
+// engine.Storage. Every test exercises the storage exactly the way
+// engine.go's call sites do (positional FindOutputs, nil-on-missing
+// FindOutput, LoadAncillaryBeef merge, ReconcileMerkleRoot state moves).
+//
+// Requires Mongo at localhost:27017 (same skip-pattern as Task 8; test db
+// mandala_go_engine_test is dropped in cleanup).
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
+	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/overlay"
+	"github.com/bsv-blockchain/go-sdk/script"
+	"github.com/bsv-blockchain/go-sdk/transaction"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
+)
+
+const topic = "tm_mandala"
+
+func testDB(t *testing.T) *mongo.Database {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	client, err := mongo.Connect(options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		t.Skip("mongo unavailable:", err)
+	}
+	if err := client.Ping(ctx, nil); err != nil {
+		t.Skip("mongo unavailable:", err)
+	}
+	db := client.Database("mandala_go_engine_test")
+	// Drop up-front too so a crashed previous run can't leak state in.
+	_ = db.Drop(context.Background())
+	t.Cleanup(func() { _ = db.Drop(context.Background()) })
+	return db
+}
+
+// newTx builds a distinct minimal transaction: one dummy input (fill byte
+// makes txids differ) and n outputs.
+func newTx(fill byte, outputs int) *transaction.Transaction {
+	tx := transaction.NewTransaction()
+	raw := make([]byte, 32)
+	for i := range raw {
+		raw[i] = fill
+	}
+	h, err := chainhash.NewHash(raw)
+	if err != nil {
+		panic(err)
+	}
+	tx.AddInput(&transaction.TransactionInput{
+		SourceTXID:       h,
+		SourceTxOutIndex: 0,
+		UnlockingScript:  &script.Script{},
+	})
+	for i := 0; i < outputs; i++ {
+		tx.AddOutput(&transaction.TransactionOutput{Satoshis: uint64(i + 1), LockingScript: &script.Script{}})
+	}
+	return tx
+}
+
+// addProof attaches a single-leaf merkle path (a 1-tx block) at the given
+// height and returns the merkle root the path computes.
+func addProof(t *testing.T, tx *transaction.Transaction, height uint32) *chainhash.Hash {
+	t.Helper()
+	txid := tx.TxID()
+	isTxid := true
+	tx.MerklePath = transaction.NewMerklePath(height, [][]*transaction.PathElement{
+		{{Offset: 0, Hash: txid, Txid: &isTxid}},
+	})
+	root, err := tx.MerklePath.ComputeRoot(txid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
+func beefFor(t *testing.T, txs ...*transaction.Transaction) *transaction.Beef {
+	t.Helper()
+	beef := transaction.NewBeefV2()
+	for _, tx := range txs {
+		if _, err := beef.MergeTransaction(tx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return beef
+}
+
+func op(txid *chainhash.Hash, vout uint32) *transaction.Outpoint {
+	return &transaction.Outpoint{Txid: *txid, Index: vout}
+}
+
+// --- insert / find group ---
+
+func TestInsertAndFind(t *testing.T) {
+	ctx := context.Background()
+	st := New(testDB(t))
+
+	tx := newTx(0x01, 2)
+	root := addProof(t, tx, 100)
+	txid := tx.TxID()
+	consumed := op(tx.Inputs[0].SourceTXID, 0)
+
+	if err := st.InsertOutputs(ctx, topic, txid, []uint32{0, 1}, []*transaction.Outpoint{consumed}, beefFor(t, tx), nil); err != nil {
+		t.Fatal(err)
+	}
+	// Empty admit list must be a no-op, not an error (engine calls
+	// InsertOutputs even for topics with zero OutputsToAdmit).
+	if err := st.InsertOutputs(ctx, topic, txid, nil, nil, beefFor(t, tx), nil); err != nil {
+		t.Fatal("empty InsertOutputs:", err)
+	}
+
+	// FindOutput with topic + BEEF (hydrateOneFormula shape uses topic=nil).
+	got, err := st.FindOutput(ctx, op(txid, 0), nil, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil {
+		t.Fatal("output not found")
+	}
+	if got.Topic != topic || got.Spent || got.Outpoint.Index != 0 || !got.Outpoint.Txid.Equal(*txid) {
+		t.Fatalf("bad output: %+v", got)
+	}
+	if got.Beef == nil || got.Beef.FindTransactionByHash(txid) == nil {
+		t.Fatal("BEEF did not round-trip through storage")
+	}
+	if len(got.OutputsConsumed) != 1 || !got.OutputsConsumed[0].Equal(consumed) {
+		t.Fatalf("outputsConsumed: %+v", got.OutputsConsumed)
+	}
+	if got.MerkleState != engine.MerkleStateValidated {
+		t.Fatalf("mined output state = %v, want Validated", got.MerkleState)
+	}
+	if got.MerkleRoot == nil || !got.MerkleRoot.Equal(*root) {
+		t.Fatalf("merkleRoot = %v, want %v", got.MerkleRoot, root)
+	}
+	if got.BlockHeight != 100 {
+		t.Fatalf("blockHeight = %d, want 100", got.BlockHeight)
+	}
+	if got.Score == 0 {
+		t.Fatal("score not assigned on insert")
+	}
+
+	// includeBEEF=false must leave Beef nil (deleteUTXODeep path).
+	got, err = st.FindOutput(ctx, op(txid, 0), &[]string{topic}[0], nil, false)
+	if err != nil || got == nil {
+		t.Fatal(got, err)
+	}
+	if got.Beef != nil {
+		t.Fatal("Beef must be nil when includeBEEF=false")
+	}
+
+	// Missing output: engine expects (nil, nil), not an error.
+	missing := newTx(0x02, 1).TxID()
+	if got, err = st.FindOutput(ctx, op(missing, 0), nil, nil, true); err != nil || got != nil {
+		t.Fatalf("missing output: got %+v err %v, want nil,nil", got, err)
+	}
+
+	// spent filter mismatch also returns nil.
+	spent := true
+	if got, err = st.FindOutput(ctx, op(txid, 0), nil, &spent, false); err != nil || got != nil {
+		t.Fatalf("spent-filter: got %+v err %v, want nil,nil", got, err)
+	}
+
+	// FindOutputs is positional: result[i] pairs with outpoints[i], nil for
+	// missing (mergeExistingOutputs indexes the result by vin).
+	batch, err := st.FindOutputs(ctx, []*transaction.Outpoint{op(missing, 0), op(txid, 1)}, topic, nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(batch) != 2 {
+		t.Fatalf("batch len = %d, want 2 (positional)", len(batch))
+	}
+	if batch[0] != nil {
+		t.Fatal("batch[0] must be nil for missing outpoint")
+	}
+	if batch[1] == nil || batch[1].Outpoint.Index != 1 || batch[1].Beef == nil {
+		t.Fatalf("batch[1]: %+v", batch[1])
+	}
+
+	// FindOutputsForTransaction spans all outputs of the txid.
+	all, err := st.FindOutputsForTransaction(ctx, txid, false)
+	if err != nil || len(all) != 2 {
+		t.Fatalf("forTransaction: %d outputs, err %v", len(all), err)
+	}
+}
+
+func TestFindUTXOsForTopic(t *testing.T) {
+	ctx := context.Background()
+	st := New(testDB(t))
+
+	tx1 := newTx(0x03, 1)
+	if err := st.InsertOutputs(ctx, topic, tx1.TxID(), []uint32{0}, nil, beefFor(t, tx1), nil); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(5 * time.Millisecond) // distinct scores
+	tx2 := newTx(0x04, 1)
+	if err := st.InsertOutputs(ctx, topic, tx2.TxID(), []uint32{0}, nil, beefFor(t, tx2), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	utxos, err := st.FindUTXOsForTopic(ctx, topic, 0, 0, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(utxos) != 2 {
+		t.Fatalf("utxos = %d, want 2", len(utxos))
+	}
+	if utxos[0].Score >= utxos[1].Score {
+		t.Fatalf("not sorted ascending by score: %f %f", utxos[0].Score, utxos[1].Score)
+	}
+	if utxos[0].Beef == nil {
+		t.Fatal("includeBEEF=true must hydrate Beef")
+	}
+
+	// since is an exclusive lower bound on score (GASP paging resumes after
+	// the last seen interaction score).
+	utxos, err = st.FindUTXOsForTopic(ctx, topic, utxos[0].Score, 0, false)
+	if err != nil || len(utxos) != 1 || !utxos[0].Outpoint.Txid.Equal(*tx2.TxID()) {
+		t.Fatalf("since-filter: %+v err %v", utxos, err)
+	}
+
+	// limit
+	utxos, err = st.FindUTXOsForTopic(ctx, topic, 0, 1, false)
+	if err != nil || len(utxos) != 1 {
+		t.Fatalf("limit: %d err %v", len(utxos), err)
+	}
+
+	// spent outputs are not UTXOs.
+	if err := st.MarkUTXOsAsSpent(ctx, []*transaction.Outpoint{op(tx1.TxID(), 0)}, topic, tx2.TxID()); err != nil {
+		t.Fatal(err)
+	}
+	utxos, err = st.FindUTXOsForTopic(ctx, topic, 0, 0, false)
+	if err != nil || len(utxos) != 1 || !utxos[0].Outpoint.Txid.Equal(*tx2.TxID()) {
+		t.Fatalf("after spend: %+v err %v", utxos, err)
+	}
+
+	// other topic sees nothing.
+	utxos, err = st.FindUTXOsForTopic(ctx, "tm_other", 0, 0, false)
+	if err != nil || len(utxos) != 0 {
+		t.Fatalf("other topic: %d err %v", len(utxos), err)
+	}
+}
+
+// --- spend / consume group ---
+
+func TestSpendAndConsumedBy(t *testing.T) {
+	ctx := context.Background()
+	st := New(testDB(t))
+
+	parent := newTx(0x05, 2)
+	parentID := parent.TxID()
+	if err := st.InsertOutputs(ctx, topic, parentID, []uint32{0, 1}, nil, beefFor(t, parent), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	child := newTx(0x06, 1)
+	childID := child.TxID()
+
+	// Engine flow for a submit consuming parent:0 with coinsToRetain=[0]:
+	// MarkUTXOsAsSpent -> InsertOutputs(child, outpointsConsumed=[parent:0])
+	// -> UpdateConsumedBy(parent:0, [child:0]).
+	if err := st.MarkUTXOsAsSpent(ctx, []*transaction.Outpoint{op(parentID, 0)}, topic, childID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.InsertOutputs(ctx, topic, childID, []uint32{0}, []*transaction.Outpoint{op(parentID, 0)}, beefFor(t, parent, child), nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpdateConsumedBy(ctx, op(parentID, 0), topic, []*transaction.Outpoint{op(childID, 0)}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := st.FindOutput(ctx, op(parentID, 0), nil, nil, false)
+	if err != nil || got == nil {
+		t.Fatal(got, err)
+	}
+	if !got.Spent {
+		t.Fatal("parent:0 must be spent")
+	}
+	if len(got.ConsumedBy) != 1 || !got.ConsumedBy[0].Equal(op(childID, 0)) {
+		t.Fatalf("consumedBy: %+v", got.ConsumedBy)
+	}
+
+	// The retained coin was NOT deleted: history hydration must still walk
+	// child.OutputsConsumed -> parent:0.
+	kid, err := st.FindOutput(ctx, op(childID, 0), nil, nil, false)
+	if err != nil || kid == nil {
+		t.Fatal(kid, err)
+	}
+	if len(kid.OutputsConsumed) != 1 || !kid.OutputsConsumed[0].Equal(op(parentID, 0)) {
+		t.Fatalf("outputsConsumed: %+v", kid.OutputsConsumed)
+	}
+
+	// parent:1 untouched by the batch spend.
+	other, err := st.FindOutput(ctx, op(parentID, 1), nil, nil, false)
+	if err != nil || other == nil || other.Spent {
+		t.Fatalf("parent:1: %+v err %v", other, err)
+	}
+
+	// UpdateConsumedBy replaces the whole list (engine passes the full
+	// updated slice, including on deleteUTXODeep shrink).
+	if err := st.UpdateConsumedBy(ctx, op(parentID, 0), topic, nil); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = st.FindOutput(ctx, op(parentID, 0), nil, nil, false)
+	if len(got.ConsumedBy) != 0 {
+		t.Fatalf("consumedBy after clear: %+v", got.ConsumedBy)
+	}
+}
+
+// --- merkle-state group ---
+
+func TestMerkleStateLifecycle(t *testing.T) {
+	ctx := context.Background()
+	st := New(testDB(t))
+
+	// tx1 mined at 100 (root R1), tx2 claims height 100 with a different
+	// root, tx3 unmined.
+	tx1 := newTx(0x07, 1)
+	root1 := addProof(t, tx1, 100)
+	tx2 := newTx(0x08, 1)
+	root2 := addProof(t, tx2, 100)
+	tx3 := newTx(0x09, 1)
+
+	for _, tx := range []*transaction.Transaction{tx1, tx2, tx3} {
+		if err := st.InsertOutputs(ctx, topic, tx.TxID(), []uint32{0}, nil, beefFor(t, tx), nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if root1.Equal(*root2) {
+		t.Fatal("test setup: roots must differ")
+	}
+
+	// Unmined output starts Unmined.
+	got, err := st.FindOutput(ctx, op(tx3.TxID(), 0), nil, nil, false)
+	if err != nil || got == nil || got.MerkleState != engine.MerkleStateUnmined {
+		t.Fatalf("tx3 state: %+v err %v", got, err)
+	}
+
+	// ReconcileMerkleRoot(topic, 100, root1): matching -> Validated,
+	// non-matching -> Invalidated, null roots stay Unmined.
+	if err := st.ReconcileMerkleRoot(ctx, topic, 100, root1); err != nil {
+		t.Fatal(err)
+	}
+	assertState := func(txid *chainhash.Hash, want engine.MerkleState) {
+		t.Helper()
+		o, err := st.FindOutput(ctx, op(txid, 0), nil, nil, false)
+		if err != nil || o == nil {
+			t.Fatal(o, err)
+		}
+		if o.MerkleState != want {
+			t.Fatalf("state = %v, want %v", o.MerkleState, want)
+		}
+	}
+	assertState(tx1.TxID(), engine.MerkleStateValidated)
+	assertState(tx2.TxID(), engine.MerkleStateInvalidated)
+	assertState(tx3.TxID(), engine.MerkleStateUnmined)
+
+	// SyncInvalidatedOutputs pages invalidated outpoints (outpoints only).
+	ops, err := st.FindOutpointsByMerkleState(ctx, topic, engine.MerkleStateInvalidated, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ops) != 1 || !ops[0].Equal(op(tx2.TxID(), 0)) {
+		t.Fatalf("invalidated outpoints: %+v", ops)
+	}
+	// limit is respected.
+	ops, err = st.FindOutpointsByMerkleState(ctx, topic, engine.MerkleStateUnmined, 1)
+	if err != nil || len(ops) != 1 {
+		t.Fatalf("unmined limit: %+v err %v", ops, err)
+	}
+
+	// HandleNewMerkleProof flow: UpdateTransactionBEEF with a re-proved tx2
+	// (now at the honest root height 101), then UpdateOutputBlockHeight.
+	newRoot := addProof(t, tx2, 101)
+	if err := st.UpdateTransactionBEEF(ctx, tx2.TxID(), beefFor(t, tx2)); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpdateOutputBlockHeight(ctx, op(tx2.TxID(), 0), topic, 101, 7); err != nil {
+		t.Fatal(err)
+	}
+	got, err = st.FindOutput(ctx, op(tx2.TxID(), 0), nil, nil, true)
+	if err != nil || got == nil {
+		t.Fatal(got, err)
+	}
+	if got.BlockHeight != 101 || got.BlockIdx != 7 {
+		t.Fatalf("block info: h=%d idx=%d", got.BlockHeight, got.BlockIdx)
+	}
+	if got.Beef == nil || got.Beef.FindBumpByHash(tx2.TxID()) == nil {
+		t.Fatal("updated BEEF must carry the new proof")
+	}
+	// Reconcile at 101 with the new root validates it again.
+	if err := st.ReconcileMerkleRoot(ctx, topic, 101, newRoot); err != nil {
+		t.Fatal(err)
+	}
+	assertState(tx2.TxID(), engine.MerkleStateValidated)
+}
+
+// --- applied-tx group ---
+
+func TestAppliedTransactions(t *testing.T) {
+	ctx := context.Background()
+	st := New(testDB(t))
+
+	txid := newTx(0x0a, 1).TxID()
+	rec := &overlay.AppliedTransaction{Txid: txid, Topic: topic}
+
+	exists, err := st.DoesAppliedTransactionExist(ctx, rec)
+	if err != nil || exists {
+		t.Fatalf("pre-insert exists=%v err=%v", exists, err)
+	}
+	if err := st.InsertAppliedTransaction(ctx, rec); err != nil {
+		t.Fatal(err)
+	}
+	exists, err = st.DoesAppliedTransactionExist(ctx, rec)
+	if err != nil || !exists {
+		t.Fatalf("post-insert exists=%v err=%v", exists, err)
+	}
+	// Re-insert of the same (topic, txid) is idempotent, not an error.
+	if err := st.InsertAppliedTransaction(ctx, rec); err != nil {
+		t.Fatal("duplicate insert must be idempotent:", err)
+	}
+	// Same txid under a different topic is a distinct record.
+	exists, err = st.DoesAppliedTransactionExist(ctx, &overlay.AppliedTransaction{Txid: txid, Topic: "tm_other"})
+	if err != nil || exists {
+		t.Fatalf("other-topic exists=%v err=%v", exists, err)
+	}
+}
+
+// --- delete group ---
+
+func TestDeleteOutput(t *testing.T) {
+	ctx := context.Background()
+	st := New(testDB(t))
+
+	tx := newTx(0x0b, 2)
+	txid := tx.TxID()
+	if err := st.InsertOutputs(ctx, topic, txid, []uint32{0, 1}, nil, beefFor(t, tx), nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DeleteOutput(ctx, op(txid, 0), topic); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := st.FindOutput(ctx, op(txid, 0), nil, nil, false); err != nil || got != nil {
+		t.Fatalf("deleted output still found: %+v err %v", got, err)
+	}
+	// Sibling untouched.
+	if got, err := st.FindOutput(ctx, op(txid, 1), nil, nil, false); err != nil || got == nil {
+		t.Fatalf("sibling: %+v err %v", got, err)
+	}
+	// Deleting a missing output is not an error (deleteUTXODeep tolerance).
+	if err := st.DeleteOutput(ctx, op(txid, 0), topic); err != nil {
+		t.Fatal("double delete:", err)
+	}
+}
+
+// --- BEEF round-trip / ancillary group ---
+
+func TestLoadAncillaryBeef(t *testing.T) {
+	ctx := context.Background()
+	st := New(testDB(t))
+
+	anc := newTx(0x0c, 1) // ancillary tx admitted on its own earlier
+	ancID := anc.TxID()
+	if err := st.InsertOutputs(ctx, topic, ancID, []uint32{0}, nil, beefFor(t, anc), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// Case 1: ancillary tx NOT inside the output's own BEEF -> merged from
+	// storage by txid.
+	tx := newTx(0x0d, 1)
+	txid := tx.TxID()
+	if err := st.InsertOutputs(ctx, topic, txid, []uint32{0}, nil, beefFor(t, tx), []*chainhash.Hash{ancID}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.FindOutput(ctx, op(txid, 0), nil, nil, true)
+	if err != nil || got == nil {
+		t.Fatal(got, err)
+	}
+	if len(got.AncillaryTxids) != 1 || !got.AncillaryTxids[0].Equal(*ancID) {
+		t.Fatalf("ancillaryTxids did not round-trip: %+v", got.AncillaryTxids)
+	}
+	if got.Beef.FindTransactionByHash(ancID) != nil {
+		t.Fatal("test setup: ancillary must not already be in the beef")
+	}
+	if err := st.LoadAncillaryBeef(ctx, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Beef.FindTransactionByHash(ancID) == nil {
+		t.Fatal("LoadAncillaryBeef must merge the ancillary tx into Beef")
+	}
+
+	// Case 2: ancillary already inside the BEEF -> no-op success.
+	tx2 := newTx(0x0e, 1)
+	if err := st.InsertOutputs(ctx, topic, tx2.TxID(), []uint32{0}, nil, beefFor(t, tx2, anc), []*chainhash.Hash{ancID}); err != nil {
+		t.Fatal(err)
+	}
+	got2, err := st.FindOutput(ctx, op(tx2.TxID(), 0), nil, nil, true)
+	if err != nil || got2 == nil {
+		t.Fatal(got2, err)
+	}
+	if err := st.LoadAncillaryBeef(ctx, got2); err != nil {
+		t.Fatal(err)
+	}
+	if got2.Beef.FindTransactionByHash(ancID) == nil {
+		t.Fatal("ancillary tx missing after LoadAncillaryBeef")
+	}
+
+	// Case 3: ancillary txid known nowhere -> error (the full BEEF cannot be
+	// assembled, and the engine treats that as fatal for the lookup).
+	ghost := newTx(0x0f, 1).TxID()
+	tx3 := newTx(0x10, 1)
+	if err := st.InsertOutputs(ctx, topic, tx3.TxID(), []uint32{0}, nil, beefFor(t, tx3), []*chainhash.Hash{ghost}); err != nil {
+		t.Fatal(err)
+	}
+	got3, err := st.FindOutput(ctx, op(tx3.TxID(), 0), nil, nil, true)
+	if err != nil || got3 == nil {
+		t.Fatal(got3, err)
+	}
+	if err := st.LoadAncillaryBeef(ctx, got3); err == nil {
+		t.Fatal("missing ancillary beef must error")
+	}
+
+	// No ancillary txids -> nil fast path (every hydrateOneFormula call).
+	gotAnc, err := st.FindOutput(ctx, op(ancID, 0), nil, nil, true)
+	if err != nil || gotAnc == nil {
+		t.Fatal(gotAnc, err)
+	}
+	if err := st.LoadAncillaryBeef(ctx, gotAnc); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// --- last-interaction group (GASP bookkeeping; GASP is off but the
+// interface must still behave) ---
+
+func TestLastInteraction(t *testing.T) {
+	ctx := context.Background()
+	st := New(testDB(t))
+
+	score, err := st.GetLastInteraction(ctx, "https://peer.example", topic)
+	if err != nil || score != 0 {
+		t.Fatalf("empty score = %f err %v, want 0", score, err)
+	}
+	if err := st.UpdateLastInteraction(ctx, "https://peer.example", topic, 42.5); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpdateLastInteraction(ctx, "https://peer.example", topic, 99); err != nil {
+		t.Fatal(err)
+	}
+	score, err = st.GetLastInteraction(ctx, "https://peer.example", topic)
+	if err != nil || score != 99 {
+		t.Fatalf("score = %f err %v, want 99", score, err)
+	}
+	// Distinct (host, topic) key.
+	score, err = st.GetLastInteraction(ctx, "https://peer.example", "tm_other")
+	if err != nil || score != 0 {
+		t.Fatalf("other-topic score = %f err %v, want 0", score, err)
+	}
+}
+
+// --- unique index guard ---
+
+func TestUniqueIndexes(t *testing.T) {
+	ctx := context.Background()
+	db := testDB(t)
+	st := New(db)
+
+	tx := newTx(0x11, 1)
+	txid := tx.TxID()
+	if err := st.InsertOutputs(ctx, topic, txid, []uint32{0}, nil, beefFor(t, tx), nil); err != nil {
+		t.Fatal(err)
+	}
+	// Re-insert of the same (topic, txid, vout) must not create a second doc
+	// (unique index topic+txid+outputIndex; upsert semantics).
+	if err := st.InsertOutputs(ctx, topic, txid, []uint32{0}, nil, beefFor(t, tx), nil); err != nil {
+		t.Fatal(err)
+	}
+	n, err := db.Collection("engineOutputs").CountDocuments(ctx, map[string]any{"txid": txid.String()})
+	if err != nil || n != 1 {
+		t.Fatalf("docs = %d err %v, want 1", n, err)
+	}
+	// Same outpoint under another topic is a separate document.
+	if err := st.InsertOutputs(ctx, "tm_other", txid, []uint32{0}, nil, beefFor(t, tx), nil); err != nil {
+		t.Fatal(err)
+	}
+	n, _ = db.Collection("engineOutputs").CountDocuments(ctx, map[string]any{"txid": txid.String()})
+	if n != 2 {
+		t.Fatalf("docs across topics = %d, want 2", n)
+	}
+}
