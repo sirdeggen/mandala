@@ -20,6 +20,32 @@ export function decodeBalances (
   return [...totals.entries()].map(([assetId, amount]) => ({ assetId, amount }))
 }
 
+/**
+ * Locate each planned locking script's final output index in a built tx.
+ * createAction returns no vout mapping, and with randomized output order the
+ * only reliable join is the script bytes themselves — unique keyIDs make every
+ * planned script byte-unique. Unplanned outputs (wallet satoshi change) are
+ * ignored; a missing or duplicated planned script throws.
+ */
+export function matchOutputIndices (
+  tx: { outputs: Array<{ lockingScript?: { toHex: () => string } }> },
+  scriptHexes: string[]
+): number[] {
+  const byHex = new Map<string, number>()
+  tx.outputs.forEach((o, i) => {
+    const hex = o.lockingScript?.toHex()
+    if (hex == null) return
+    if (byHex.has(hex)) byHex.set(hex, -1) // duplicate → poison
+    else byHex.set(hex, i)
+  })
+  return scriptHexes.map(hex => {
+    const idx = byHex.get(hex)
+    if (idx == null) throw new Error(`planned output script not found in tx: ${hex.slice(0, 16)}…`)
+    if (idx === -1) throw new Error(`ambiguous output script (duplicate) in tx: ${hex.slice(0, 16)}…`)
+    return idx
+  })
+}
+
 export async function revealLinkage (
   wallet: WalletInterface, keyID: string, counterparty: WalletCounterparty
 ): Promise<SpecificLinkage> {

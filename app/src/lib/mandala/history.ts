@@ -174,12 +174,16 @@ export function parseActionsToHistory (
         }
         direction = 'sent'
         // Recipient output: marked by its own customInstructions, else by the
-        // build convention (outputDescription, index 0 — randomizeOutputs is
-        // false in the transfer pipeline).
+        // build convention (outputDescription). Never fall back to a change
+        // output — a send now carries N change outputs in randomized order, so
+        // when the recipient output drops out of listActions the amount must
+        // come from the change CI's sentAmount instead. Change is excluded by
+        // outputDescription as well as CI: spending an output erases its
+        // customInstructions, but the description persists.
         const recipientOut =
           fts.find(x => ciFor(x.o).direction === 'sent') ??
           fts.find(x => x.o.outputDescription === 'FT to recipient') ??
-          fts[0]
+          fts.find(x => x.o.outputDescription !== 'FT change' && ciFor(x.o).direction !== 'change')
         const changeCi = cis.find(c => c.direction === 'change')
         amount = recipientOut?.ft.amount ?? (typeof changeCi?.sentAmount === 'number' ? changeCi.sentAmount : 0)
         counterparty =

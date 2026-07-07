@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
+import { MandalaToken } from '@bsv/templates'
 import { parseActionsToHistory, exportTransactionsCsv } from './history'
+
+// Real MandalaToken locking script (decodable), arbitrary pkh.
+// assetId must be outpoint-shaped: 64-hex txid + '.' + vout.
+const ASSET = `${'ab'.repeat(32)}.0`
+const PKH = Array.from({ length: 20 }, (_, i) => i + 1)
+const ftScript = (assetId: string, amount: number): string =>
+  new MandalaToken().lock(assetId, amount, PKH).toHex()
 
 const actions = [
   {
@@ -198,6 +206,124 @@ describe('parseActionsToHistory', () => {
   })
 })
 
+
+describe('multi-output change (split change strategy)', () => {
+  const changeOut = (index: number, amount: number): any => ({
+    outputIndex: index,
+    outputDescription: 'FT change',
+    basket: 'mandala',
+    satoshis: 1,
+    spendable: true,
+    lockingScript: ftScript(ASSET, amount),
+    customInstructions: JSON.stringify({
+      keyID: `change-1-${index}`,
+      counterparty: '02self',
+      direction: 'change',
+      recipient: '02recip',
+      sentAmount: 25
+    })
+  })
+
+  it('reports the recipient amount once, ignoring N change outputs', () => {
+    const rows = parseActionsToHistory([
+      {
+        txid: 'multi1',
+        description: 'Send 25 of x.0',
+        isOutgoing: true,
+        labels: ['mandala', 'transfer'],
+        outputs: [
+          {
+            outputIndex: 2,
+            outputDescription: 'FT to recipient',
+            satoshis: 1,
+            spendable: false,
+            lockingScript: ftScript(ASSET, 25),
+            customInstructions: JSON.stringify({
+              keyID: 'xfer-1', counterparty: '02recip', direction: 'sent', recipient: '02recip'
+            })
+          },
+          changeOut(0, 40),
+          changeOut(1, 10),
+          changeOut(3, 5)
+        ]
+      }
+    ] as any)
+    expect(rows).toHaveLength(1)
+    const row = rows[0]
+    expect(row.direction).toBe('sent')
+    expect(row.amount).toBe(25)
+    expect(row.counterparty).toBe('02recip')
+  })
+
+  it('falls back to sentAmount when only change outputs remain (recipient output dropped)', () => {
+    // The recipient output is not basket-tracked and drops out of listActions;
+    // the change outputs decode as FTs but must NOT be mistaken for the send.
+    const rows = parseActionsToHistory([
+      {
+        txid: 'multi2',
+        description: 'Send 25 of x.0',
+        isOutgoing: true,
+        labels: ['mandala', 'transfer'],
+        outputs: [changeOut(1, 40), changeOut(2, 10)]
+      }
+    ] as any)
+    expect(rows).toHaveLength(1)
+    const row = rows[0]
+    expect(row.direction).toBe('sent')
+    expect(row.amount).toBe(25) // sentAmount, not the 40-unit change output
+    expect(row.counterparty).toBe('02recip')
+  })
+
+  it('never mistakes a SPENT change output (CI erased) for the recipient', () => {
+    // Spending a change output erases its customInstructions; only its
+    // outputDescription survives. The 40-unit spent change must not be
+    // reported as the sent amount — the intact change CI carries sentAmount.
+    const spentChange = {
+      outputIndex: 0,
+      outputDescription: 'FT change',
+      satoshis: 1,
+      spendable: false,
+      lockingScript: ftScript(ASSET, 40)
+      // no customInstructions — erased on spend
+    }
+    const rows = parseActionsToHistory([
+      {
+        txid: 'multi4',
+        description: 'Send 25 of x.0',
+        isOutgoing: true,
+        labels: ['mandala', 'transfer'],
+        outputs: [spentChange, changeOut(1, 10)]
+      }
+    ] as any)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].amount).toBe(25) // sentAmount, not the spent 40-unit change
+  })
+
+  it('falls back to sentAmount when change outputs carry CI but no locking scripts', () => {
+    const bare = (index: number): any => ({
+      outputIndex: index,
+      outputDescription: 'FT change',
+      satoshis: 1,
+      spendable: true,
+      tags: ['mandala', 'x.0'],
+      customInstructions: JSON.stringify({
+        keyID: `change-1-${index}`, counterparty: '02self', direction: 'change', recipient: '02recip', sentAmount: 25
+      })
+    })
+    const rows = parseActionsToHistory([
+      {
+        txid: 'multi3',
+        description: 'Send 25 of x.0',
+        isOutgoing: true,
+        labels: ['mandala', 'transfer'],
+        outputs: [bare(1), bare(2)]
+      }
+    ] as any)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].amount).toBe(25)
+    expect(rows[0].counterparty).toBe('02recip')
+  })
+})
 
 describe('counterparty from persistent action labels', () => {
   const KEY = '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'

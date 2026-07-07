@@ -428,18 +428,36 @@ attaches BEEF but **no lockingScript**. FT selection + spend therefore issues
 
 ### Transaction-building pattern (all four issuer actions + send)
 
-1. `createAction` with inputs/outputs (`randomizeOutputs:false`, since output
-   indices matter for linkage).
+1. `createAction` with inputs/outputs. Issuer actions keep
+   `randomizeOutputs:false` (fixed output layout, linkage indices hardcoded).
+   The holder **send** path lets the wallet randomize output order and recovers
+   the final indices by matching locking-script hex (`matchOutputIndices` in
+   `tokens.ts`) — unique keyIDs make every planned script byte-unique.
 2. Sign the signable tx by attaching `unlockingScriptTemplate`s and `.sign()`.
 3. `signAction({ reference, spends })`.
 4. **Use `signed.txid` / `reg.txid`** for the txid — never
    `Transaction.fromBEEF(...).id()`, which can return the wrong tx from an
    AtomicBEEF bundle.
 5. `revealLinkage` for FT outputs → `encodeLinkagePayload({ inputs, outputs,
-   admin })` → `submitToOverlay`.
+   admin })` → `submitToOverlay`. Every FT output needs its own linkage entry
+   (an unlinked FT output is skipped by the overlay, which then fails per-asset
+   conservation and rejects the whole tx).
 6. For peer delivery, `messageBoxClient.sendMessage` with the tx + keyID +
-   protocolID so the recipient can `internalizeAction` (basket insertion) on
-   accept.
+   protocolID + `outputIndex` (where the shuffle put the recipient's output) so
+   the recipient can `internalizeAction` (basket insertion) on accept. Missing
+   `outputIndex` is read as 0 (legacy messages, issuer reissue).
+
+### Token change splitting (`ftChange.ts`)
+
+Send change is split across multiple outputs, mirroring the wallet-toolbox
+satoshi change strategy (`generateChangeSdk`) in token units per assetId:
+output count targets net growth of the per-asset UTXO pool toward
+`DESIRED_FT_UTXOS` (32), capped at `MAX_FT_CHANGE_OUTPUTS` (8) per tx; each
+output seeds at 1 unit and the surplus is scattered in random 25–50% slices
+onto random outputs. Combined with randomized output order this makes change
+indistinguishable from the recipient output. Each change output gets its own
+keyID (`change-<stamp>-<i>`) and full-`sentAmount` customInstructions (history
+reads the first change CI it finds).
 
 ---
 
@@ -544,8 +562,9 @@ in `adminState.ts` and `adminHistory.ts` (not via `LookupResolver`).
    assetId = `genesisTxid.0`.
 2. **Issue** (issuer): spend genesis auth → `[FT to self, next auth]`; submit;
    FT now in issuer's basket.
-3. **Send** (holder): select FT inputs, output `[FT to recipient, change?]`;
-   submit to overlay; notify recipient via message box.
+3. **Send** (holder): select FT inputs; outputs = FT to recipient + N split
+   change outputs (ftChange.ts), order randomized by the wallet; submit to
+   overlay; notify recipient via message box (body carries `outputIndex`).
 4. **Receive** (recipient): list message-box messages, `internalizeAction`
    (basket insertion) on accept, acknowledge the message. Label resolved by
    SPV.

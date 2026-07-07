@@ -29,6 +29,8 @@ interface IncomingMessage {
   keyID: string
   protocolID: [0 | 1 | 2, string]
   transaction: AtomicBEEF
+  /** Where the sender's (randomized) tx put our output; 0 for legacy messages. */
+  outputIndex: number
 }
 
 /**
@@ -61,7 +63,7 @@ export default function ReceiveTokens() {
       // unlike customInstructions (see history.ts counterparty resolution).
       labels: ['mandala', 'receive', `from-${msg.sender.toLowerCase()}`],
       outputs: [{
-        outputIndex: 0,
+        outputIndex: msg.outputIndex,
         protocol: 'basket insertion',
         insertionRemittance: {
           basket: BASKET,
@@ -106,7 +108,10 @@ export default function ReceiveTokens() {
             sender: raw.body.sender,
             keyID: raw.body.keyID,
             protocolID: raw.body.protocolID,
-            transaction: raw.body.transaction
+            transaction: raw.body.transaction,
+            // Senders now randomize output order and say where our output
+            // landed; older messages predate the field (recipient was always 0).
+            outputIndex: typeof raw.body.outputIndex === 'number' ? raw.body.outputIndex : 0
           })
         } catch (err) {
           // One bad transfer shouldn't block the rest; allow a later retry.

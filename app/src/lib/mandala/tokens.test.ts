@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { Hash, PrivateKey, ProtoWallet } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
-import { outpoint, decodeBalances, revealLinkage } from './tokens'
+import { outpoint, decodeBalances, revealLinkage, matchOutputIndices } from './tokens'
 import { encodeLinkagePayload, MandalaLinkagePayload } from './encoding'
 
 describe('tokens helpers', () => {
@@ -20,6 +20,33 @@ describe('tokens helpers', () => {
       { lockingScript: '006a' } // not a token
     ])
     expect(balances).toEqual([{ assetId: assetA, amount: 50 }])
+  })
+})
+
+describe('matchOutputIndices', () => {
+  const txWith = (...hexes: string[]): any => ({
+    outputs: hexes.map(h => ({ lockingScript: { toHex: () => h } }))
+  })
+
+  it('finds each planned script at its shuffled position', () => {
+    // Randomized order: change, wallet fee-change, recipient.
+    const tx = txWith('cc01', 'ff99', 'aa01')
+    expect(matchOutputIndices(tx, ['aa01', 'cc01'])).toEqual([2, 0])
+  })
+
+  it('ignores unplanned outputs (wallet satoshi change)', () => {
+    const tx = txWith('ff99', 'aa01')
+    expect(matchOutputIndices(tx, ['aa01'])).toEqual([1])
+  })
+
+  it('throws when a planned script is missing from the tx', () => {
+    const tx = txWith('aa01')
+    expect(() => matchOutputIndices(tx, ['aa01', 'bb02'])).toThrow(/not found/i)
+  })
+
+  it('throws on duplicate planned scripts (ambiguous match)', () => {
+    const tx = txWith('aa01', 'aa01')
+    expect(() => matchOutputIndices(tx, ['aa01', 'aa01'])).toThrow(/ambiguous/i)
   })
 })
 
