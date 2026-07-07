@@ -131,13 +131,14 @@ func TestSubmit_FramedBodySplit(t *testing.T) {
 	}{
 		{"short varint (<0xfd)", 10},
 		{"0xfd-prefixed varint", 300},
+		{"0xfe-prefixed varint (u32)", 70000},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			beef := make([]byte, tc.beefSize)
 			for i := range beef {
-				beef[i] = byte(i)
+				beef[i] = byte(i % 256)
 			}
 			offChain := []byte(`{"inputs":[],"outputs":[],"admin":[]}`)
 
@@ -166,6 +167,98 @@ func TestSubmit_FramedBodySplit(t *testing.T) {
 				t.Fatalf("offChain mismatch: got %q, want %q", stub.gotTB.OffChainValues, offChain)
 			}
 		})
+	}
+}
+
+func TestReadVarInt(t *testing.T) {
+	cases := []struct {
+		name      string
+		input     []byte
+		want      uint64
+		wantError bool
+	}{
+		// Single-byte values (< 0xfd)
+		{"single-byte 0x00", []byte{0x00}, 0, false},
+		{"single-byte 0xfc", []byte{0xfc}, 0xfc, false},
+
+		// 0xfd prefix with 2-byte little-endian value
+		{"0xfd prefix: 253", append([]byte{0xfd}, varintBytes(253)[1:]...), 253, false},
+		{"0xfd prefix: 65535", append([]byte{0xfd}, varintBytes(65535)[1:]...), 65535, false},
+
+		// 0xfe prefix with 4-byte little-endian value
+		{"0xfe prefix: 65536", append([]byte{0xfe}, varintBytes(65536)[1:]...), 65536, false},
+		{"0xfe prefix: max u32", append([]byte{0xfe}, varintBytes(0xffffffff)[1:]...), 0xffffffff, false},
+
+		// 0xff prefix with 8-byte little-endian value
+		{"0xff prefix: 2^32", append([]byte{0xff}, varintBytes(uint64(1)<<32)[1:]...), uint64(1) << 32, false},
+
+		// Truncated inputs (missing bytes after prefix)
+		{"truncated: 0xfd without data", []byte{0xfd}, 0, true},
+		{"truncated: 0xfd with 1 byte", []byte{0xfd, 0x01}, 0, true},
+		{"truncated: 0xfe without data", []byte{0xfe}, 0, true},
+		{"truncated: 0xfe with 2 bytes", []byte{0xfe, 0x01, 0x02}, 0, true},
+		{"truncated: 0xff without data", []byte{0xff}, 0, true},
+		{"truncated: 0xff with 4 bytes", []byte{0xff, 0x01, 0x02, 0x03, 0x04}, 0, true},
+
+		// Empty input
+		{"empty reader", []byte{}, 0, true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := bytes.NewReader(tc.input)
+			got, err := readVarInt(r)
+
+			if tc.wantError {
+				if err == nil {
+					t.Fatalf("readVarInt(%v) = %d, nil; want error", tc.input, got)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("readVarInt(%v) error: %v", tc.input, err)
+				}
+				if got != tc.want {
+					t.Fatalf("readVarInt(%v) = %d, want %d", tc.input, got, tc.want)
+				}
+			}
+		})
+	}
+}
+
+func TestSubmit_TruncatedFraming(t *testing.T) {
+	// Header says off-chain values are present, but varint declares a length
+	// greater than remaining body bytes. Should return 400, never panic.
+	beef := make([]byte, 100)
+	for i := range beef {
+		beef[i] = byte(i % 256)
+	}
+	offChain := []byte(`{"inputs":[],"outputs":[]}`)
+
+	// Frame a body: [varint=500][100 bytes beef][28 bytes offChain]
+	// Total is 500 declared beef but only 100 actual → truncation.
+	var wire bytes.Buffer
+	wire.Write(varintBytes(500)) // Declare 500 bytes of beef
+	wire.Write(beef)             // But only provide 100
+	wire.Write(offChain)
+
+	stub := &stubSubmitter{steak: overlay.Steak{}}
+	app := newServer(stub)
+
+	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader(wire.Bytes()))
+	req.Header.Set("X-Topics", `["tm_mandala"]`)
+	req.Header.Set("x-includes-off-chain-values", "true")
+
+	resp := doRequest(t, app, req)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (body: %s)", resp.StatusCode, readRawBody(t, resp))
+	}
+
+	body := decodeJSON(t, resp)
+	if body["status"] != "error" {
+		t.Fatalf("body = %v, want status:error", body)
+	}
+	if msg, ok := body["message"].(string); !ok || msg == "" {
+		t.Fatalf("body = %v, want non-empty error message", body)
 	}
 }
 
