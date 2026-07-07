@@ -159,14 +159,26 @@ func LockToken(assetID string, amount int64, pubKeyHash []byte) (*script.Script,
 		return nil, err
 	}
 	s := &script.Script{}
-	_ = s.AppendPushData(aid)
-	if amount >= 1 && amount <= 16 { // minimal-push opcode form
-		_ = s.AppendOpcodes(script.Op1 + byte(amount-1))
-	} else {
-		_ = s.AppendPushData(encodeScriptNum(amount))
+	if err := s.AppendPushData(aid); err != nil {
+		return nil, fmt.Errorf("lock token: append asset id: %w", err)
 	}
-	_ = s.AppendOpcodes(script.Op2DROP, script.OpDUP, script.OpHASH160)
-	_ = s.AppendPushData(pubKeyHash)
-	_ = s.AppendOpcodes(script.OpEQUALVERIFY, script.OpCHECKSIG)
+	if amount <= 16 { // minimal-push opcode form
+		if err := s.AppendOpcodes(script.Op1 + byte(amount-1)); err != nil {
+			return nil, fmt.Errorf("lock token: append amount opcode: %w", err)
+		}
+	} else {
+		if err := s.AppendPushData(encodeScriptNum(amount)); err != nil {
+			return nil, fmt.Errorf("lock token: append amount data: %w", err)
+		}
+	}
+	if err := s.AppendOpcodes(script.Op2DROP, script.OpDUP, script.OpHASH160); err != nil {
+		return nil, fmt.Errorf("lock token: append opcodes (2DROP/DUP/HASH160): %w", err)
+	}
+	if err := s.AppendPushData(pubKeyHash); err != nil {
+		return nil, fmt.Errorf("lock token: append pubkey hash: %w", err)
+	}
+	if err := s.AppendOpcodes(script.OpEQUALVERIFY, script.OpCHECKSIG); err != nil {
+		return nil, fmt.Errorf("lock token: append opcodes (EQUALVERIFY/CHECKSIG): %w", err)
+	}
 	return s, nil
 }
