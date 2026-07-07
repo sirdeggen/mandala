@@ -40,3 +40,24 @@ func TestDecodeLinkagePayloadEmpty(t *testing.T) {
 		}
 	}
 }
+
+func TestProtocolIDRejectsWrongArity(t *testing.T) {
+	var p ProtocolID
+	if err := p.UnmarshalJSON([]byte(`[2,"mandala token","extra"]`)); err == nil {
+		t.Fatal("3-element protocolID must error")
+	}
+	if err := p.UnmarshalJSON([]byte(`[2]`)); err == nil {
+		t.Fatal("1-element protocolID must error")
+	}
+}
+
+func TestNumRejectsBeyondMaxSafe(t *testing.T) {
+	d := ActionDetails{"amount": float64(9007199254740993)} // 2^53+1, unrepresentable
+	if _, ok := d.Num("amount"); ok {
+		t.Fatal("beyond-max-safe amount must be rejected")
+	}
+	d2 := ActionDetails{"amount": float64(9007199254740991)}
+	if n, ok := d2.Num("amount"); !ok || n != 9007199254740991 {
+		t.Fatal("max-safe amount must pass")
+	}
+}

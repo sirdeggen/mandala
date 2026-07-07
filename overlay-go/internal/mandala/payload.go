@@ -39,9 +39,12 @@ type ProtocolID struct {
 }
 
 func (p *ProtocolID) UnmarshalJSON(b []byte) error {
-	var arr [2]json.RawMessage
+	var arr []json.RawMessage
 	if err := json.Unmarshal(b, &arr); err != nil {
 		return err
+	}
+	if len(arr) != 2 {
+		return fmt.Errorf("protocolID must be a 2-element array, got %d", len(arr))
 	}
 	if err := json.Unmarshal(arr[0], &p.SecurityLevel); err != nil {
 		return err
@@ -79,6 +82,9 @@ func (d ActionDetails) Str(key string) (string, bool) {
 func (d ActionDetails) Num(key string) (int64, bool) {
 	f, ok := d[key].(float64)
 	if !ok || f != math.Trunc(f) {
+		return 0, false
+	}
+	if math.Abs(f) > 9007199254740991 {
 		return 0, false
 	}
 	return int64(f), true
