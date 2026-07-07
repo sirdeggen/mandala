@@ -76,7 +76,10 @@ const commitmentCases = [
   { kind: 'register', assetId: ASSET },
   { kind: 'issue', assetId: ASSET, amount: 1000, priorOutpoint: `${TXID}.0` },
   { z: 1, a: [3, { b: 'x', A: null }], nested: { deep: { key: 'väl' } } },
-  { kind: 'freezeOutput', outpoint: `${TXID}.3`, amount: 0 }
+  { kind: 'freezeOutput', outpoint: `${TXID}.3`, amount: 0 },
+  { memo: 'a<b&c>d', bankRef: 'Smith & Sons <wire>' },
+  { amount: 2.5, tiny: 5e-7, big: 1e21, mixed: 123456789012345.6 },
+  { zero: -0, list: [1e-6, 1e-7, 0.000001] }
 ]
 // Use the real static method that MandalaAdmin.lock/unlock use internally for
 // keyID derivation (MandalaAdmin.ts, not a standalone `commitment` export).
