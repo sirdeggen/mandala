@@ -1,0 +1,335 @@
+package httpapi
+
+import (
+	"bytes"
+	"context"
+	"encoding/binary"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
+	"github.com/bsv-blockchain/go-sdk/overlay"
+	"github.com/gofiber/fiber/v2"
+
+	"github.com/sirdeggen/mandala/overlay-go/internal/mandala"
+)
+
+// varintBytes encodes n as a Bitcoin VarInt, the inverse of readVarInt —
+// used by tests to build framed request bodies at each width.
+func varintBytes(n uint64) []byte {
+	switch {
+	case n < 0xfd:
+		return []byte{byte(n)}
+	case n <= 0xffff:
+		b := make([]byte, 3)
+		b[0] = 0xfd
+		binary.LittleEndian.PutUint16(b[1:], uint16(n))
+		return b
+	case n <= 0xffffffff:
+		b := make([]byte, 5)
+		b[0] = 0xfe
+		binary.LittleEndian.PutUint32(b[1:], uint32(n))
+		return b
+	default:
+		b := make([]byte, 9)
+		b[0] = 0xff
+		binary.LittleEndian.PutUint64(b[1:], n)
+		return b
+	}
+}
+
+// stubSubmitter is a Submitter test double: it records what it was called
+// with and returns canned results, so tests never need a real engine or
+// Mongo.
+type stubSubmitter struct {
+	steak overlay.Steak
+	err   error
+
+	gotCtx  context.Context
+	gotTB   overlay.TaggedBEEF
+	gotMode engine.SumbitMode
+}
+
+func (s *stubSubmitter) Submit(ctx context.Context, tb overlay.TaggedBEEF, mode engine.SumbitMode, _ engine.OnSteakReady) (overlay.Steak, error) {
+	s.gotCtx = ctx
+	s.gotTB = tb
+	s.gotMode = mode
+	return s.steak, s.err
+}
+
+func doRequest(t *testing.T, app *fiber.App, req *http.Request) *http.Response {
+	t.Helper()
+	resp, err := app.Test(req, -1)
+	if err != nil {
+		t.Fatalf("app.Test: %v", err)
+	}
+	return resp
+}
+
+func readRawBody(t *testing.T, resp *http.Response) []byte {
+	t.Helper()
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	return b
+}
+
+func decodeJSON(t *testing.T, resp *http.Response) map[string]any {
+	t.Helper()
+	raw := readRawBody(t, resp)
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatalf("unmarshal body %q: %v", raw, err)
+	}
+	return m
+}
+
+func TestSubmit_MissingTopics(t *testing.T) {
+	app := newServer(&stubSubmitter{})
+
+	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader([]byte{0x01}))
+	resp := doRequest(t, app, req)
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+	body := decodeJSON(t, resp)
+	if body["status"] != "error" {
+		t.Fatalf("body = %v, want status:error", body)
+	}
+	if _, ok := body["message"]; !ok {
+		t.Fatalf("body = %v, missing message field", body)
+	}
+}
+
+func TestSubmit_InvalidTopicsJSON(t *testing.T) {
+	app := newServer(&stubSubmitter{})
+
+	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader([]byte{0x01}))
+	req.Header.Set("X-Topics", "not-json")
+	resp := doRequest(t, app, req)
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+	body := decodeJSON(t, resp)
+	if body["status"] != "error" {
+		t.Fatalf("body = %v, want status:error", body)
+	}
+}
+
+func TestSubmit_FramedBodySplit(t *testing.T) {
+	cases := []struct {
+		name     string
+		beefSize int
+	}{
+		{"short varint (<0xfd)", 10},
+		{"0xfd-prefixed varint", 300},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			beef := make([]byte, tc.beefSize)
+			for i := range beef {
+				beef[i] = byte(i)
+			}
+			offChain := []byte(`{"inputs":[],"outputs":[],"admin":[]}`)
+
+			var wire bytes.Buffer
+			wire.Write(varintBytes(uint64(len(beef))))
+			wire.Write(beef)
+			wire.Write(offChain)
+
+			stub := &stubSubmitter{steak: overlay.Steak{}}
+			app := newServer(stub)
+
+			req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader(wire.Bytes()))
+			req.Header.Set("X-Topics", `["tm_mandala"]`)
+			req.Header.Set("x-includes-off-chain-values", "true")
+			req.Header.Set("Content-Type", "application/octet-stream")
+
+			resp := doRequest(t, app, req)
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status = %d, want 200 (body: %s)", resp.StatusCode, readRawBody(t, resp))
+			}
+
+			if !bytes.Equal(stub.gotTB.Beef, beef) {
+				t.Fatalf("beef mismatch: got %d bytes, want %d bytes", len(stub.gotTB.Beef), len(beef))
+			}
+			if !bytes.Equal(stub.gotTB.OffChainValues, offChain) {
+				t.Fatalf("offChain mismatch: got %q, want %q", stub.gotTB.OffChainValues, offChain)
+			}
+		})
+	}
+}
+
+func TestSubmit_NoOffChainValuesFlag_WholeBodyIsBeef(t *testing.T) {
+	beef := []byte{0xde, 0xad, 0xbe, 0xef, 0x01, 0x02}
+
+	stub := &stubSubmitter{steak: overlay.Steak{}}
+	app := newServer(stub)
+
+	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader(beef))
+	req.Header.Set("X-Topics", `["tm_mandala"]`)
+
+	resp := doRequest(t, app, req)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", resp.StatusCode, readRawBody(t, resp))
+	}
+	if !bytes.Equal(stub.gotTB.Beef, beef) {
+		t.Fatalf("beef mismatch: got %v, want %v", stub.gotTB.Beef, beef)
+	}
+	if len(stub.gotTB.OffChainValues) != 0 {
+		t.Fatalf("offChainValues = %v, want empty", stub.gotTB.OffChainValues)
+	}
+}
+
+func TestSubmit_CtxThreadsDecodedPayload(t *testing.T) {
+	offChain := []byte(`{"inputs":[{"index":0,"linkage":{"prover":"p","verifier":"v","counterparty":"c","protocolID":[2,"mandala token"],"keyID":"k","encryptedLinkage":[1,2],"encryptedLinkageProof":[3,4],"proofType":0}}],"outputs":[]}`)
+	beef := []byte{0xde, 0xad, 0xbe, 0xef}
+
+	var wire bytes.Buffer
+	wire.Write(varintBytes(uint64(len(beef))))
+	wire.Write(beef)
+	wire.Write(offChain)
+
+	stub := &stubSubmitter{steak: overlay.Steak{}}
+	app := newServer(stub)
+
+	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader(wire.Bytes()))
+	req.Header.Set("X-Topics", `["tm_mandala"]`)
+	req.Header.Set("x-includes-off-chain-values", "true")
+
+	resp := doRequest(t, app, req)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", resp.StatusCode, readRawBody(t, resp))
+	}
+
+	if stub.gotCtx == nil {
+		t.Fatal("Submit was called with a nil ctx")
+	}
+	payload := mandala.PayloadFromContext(stub.gotCtx)
+	if len(payload.Inputs) != 1 {
+		t.Fatalf("payload.Inputs = %d, want 1 (payload: %+v)", len(payload.Inputs), payload)
+	}
+}
+
+func TestSubmit_SuccessReturnsBareSteak(t *testing.T) {
+	stub := &stubSubmitter{
+		steak: overlay.Steak{
+			"tm_mandala": &overlay.AdmittanceInstructions{
+				OutputsToAdmit: []uint32{0, 1},
+				CoinsToRetain:  nil, // deliberately nil: must still marshal as [], never null
+			},
+		},
+	}
+	app := newServer(stub)
+
+	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader([]byte{0xde, 0xad}))
+	req.Header.Set("X-Topics", `["tm_mandala"]`)
+
+	resp := doRequest(t, app, req)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+
+	raw := readRawBody(t, resp)
+	if bytes.Contains(raw, []byte("null")) {
+		t.Fatalf("body contains null, arrays must never be null: %s", raw)
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatalf("unmarshal body %q: %v", raw, err)
+	}
+	if _, hasStatus := body["status"]; hasStatus {
+		t.Fatalf("body = %v, success response must be bare (no status/message envelope)", body)
+	}
+
+	tm, ok := body["tm_mandala"].(map[string]any)
+	if !ok {
+		t.Fatalf("body = %v, missing tm_mandala object", body)
+	}
+	admits, ok := tm["outputsToAdmit"].([]any)
+	if !ok || len(admits) != 2 {
+		t.Fatalf("outputsToAdmit = %v, want [0,1]", tm["outputsToAdmit"])
+	}
+	retain, ok := tm["coinsToRetain"].([]any)
+	if !ok {
+		t.Fatalf("coinsToRetain missing or wrong type: %v (%T)", tm["coinsToRetain"], tm["coinsToRetain"])
+	}
+	if len(retain) != 0 {
+		t.Fatalf("coinsToRetain = %v, want []", retain)
+	}
+}
+
+func TestSubmit_EngineErrorReturns400(t *testing.T) {
+	stub := &stubSubmitter{err: errors.New("unknown-topic")}
+	app := newServer(stub)
+
+	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader([]byte{0x01}))
+	req.Header.Set("X-Topics", `["tm_mandala"]`)
+
+	resp := doRequest(t, app, req)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+	body := decodeJSON(t, resp)
+	if body["status"] != "error" {
+		t.Fatalf("body = %v, want status:error", body)
+	}
+	if body["message"] != "unknown-topic" {
+		t.Fatalf("message = %v, want %q", body["message"], "unknown-topic")
+	}
+}
+
+func TestOptionsPreflight(t *testing.T) {
+	app := newServer(&stubSubmitter{})
+
+	req := httptest.NewRequest(http.MethodOptions, "/submit", nil)
+	resp := doRequest(t, app, req)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	want := map[string]string{
+		"Access-Control-Allow-Origin":          "*",
+		"Access-Control-Allow-Headers":         "*",
+		"Access-Control-Allow-Methods":         "*",
+		"Access-Control-Expose-Headers":        "*",
+		"Access-Control-Allow-Private-Network": "true",
+	}
+	for header, wantVal := range want {
+		if got := resp.Header.Get(header); got != wantVal {
+			t.Errorf("%s = %q, want %q", header, got, wantVal)
+		}
+	}
+}
+
+func TestUnknownRoute404(t *testing.T) {
+	app := newServer(&stubSubmitter{})
+
+	req := httptest.NewRequest(http.MethodGet, "/nope-not-a-route", nil)
+	resp := doRequest(t, app, req)
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", resp.StatusCode)
+	}
+	body := decodeJSON(t, resp)
+	want := map[string]any{
+		"status":      "error",
+		"code":        "ERR_ROUTE_NOT_FOUND",
+		"description": "Route not found.",
+	}
+	for k, v := range want {
+		if body[k] != v {
+			t.Errorf("body[%q] = %v, want %v", k, body[k], v)
+		}
+	}
+}
