@@ -47,6 +47,9 @@ func (l *LookupService) OutputAdmittedByTopic(ctx context.Context, p *engine.Out
 	if err != nil {
 		return fmt.Errorf("ls_mandala: parse beef: %w", err)
 	}
+	if tx == nil {
+		return fmt.Errorf("ls_mandala: atomic tx not found in beef")
+	}
 	if int(p.OutputIndex) >= len(tx.Outputs) {
 		return fmt.Errorf("ls_mandala: output index %d out of range", p.OutputIndex)
 	}
@@ -72,7 +75,7 @@ func (l *LookupService) indexTokenOutput(ctx context.Context, txid string, outpu
 	identity := ""
 	var matched *SpecificLinkage
 	for _, o := range payload.Outputs {
-		if o.Index == outputIndex && o.Linkage != nil {
+		if o.Index == outputIndex {
 			id, _, err := l.verifier.VerifyKeyLinkage(ctx, o.Linkage)
 			if err != nil {
 				return fmt.Errorf("ls_mandala: output %d linkage verification: %w", outputIndex, err)

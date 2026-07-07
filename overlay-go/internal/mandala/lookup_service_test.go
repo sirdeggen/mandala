@@ -274,6 +274,103 @@ func TestOutputAdmittedByTopicFTWithoutOffChainValues(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// (b1) FT output whose offChainValues has an index-matching outputs[] entry
+// with no Linkage set -> verification must still run (and fail cleanly) even
+// though Linkage is nil; the error must propagate and no token row should be
+// stored (linkage verification runs before StoreToken in indexTokenOutput).
+// ---------------------------------------------------------------------------
+
+func TestOutputAdmittedByTopicFTIndexMatchNilLinkagePropagatesError(t *testing.T) {
+	ctx := context.Background()
+	store := NewStore(testDB(t))
+	f := newLSFTFixture(t)
+	ls := NewLookupService(f.verifier, store)
+
+	assetID := strings.Repeat("cc", 32) + ".0"
+	pkh := f.tokenPKH(t, "out-0", f.holderPub)
+
+	tx := transaction.NewTransaction()
+	tx.AddInput(lsDummyInput(0x05, 0))
+	tx.AddOutput(&transaction.TransactionOutput{
+		Satoshis:      1,
+		LockingScript: lsMustLockToken(t, assetID, 9, pkh),
+	})
+
+	// outputs[] has an entry for index 0, but it carries no "linkage" field.
+	payload := &LinkagePayload{Outputs: []IndexedLinkage{{Index: 0}}}
+	offChain, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = ls.OutputAdmittedByTopic(ctx, &engine.OutputAdmittedByTopic{
+		Topic: "tm_mandala", OutputIndex: 0,
+		AtomicBEEF: lsAtomicBEEF(t, tx), OffChainValues: offChain,
+	})
+	if err == nil {
+		t.Fatal("expected error propagated from nil-linkage verification, got nil")
+	}
+
+	txid := tx.TxID().String()
+	row, getErr := store.GetTokenRow(ctx, txid, 0)
+	if getErr != nil {
+		t.Fatal(getErr)
+	}
+	if row != nil {
+		t.Fatalf("expected no token row stored when linkage verification fails, got %+v", row)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// (b2) AtomicBEEF header txid not present in the bundle -> ParseBeef returns
+// (tx=nil, err=nil); OutputAdmittedByTopic must not panic and must return a
+// clean error instead of dereferencing the nil tx.
+// ---------------------------------------------------------------------------
+
+func TestOutputAdmittedByTopicAtomicTxidNotInBundleReturnsError(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("OutputAdmittedByTopic panicked: %v", r)
+		}
+	}()
+
+	ctx := context.Background()
+	store := NewStore(testDB(t))
+	f := newLSFTFixture(t)
+	ls := NewLookupService(f.verifier, store)
+
+	assetID := strings.Repeat("dd", 32) + ".0"
+	pkh := f.tokenPKH(t, "out-0", f.holderPub)
+
+	tx := transaction.NewTransaction()
+	tx.AddInput(lsDummyInput(0x09, 0))
+	tx.AddOutput(&transaction.TransactionOutput{
+		Satoshis:      1,
+		LockingScript: lsMustLockToken(t, assetID, 1, pkh),
+	})
+
+	beef := lsAtomicBEEF(t, tx)
+	// Corrupt the atomic-header subject txid (bytes [4:36]) so it no longer
+	// matches the txid of the transaction actually carried in the BEEF
+	// bundle body (bytes [36:]). transaction.ParseBeef's ATOMIC_BEEF branch
+	// then calls Beef.FindTransaction with the corrupted txid, which finds
+	// nothing and returns (tx=nil, err=nil) -- the specific nil/nil case
+	// this test targets.
+	corrupted := append([]byte(nil), beef...)
+	for i := 4; i < 36; i++ {
+		corrupted[i] ^= 0xff
+	}
+
+	err := ls.OutputAdmittedByTopic(ctx, &engine.OutputAdmittedByTopic{
+		Topic: "tm_mandala", OutputIndex: 0,
+		AtomicBEEF: corrupted, OffChainValues: nil,
+	})
+	if err == nil {
+		t.Fatal("expected error for atomic tx not found in beef, got nil")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // (c) register admin output with publicData -> metadata row + history entry
 // + state.issuerIdentityKey set.
 // ---------------------------------------------------------------------------
