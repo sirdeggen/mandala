@@ -47,6 +47,39 @@ func DecodeAdmin(s *script.Script) (*AdminDecoded, error) {
 	return d, nil
 }
 
+// LockAdmin builds a MandalaAdmin locking script (Appendix A §1.4): a plain
+// 5-chunk P2PKH when publicData is nil, or the 7-chunk publicData-prefixed
+// form (minimal push of JSON.stringify(publicData), OP_DROP, then P2PKH)
+// otherwise. Round-trips through DecodeAdmin.
+func LockAdmin(pubKeyHash []byte, publicData map[string]any) (*script.Script, error) {
+	if len(pubKeyHash) != 20 {
+		return nil, fmt.Errorf("pubKeyHash must be 20 bytes")
+	}
+	s := &script.Script{}
+	if publicData != nil {
+		data, err := json.Marshal(publicData)
+		if err != nil {
+			return nil, fmt.Errorf("lock admin: marshal publicData: %w", err)
+		}
+		if err := s.AppendPushData(data); err != nil {
+			return nil, fmt.Errorf("lock admin: append publicData: %w", err)
+		}
+		if err := s.AppendOpcodes(script.OpDROP); err != nil {
+			return nil, fmt.Errorf("lock admin: append OP_DROP: %w", err)
+		}
+	}
+	if err := s.AppendOpcodes(script.OpDUP, script.OpHASH160); err != nil {
+		return nil, fmt.Errorf("lock admin: append DUP/HASH160: %w", err)
+	}
+	if err := s.AppendPushData(pubKeyHash); err != nil {
+		return nil, fmt.Errorf("lock admin: append pubKeyHash: %w", err)
+	}
+	if err := s.AppendOpcodes(script.OpEQUALVERIFY, script.OpCHECKSIG); err != nil {
+		return nil, fmt.Errorf("lock admin: append EQUALVERIFY/CHECKSIG: %w", err)
+	}
+	return s, nil
+}
+
 // encodeJSONString replicates JS `JSON.stringify` string-escaping semantics
 // EXACTLY (this differs from Go's encoding/json, which HTML-escapes `<` `>`
 // `&` and U+2028/U+2029 even with SetEscapeHTML(false)). Only `"`, `\`, and
