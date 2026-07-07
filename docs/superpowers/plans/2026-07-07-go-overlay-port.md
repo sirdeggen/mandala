@@ -2235,17 +2235,32 @@ func (l *LookupService) OutputAdmittedByTopic(ctx context.Context, p *engine.Out
 
 ---
 
-### Task 12: Engine wiring (b-open-io storage, chain tracker, ProtoWallet)
+### Task 12: Engine wiring (in-repo Mongo engine.Storage, chain tracker, ProtoWallet)
+
+> **AMENDED after Task 1:** b-open-io/overlay implements go-overlay-services v1.3.2's
+> `engine.Storage` at NO published tag (max v0.3.0; missing FindOutpointsByMerkleState /
+> ReconcileMerkleRoot / LoadAncillaryBeef; BEEF-store type mismatch). The spec's fallback
+> governs: write `overlay-go/internal/enginestore` — a Mongo implementation of the full
+> `engine.Storage` interface exactly as recorded in `overlay-go/README.md` "Pinned API
+> notes" (interface method list + `engine.Output` field shapes are pinned there). Store
+> outputs in collection `engineOutputs` (unique index topic+txid+outputIndex), applied
+> transactions in `engineAppliedTransactions` (unique topic+txid), BEEF bytes inline on
+> the output document (`beef` binary field; `LoadBeef`/`SaveBeef` per pinned signatures).
+> Implement every interface method with a focused Mongo query; no caching, no extra
+> features (YAGNI). TDD: one test per method group (insert/find, spend/consume,
+> merkle-state reconcile, applied-tx dedupe) against the Task 8 skip-pattern Mongo.
+> Drop the b-open-io dependency from go.mod in this task.
 
 **Files:**
+- Create: `overlay-go/internal/enginestore/enginestore.go`
 - Create: `overlay-go/internal/wiring/engine.go`
-- Test: `overlay-go/internal/wiring/engine_test.go`
+- Test: `overlay-go/internal/enginestore/enginestore_test.go`, `overlay-go/internal/wiring/engine_test.go`
 
 **Interfaces:**
-- Produces: `type App struct { Engine *engine.Engine; Store *mandala.Store; Verifier *mandala.Verifier; Mongo *mongo.Database; ArcadeEnabled bool }` and `func Build(ctx context.Context, cfg Config) (*App, error)` where `Config { NodeName, ServerPrivKeyHex, HostingURL, MongoURL, Network, ArcadeURL, ArcadeAPIKey, ChaintracksURL, ChaintracksPrefix string }`.
+- Produces: `type App struct { Engine *engine.Engine; Store *mandala.Store; Verifier *mandala.Verifier; Mongo *mongo.Database; ArcadeEnabled bool }` and `func Build(ctx context.Context, cfg Config) (*App, error)` where `Config { NodeName, ServerPrivKeyHex, HostingURL, MongoURL, Network, ArcadeURL, ArcadeAPIKey, ChaintracksURL, ChaintracksPrefix string }`. Also `enginestore.New(db *mongo.Database) engine.Storage`.
 - Behavior:
   - Mongo client → db `${NodeName}_lookup_services`; `mandala.NewStore`.
-  - Engine storage: b-open-io/overlay Mongo `engine.Storage` + its BEEF store (constructor per Task 1's pinned API notes; e.g. Mongo event storage + filesystem/Mongo BEEF store — pick the Mongo-backed one).
+  - Engine storage: `enginestore.New(db)` (in-repo, above).
   - ChainTracker: `ArcadeURL == ""` → scripts-only permissive tracker (`type scriptsOnlyTracker struct{}` with `IsValidRootForHeight(...) (bool, error) { return true, nil }` — mirror of TS `'scripts only'`); else the Task 16 chaintracks client.
   - Broadcaster: nil when no Arcade; else Task 16's Arcade broadcaster (broadcast-before-fold, failure rejects).
   - `engine.NewEngine(engine.Config{Managers: {"tm_mandala": tm}, LookupServices: {"ls_mandala": ls}, Storage: st, ChainTracker: ct, Broadcaster: bc, HostingURL: cfg.HostingURL})` — no advertiser, no sync config (GASP off).
