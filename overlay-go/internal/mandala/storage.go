@@ -2,7 +2,9 @@ package mandala
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -91,30 +93,42 @@ func NewStore(db *mongo.Database) *Store {
 	ctx := context.Background()
 	uniq := options.Index().SetUnique(true)
 	outpointKeys := bson.D{{Key: "txid", Value: 1}, {Key: "outputIndex", Value: 1}}
-	_, _ = s.tokens.Indexes().CreateMany(ctx, []mongo.IndexModel{
+	if _, err := s.tokens.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: outpointKeys, Options: uniq},
 		{Keys: bson.D{{Key: "assetId", Value: 1}}},
 		{Keys: bson.D{{Key: "identityKey", Value: 1}}},
-	})
-	_, _ = s.linkage.Indexes().CreateMany(ctx, []mongo.IndexModel{
+	}); err != nil {
+		log.Printf("mandala store: index creation failed on %s: %v", "mandalaTokens", err)
+	}
+	if _, err := s.linkage.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: outpointKeys},
 		{Keys: bson.D{{Key: "identityKey", Value: 1}}},
 		{Keys: bson.D{{Key: "createdAt", Value: -1}}}, // activity paging; NO TTL
-	})
-	_, _ = s.balances.Indexes().CreateMany(ctx, []mongo.IndexModel{
+	}); err != nil {
+		log.Printf("mandala store: index creation failed on %s: %v", "mandalaLinkageRecords", err)
+	}
+	if _, err := s.balances.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: bson.D{{Key: "identityKey", Value: 1}}, Options: uniq},
-	})
-	_, _ = s.metadata.Indexes().CreateMany(ctx, []mongo.IndexModel{
+	}); err != nil {
+		log.Printf("mandala store: index creation failed on %s: %v", "mandalaBalances", err)
+	}
+	if _, err := s.metadata.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: outpointKeys, Options: uniq},
 		{Keys: bson.D{{Key: "assetId", Value: 1}}},
-	})
-	_, _ = s.states.Indexes().CreateMany(ctx, []mongo.IndexModel{
+	}); err != nil {
+		log.Printf("mandala store: index creation failed on %s: %v", "mandalaMetadata", err)
+	}
+	if _, err := s.states.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: bson.D{{Key: "assetId", Value: 1}}, Options: uniq},
-	})
-	_, _ = s.history.Indexes().CreateMany(ctx, []mongo.IndexModel{
+	}); err != nil {
+		log.Printf("mandala store: index creation failed on %s: %v", "mandalaAssetStates", err)
+	}
+	if _, err := s.history.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: bson.D{{Key: "assetId", Value: 1}, {Key: "height", Value: 1}, {Key: "offset", Value: 1}, {Key: "admitSeq", Value: 1}}},
 		{Keys: bson.D{{Key: "assetId", Value: 1}, {Key: "admitSeq", Value: -1}}},
-	})
+	}); err != nil {
+		log.Printf("mandala store: index creation failed on %s: %v", "mandalaAdminHistory", err)
+	}
 	return s
 }
 
@@ -179,6 +193,9 @@ func (s *Store) FindByOutpoint(ctx context.Context, txid string, vout uint32) ([
 	if err := cur.All(ctx, &rows); err != nil {
 		return nil, err
 	}
+	if rows == nil {
+		rows = []Outpoint{}
+	}
 	return rows, nil
 }
 
@@ -215,6 +232,9 @@ func (s *Store) ListLinkage(ctx context.Context, limit int64, before *time.Time)
 	if err := cur.All(ctx, &rows); err != nil {
 		return nil, err
 	}
+	if rows == nil {
+		rows = []LinkageRow{}
+	}
 	return rows, nil
 }
 
@@ -234,6 +254,9 @@ func (s *Store) FindLinkageByOutpoints(ctx context.Context, outpoints []Outpoint
 	var rows []LinkageRow
 	if err := cur.All(ctx, &rows); err != nil {
 		return nil, err
+	}
+	if rows == nil {
+		rows = []LinkageRow{}
 	}
 	return rows, nil
 }
@@ -279,6 +302,9 @@ func (s *Store) FindMetadataByAssetID(ctx context.Context, assetID string) ([]Ou
 	var rows []Outpoint
 	if err := cur.All(ctx, &rows); err != nil {
 		return nil, err
+	}
+	if rows == nil {
+		rows = []Outpoint{}
 	}
 	return rows, nil
 }
@@ -327,6 +353,9 @@ func (s *Store) FindAdminHistoryByAssetID(ctx context.Context, assetID string) (
 	if err := cur.All(ctx, &rows); err != nil {
 		return nil, err
 	}
+	if rows == nil {
+		rows = []AdminHistoryEntry{}
+	}
 	return rows, nil
 }
 
@@ -334,6 +363,11 @@ func (s *Store) FindAdminHistoryByAssetID(ctx context.Context, assetID string) (
 // history for assetID. limit is clamped to [1, 500]; offset is clamped to
 // >= 0 — same defaults as overlay/src/index.ts's /admin/admin-history-page.
 func (s *Store) PageAdminHistory(ctx context.Context, assetID string, limit, offset int64) ([]AdminHistoryEntry, error) {
+	// Deliberate divergence from the TS literal: TS's `Number(x) || 100`
+	// maps 0 (and NaN) to the 100 default but lets negatives through
+	// untouched; here both limit<=0 and negative limits fall back to the
+	// same 100 default for simplicity — no behavioral cases depend on a
+	// distinct "negative limit" outcome.
 	if limit <= 0 {
 		limit = 100
 	}
@@ -351,6 +385,9 @@ func (s *Store) PageAdminHistory(ctx context.Context, assetID string, limit, off
 	var rows []AdminHistoryEntry
 	if err := cur.All(ctx, &rows); err != nil {
 		return nil, err
+	}
+	if rows == nil {
+		rows = []AdminHistoryEntry{}
 	}
 	return rows, nil
 }
@@ -401,8 +438,11 @@ func (s *Store) NextAdmitSeq(ctx context.Context) (int64, error) {
 		bson.D{{Key: "$inc", Value: bson.D{{Key: "seq", Value: 1}}}},
 		options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After),
 	).Decode(&doc)
-	if err != nil {
+	if errors.Is(err, mongo.ErrNoDocuments) {
 		return 1, nil // TS fallback: (r as {seq:number}|null)?.seq ?? 1
+	}
+	if err != nil {
+		return 0, err // real driver errors (network, context, etc.) propagate
 	}
 	return doc.Seq, nil
 }

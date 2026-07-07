@@ -94,6 +94,23 @@ func TestAdminHistoryOrderingAndSummary(t *testing.T) {
 	}
 }
 
+// TestNextAdmitSeqPropagatesRealErrors asserts that a genuine driver error
+// (here: an already-canceled context) surfaces to the caller as an error
+// with seq=0, rather than being swallowed into the TS-parity (1, nil)
+// fallback — which must be reserved for the "no document yet" case only.
+func TestNextAdmitSeqPropagatesRealErrors(t *testing.T) {
+	s := NewStore(testDB(t))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // already canceled — FindOneAndUpdate must fail with a real error
+	seq, err := s.NextAdmitSeq(ctx)
+	if err == nil {
+		t.Fatalf("want error for canceled context, got seq=%d, err=nil", seq)
+	}
+	if seq != 0 {
+		t.Fatalf("want seq=0 on error, got %d", seq)
+	}
+}
+
 func TestGetAssetStateDefault(t *testing.T) {
 	s := NewStore(testDB(t))
 	st, err := s.GetAssetState(context.Background(), "missing.0")
@@ -155,6 +172,78 @@ func TestLinkageReadsTSShapeDocument(t *testing.T) {
 	if string(l.EncryptedLinkageProof) != "\x00" {
 		t.Fatalf("encryptedLinkageProof: %v", []byte(l.EncryptedLinkageProof))
 	}
+}
+
+// TestListMethodsReturnEmptyNotNil asserts that every list-returning Store
+// method yields a non-nil, zero-length slice (JSON `[]`) on a fresh, empty
+// database rather than a nil slice (JSON `null`). mongo-driver v2's
+// cursor.All on a `var rows []T` leaves rows nil when the cursor yields zero
+// documents, so each method under test must guard against that.
+func TestListMethodsReturnEmptyNotNil(t *testing.T) {
+	ctx := context.Background()
+	s := NewStore(testDB(t))
+
+	t.Run("FindByOutpoint", func(t *testing.T) {
+		rows, err := s.FindByOutpoint(ctx, "nonexistent", 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rows == nil || len(rows) != 0 {
+			t.Fatalf("want non-nil empty slice, got %#v", rows)
+		}
+	})
+
+	t.Run("ListLinkage", func(t *testing.T) {
+		rows, err := s.ListLinkage(ctx, 10, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rows == nil || len(rows) != 0 {
+			t.Fatalf("want non-nil empty slice, got %#v", rows)
+		}
+	})
+
+	t.Run("FindLinkageByOutpoints", func(t *testing.T) {
+		// Non-empty input, zero matches — must not short-circuit via the
+		// empty-input special case, and must not return nil either.
+		rows, err := s.FindLinkageByOutpoints(ctx, []Outpoint{{Txid: "nonexistent", OutputIndex: 0}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rows == nil || len(rows) != 0 {
+			t.Fatalf("want non-nil empty slice, got %#v", rows)
+		}
+	})
+
+	t.Run("FindMetadataByAssetID", func(t *testing.T) {
+		rows, err := s.FindMetadataByAssetID(ctx, "nonexistent.0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rows == nil || len(rows) != 0 {
+			t.Fatalf("want non-nil empty slice, got %#v", rows)
+		}
+	})
+
+	t.Run("FindAdminHistoryByAssetID", func(t *testing.T) {
+		rows, err := s.FindAdminHistoryByAssetID(ctx, "nonexistent.0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rows == nil || len(rows) != 0 {
+			t.Fatalf("want non-nil empty slice, got %#v", rows)
+		}
+	})
+
+	t.Run("PageAdminHistory", func(t *testing.T) {
+		rows, err := s.PageAdminHistory(ctx, "nonexistent.0", 10, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rows == nil || len(rows) != 0 {
+			t.Fatalf("want non-nil empty slice, got %#v", rows)
+		}
+	})
 }
 
 // TestStoreLinkageWritesTSShape writes a LinkageRow via the Go store's
