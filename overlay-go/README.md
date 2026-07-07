@@ -20,16 +20,19 @@ Nothing is wired up yet — `cmd/overlay/main.go` is a placeholder and
 ```
 github.com/bsv-blockchain/go-overlay-services v1.3.2
 github.com/bsv-blockchain/go-sdk              v1.2.24   (@latest at pin time)
-github.com/b-open-io/overlay                  v0.3.0    (@latest at pin time — see compatibility verdict below)
 go.mongodb.org/mongo-driver/v2                v2.7.0    (@latest at pin time)
 github.com/gofiber/fiber/v2                   v2.52.14  (@latest at pin time)
 ```
 
-All of the above land in `go.mod` as `// indirect` because nothing under
-`overlay-go/` imports them yet (`cmd/overlay/main.go` only imports `fmt`, per
-the Task 1 brief's stub). This is expected — do **not** run `go mod tidy`
-before later tasks start importing these packages, or it will strip them
-back out. `go build ./...` passes with exit 0 in this state.
+`github.com/b-open-io/overlay` (pinned at v0.3.0 in Task 1) was **dropped in
+Task 12**: no published tag implements go-overlay-services v1.3.2's
+`engine.Storage` (see the compatibility verdict below), so the spec fallback
+governs and `internal/enginestore` is the in-repo Mongo implementation.
+
+`go mod tidy` is now safe to run: everything except fiber is imported by
+shipped code, and the root `tools.go` (build tag `tools`, never compiled
+into real builds) blank-imports fiber so tidy keeps that pin until Task 13's
+HTTP server imports it directly.
 
 ## Pinned API notes
 
