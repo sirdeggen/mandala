@@ -594,3 +594,80 @@ func TestUniqueIndexes(t *testing.T) {
 		t.Fatalf("docs across topics = %d, want 2", n)
 	}
 }
+
+// --- broadcast-failure compensation (UnmarkSpentBySpendTxid) ---
+
+// TestUnmarkSpentBySpendTxid round-trips the compensation path: mark via
+// MarkUTXOsAsSpent (recording spendTxid), unmark by that spendTxid, and
+// assert the outputs are spendable again via FindUTXOsForTopic.
+func TestUnmarkSpentBySpendTxid(t *testing.T) {
+	ctx := context.Background()
+	st := New(testDB(t))
+
+	parent := newTx(0x21, 2)
+	parentID := parent.TxID()
+	other := newTx(0x22, 1)
+	otherID := other.TxID()
+	if err := st.InsertOutputs(ctx, topic, parentID, []uint32{0, 1}, nil, beefFor(t, parent), nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.InsertOutputs(ctx, topic, otherID, []uint32{0}, nil, beefFor(t, other), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	spendA := newTx(0x23, 1).TxID()
+	spendB := newTx(0x24, 1).TxID()
+	if err := st.MarkUTXOsAsSpent(ctx, []*transaction.Outpoint{op(parentID, 0), op(parentID, 1)}, topic, spendA); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.MarkUTXOsAsSpent(ctx, []*transaction.Outpoint{op(otherID, 0)}, topic, spendB); err != nil {
+		t.Fatal(err)
+	}
+
+	utxos, err := st.FindUTXOsForTopic(ctx, topic, 0, 0, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(utxos) != 0 {
+		t.Fatalf("utxos after marking = %d, want 0", len(utxos))
+	}
+
+	n, err := st.UnmarkSpentBySpendTxid(ctx, spendA.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("unmarked = %d, want 2", n)
+	}
+
+	utxos, err = st.FindUTXOsForTopic(ctx, topic, 0, 0, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(utxos) != 2 {
+		t.Fatalf("utxos after unmark = %d, want 2 (parent:0, parent:1)", len(utxos))
+	}
+	for _, u := range utxos {
+		if !u.Outpoint.Txid.Equal(*parentID) {
+			t.Fatalf("unexpected unmarked outpoint %s (spendB's input must stay spent)", u.Outpoint.String())
+		}
+		if u.Spent {
+			t.Fatalf("output %s still flagged spent", u.Outpoint.String())
+		}
+	}
+
+	// spendB's input is untouched.
+	got, err := st.FindOutput(ctx, op(otherID, 0), nil, nil, false)
+	if err != nil || got == nil {
+		t.Fatal(got, err)
+	}
+	if !got.Spent {
+		t.Fatal("other:0 must remain spent")
+	}
+
+	// Unmarking again is a harmless no-op (0 modified).
+	n, err = st.UnmarkSpentBySpendTxid(ctx, spendA.String())
+	if err != nil || n != 0 {
+		t.Fatalf("second unmark = %d, %v; want 0, nil", n, err)
+	}
+}

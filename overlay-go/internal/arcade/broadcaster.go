@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -36,6 +37,21 @@ func IsTerminalStatus(status, extraInfo string) bool {
 	upperStatus := strings.ToUpper(status)
 	upperExtra := strings.ToUpper(extraInfo)
 	return terminalStatuses[upperStatus] || strings.Contains(upperStatus, "ORPHAN") || strings.Contains(upperExtra, "ORPHAN")
+}
+
+// IsBroadcastFailureErr reports whether err is (or wraps) the
+// *transaction.BroadcastFailure a transaction.Broadcaster produces. This is
+// the submit handler's classification for "the engine marked inputs spent
+// but the broadcast failed": go-overlay-services v1.3.2's broadcastIfNeeded
+// (engine.go:568-577) returns the Broadcaster's failure value directly as
+// Submit's error (`return failure` — *transaction.BroadcastFailure has an
+// Error() method), and nothing else in the engine or this codebase creates
+// values of that type — the Broadcaster interface pins the failure type, so
+// we control both the producer (Broadcaster above) and this matcher.
+// errors.As keeps the match robust should a future engine version wrap it.
+func IsBroadcastFailureErr(err error) bool {
+	var failure *transaction.BroadcastFailure
+	return errors.As(err, &failure)
 }
 
 // arcTxResponse is the subset of Arcade's /tx response body this package

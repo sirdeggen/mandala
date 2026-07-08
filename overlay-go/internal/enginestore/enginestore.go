@@ -25,19 +25,24 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-type store struct {
+// Store is the concrete Mongo-backed engine.Storage. It is exported (rather
+// than hidden behind the interface) because the wiring layer needs the
+// compensation methods below — UnmarkSpentBySpendTxid — which are
+// deliberately NOT part of go-overlay-services' engine.Storage: they exist
+// to undo what the pinned v1.3.2 engine cannot.
+type Store struct {
 	outputs      *mongo.Collection
 	applied      *mongo.Collection
 	interactions *mongo.Collection
 }
 
-var _ engine.Storage = (*store)(nil)
+var _ engine.Storage = (*Store)(nil)
 
 // New wires the three collections on the given db (the same db handle the
-// mandala Store uses) and idempotently ensures the indexes. It returns the
-// engine.Storage the wiring package hands to engine.NewEngine.
-func New(db *mongo.Database) engine.Storage {
-	s := &store{
+// mandala Store uses) and idempotently ensures the indexes. The result
+// satisfies the engine.Storage the wiring package hands to engine.NewEngine.
+func New(db *mongo.Database) *Store {
+	s := &Store{
 		outputs:      db.Collection("engineOutputs"),
 		applied:      db.Collection("engineAppliedTransactions"),
 		interactions: db.Collection("engineInteractions"),
@@ -76,10 +81,15 @@ type outpointDoc struct {
 // outputDoc is the engineOutputs document. BEEF bytes are stored inline as a
 // binary field per the amended Task 12 brief.
 type outputDoc struct {
-	Topic           string        `bson:"topic"`
-	Txid            string        `bson:"txid"`
-	OutputIndex     uint32        `bson:"outputIndex"`
-	Spent           bool          `bson:"spent"`
+	Topic       string `bson:"topic"`
+	Txid        string `bson:"txid"`
+	OutputIndex uint32 `bson:"outputIndex"`
+	Spent       bool   `bson:"spent"`
+	// SpendTxid records which submitted transaction marked this output
+	// spent. Task 12 wrote it as write-only bookkeeping; it is now
+	// load-bearing: UnmarkSpentBySpendTxid keys on it to reverse
+	// MarkUTXOsAsSpent when the pinned engine's broadcast fails after the
+	// inputs were already marked (broadcast-failure compensation).
 	SpendTxid       string        `bson:"spendTxid,omitempty"`
 	OutputsConsumed []outpointDoc `bson:"outputsConsumed,omitempty"`
 	ConsumedBy      []outpointDoc `bson:"consumedBy,omitempty"`
@@ -205,7 +215,7 @@ func proofInfo(beef *transaction.Beef, txid *chainhash.Hash) (root string, state
 // (engine.commitTopicOutputs). Upsert keeps a partial-failure retry
 // idempotent under the unique index. An empty admit list is a no-op — the
 // engine calls this even for topics that admitted nothing.
-func (s *store) InsertOutputs(ctx context.Context, topic string, txid *chainhash.Hash, outputs []uint32, outpointsConsumed []*transaction.Outpoint, beef *transaction.Beef, ancillaryTxids []*chainhash.Hash) error {
+func (s *Store) InsertOutputs(ctx context.Context, topic string, txid *chainhash.Hash, outputs []uint32, outpointsConsumed []*transaction.Outpoint, beef *transaction.Beef, ancillaryTxids []*chainhash.Hash) error {
 	if len(outputs) == 0 {
 		return nil
 	}
@@ -251,7 +261,7 @@ func (s *store) InsertOutputs(ctx context.Context, topic string, txid *chainhash
 // FindOutput returns the stored output or (nil, nil) when absent — the
 // engine's callers (hydrateOneFormula, deleteUTXODeep, hydrateGASPNode)
 // branch on a nil output, never on ErrNotFound.
-func (s *store) FindOutput(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+func (s *Store) FindOutput(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
 	filter := bson.D{
 		{Key: "txid", Value: outpoint.Txid.String()},
 		{Key: "outputIndex", Value: outpoint.Index},
@@ -275,7 +285,7 @@ func (s *store) FindOutput(ctx context.Context, outpoint *transaction.Outpoint, 
 // FindOutputs is positional: result[i] pairs with outpoints[i] and is nil
 // when missing — engine.mergeExistingOutputs uses the slice index as the
 // input vin.
-func (s *store) FindOutputs(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spent *bool, includeBEEF bool) ([]*engine.Output, error) {
+func (s *Store) FindOutputs(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spent *bool, includeBEEF bool) ([]*engine.Output, error) {
 	results := make([]*engine.Output, len(outpoints))
 	if len(outpoints) == 0 {
 		return results, nil
@@ -319,7 +329,7 @@ func (s *store) FindOutputs(ctx context.Context, outpoints []*transaction.Outpoi
 
 // FindOutputsForTransaction returns every topic's outputs for the txid
 // (HandleNewMerkleProof updates all of them).
-func (s *store) FindOutputsForTransaction(ctx context.Context, txid *chainhash.Hash, includeBEEF bool) ([]*engine.Output, error) {
+func (s *Store) FindOutputsForTransaction(ctx context.Context, txid *chainhash.Hash, includeBEEF bool) ([]*engine.Output, error) {
 	cur, err := s.outputs.Find(ctx, bson.D{{Key: "txid", Value: txid.String()}})
 	if err != nil {
 		return nil, err
@@ -343,7 +353,7 @@ func (s *store) FindOutputsForTransaction(ctx context.Context, txid *chainhash.H
 // FindUTXOsForTopic pages unspent outputs by insertion score: score > since,
 // ascending, limited (0 = unlimited) — the shape GASP's initial-response
 // pagination expects.
-func (s *store) FindUTXOsForTopic(ctx context.Context, topic string, since float64, limit uint32, includeBEEF bool) ([]*engine.Output, error) {
+func (s *Store) FindUTXOsForTopic(ctx context.Context, topic string, since float64, limit uint32, includeBEEF bool) ([]*engine.Output, error) {
 	filter := bson.D{
 		{Key: "topic", Value: topic},
 		{Key: "spent", Value: false},
@@ -375,14 +385,14 @@ func (s *store) FindUTXOsForTopic(ctx context.Context, topic string, since float
 
 // DeleteOutput removes one (topic, outpoint) document; deleting an
 // already-gone output is not an error (deleteUTXODeep re-walks graphs).
-func (s *store) DeleteOutput(ctx context.Context, outpoint *transaction.Outpoint, topic string) error {
+func (s *Store) DeleteOutput(ctx context.Context, outpoint *transaction.Outpoint, topic string) error {
 	_, err := s.outputs.DeleteOne(ctx, outpointFilter(topic, outpoint))
 	return err
 }
 
 // MarkUTXOsAsSpent flags the topic's inputs of a newly submitted tx
 // (engine.markTopicUTXOsSpent), recording the spending txid.
-func (s *store) MarkUTXOsAsSpent(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spendTxid *chainhash.Hash) error {
+func (s *Store) MarkUTXOsAsSpent(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spendTxid *chainhash.Hash) error {
 	if len(outpoints) == 0 {
 		return nil
 	}
@@ -403,10 +413,31 @@ func (s *store) MarkUTXOsAsSpent(ctx context.Context, outpoints []*transaction.O
 	return err
 }
 
+// UnmarkSpentBySpendTxid reverses MarkUTXOsAsSpent for every output document
+// whose spendTxid matches: spent flips back to false and spendTxid is
+// cleared, across all topics. It is NOT part of engine.Storage — it exists
+// because go-overlay-services v1.3.2's Submit marks inputs spent BEFORE
+// broadcasting and never unwinds on broadcast failure; the HTTP layer calls
+// this (via wiring's compensation closure) to restore the engine-side spend
+// state. Returns the number of documents modified (0 when nothing matched —
+// re-running the compensation is a harmless no-op).
+func (s *Store) UnmarkSpentBySpendTxid(ctx context.Context, spendTxid string) (int64, error) {
+	res, err := s.outputs.UpdateMany(ctx,
+		bson.D{{Key: "spendTxid", Value: spendTxid}},
+		bson.D{
+			{Key: "$set", Value: bson.D{{Key: "spent", Value: false}}},
+			{Key: "$unset", Value: bson.D{{Key: "spendTxid", Value: ""}}},
+		})
+	if err != nil {
+		return 0, err
+	}
+	return res.ModifiedCount, nil
+}
+
 // UpdateConsumedBy replaces the consumedBy list wholesale — the engine
 // always passes the complete new slice (append on retain, shrink on
 // deleteUTXODeep).
-func (s *store) UpdateConsumedBy(ctx context.Context, outpoint *transaction.Outpoint, topic string, consumedBy []*transaction.Outpoint) error {
+func (s *Store) UpdateConsumedBy(ctx context.Context, outpoint *transaction.Outpoint, topic string, consumedBy []*transaction.Outpoint) error {
 	docs := toOutpointDocs(consumedBy)
 	if docs == nil {
 		docs = []outpointDoc{}
@@ -420,7 +451,7 @@ func (s *store) UpdateConsumedBy(ctx context.Context, outpoint *transaction.Outp
 // txid across topics (engine.updateMerkleProof), refreshing the stored
 // merkle facts; block height/idx stay put because the engine follows up
 // with UpdateOutputBlockHeight for the outputs it re-anchored.
-func (s *store) UpdateTransactionBEEF(ctx context.Context, txid *chainhash.Hash, beef *transaction.Beef) error {
+func (s *Store) UpdateTransactionBEEF(ctx context.Context, txid *chainhash.Hash, beef *transaction.Beef) error {
 	beefBytes, err := beef.Bytes()
 	if err != nil {
 		return fmt.Errorf("enginestore: serialize BEEF: %w", err)
@@ -442,7 +473,7 @@ func (s *store) UpdateTransactionBEEF(ctx context.Context, txid *chainhash.Hash,
 }
 
 // UpdateOutputBlockHeight anchors one output after HandleNewMerkleProof.
-func (s *store) UpdateOutputBlockHeight(ctx context.Context, outpoint *transaction.Outpoint, topic string, blockHeight uint32, blockIndex uint64) error {
+func (s *Store) UpdateOutputBlockHeight(ctx context.Context, outpoint *transaction.Outpoint, topic string, blockHeight uint32, blockIndex uint64) error {
 	_, err := s.outputs.UpdateOne(ctx, outpointFilter(topic, outpoint),
 		bson.D{{Key: "$set", Value: bson.D{
 			{Key: "blockHeight", Value: blockHeight},
@@ -454,7 +485,7 @@ func (s *store) UpdateOutputBlockHeight(ctx context.Context, outpoint *transacti
 // InsertAppliedTransaction records (topic, txid) once; a duplicate-key hit
 // is success — the engine's submit pipeline may race its own
 // DoesAppliedTransactionExist pre-check.
-func (s *store) InsertAppliedTransaction(ctx context.Context, tx *overlay.AppliedTransaction) error {
+func (s *Store) InsertAppliedTransaction(ctx context.Context, tx *overlay.AppliedTransaction) error {
 	_, err := s.applied.InsertOne(ctx, bson.D{
 		{Key: "topic", Value: tx.Topic},
 		{Key: "txid", Value: tx.Txid.String()},
@@ -466,7 +497,7 @@ func (s *store) InsertAppliedTransaction(ctx context.Context, tx *overlay.Applie
 }
 
 // DoesAppliedTransactionExist is Submit's per-topic dupe gate.
-func (s *store) DoesAppliedTransactionExist(ctx context.Context, tx *overlay.AppliedTransaction) (bool, error) {
+func (s *Store) DoesAppliedTransactionExist(ctx context.Context, tx *overlay.AppliedTransaction) (bool, error) {
 	n, err := s.applied.CountDocuments(ctx, bson.D{
 		{Key: "topic", Value: tx.Topic},
 		{Key: "txid", Value: tx.Txid.String()},
@@ -476,7 +507,7 @@ func (s *store) DoesAppliedTransactionExist(ctx context.Context, tx *overlay.App
 
 // UpdateLastInteraction upserts the GASP sync high-water mark per
 // (host, topic).
-func (s *store) UpdateLastInteraction(ctx context.Context, host, topic string, since float64) error {
+func (s *Store) UpdateLastInteraction(ctx context.Context, host, topic string, since float64) error {
 	_, err := s.interactions.UpdateOne(ctx,
 		bson.D{{Key: "host", Value: host}, {Key: "topic", Value: topic}},
 		bson.D{{Key: "$set", Value: bson.D{{Key: "score", Value: since}}}},
@@ -485,7 +516,7 @@ func (s *store) UpdateLastInteraction(ctx context.Context, host, topic string, s
 }
 
 // GetLastInteraction returns 0 when no record exists (interface contract).
-func (s *store) GetLastInteraction(ctx context.Context, host, topic string) (float64, error) {
+func (s *Store) GetLastInteraction(ctx context.Context, host, topic string) (float64, error) {
 	var doc struct {
 		Score float64 `bson:"score"`
 	}
@@ -502,7 +533,7 @@ func (s *store) GetLastInteraction(ctx context.Context, host, topic string) (flo
 
 // FindOutpointsByMerkleState projects just the outpoints in a given state
 // (SyncInvalidatedOutputs pages Invalidated ones, limit 1000).
-func (s *store) FindOutpointsByMerkleState(ctx context.Context, topic string, state engine.MerkleState, limit uint32) ([]*transaction.Outpoint, error) {
+func (s *Store) FindOutpointsByMerkleState(ctx context.Context, topic string, state engine.MerkleState, limit uint32) ([]*transaction.Outpoint, error) {
 	opts := options.Find().SetProjection(bson.D{
 		{Key: "txid", Value: 1},
 		{Key: "outputIndex", Value: 1},
@@ -539,7 +570,7 @@ func (s *store) FindOutpointsByMerkleState(ctx context.Context, topic string, st
 // stay Unmined. Immutable promotion ("if old enough") is intentionally not
 // implemented: storage has no current-chain-height source to age against —
 // see the Task 12 report's judgment calls.
-func (s *store) ReconcileMerkleRoot(ctx context.Context, topic string, blockHeight uint32, merkleRoot *chainhash.Hash) error {
+func (s *Store) ReconcileMerkleRoot(ctx context.Context, topic string, blockHeight uint32, merkleRoot *chainhash.Hash) error {
 	rootHex := merkleRoot.String()
 	base := bson.D{
 		{Key: "topic", Value: topic},
@@ -566,7 +597,7 @@ func (s *store) ReconcileMerkleRoot(ctx context.Context, topic string, blockHeig
 // no-ops; otherwise the tx is pulled from any engineOutputs document that
 // carries it. A txid known nowhere is an error — the caller asked for the
 // full BEEF and it cannot be assembled.
-func (s *store) LoadAncillaryBeef(ctx context.Context, output *engine.Output) error {
+func (s *Store) LoadAncillaryBeef(ctx context.Context, output *engine.Output) error {
 	if len(output.AncillaryTxids) == 0 {
 		return nil
 	}

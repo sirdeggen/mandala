@@ -318,3 +318,134 @@ func TestStoreLinkageWritesTSShape(t *testing.T) {
 		t.Fatalf("encryptedLinkage length: %+v", encLinkage)
 	}
 }
+
+// --- broadcast-failure compensation (SnapshotTokens / RestoreTokens) ---
+
+// TestSnapshotAndRestoreTokensRoundTrip mirrors the broadcast-failure
+// compensation flow: snapshot the input token rows before submit, lose them
+// to OutputSpent (delete + balance decrement), then restore — rows come back
+// and the balance is re-credited.
+func TestSnapshotAndRestoreTokensRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	s := NewStore(testDB(t))
+
+	owned := TokenRow{Txid: "aa", OutputIndex: 0, AssetID: "a.0", Amount: 40, IdentityKey: "02k", CreatedAt: time.Now()}
+	anon := TokenRow{Txid: "bb", OutputIndex: 2, AssetID: "a.0", Amount: 7, IdentityKey: "", CreatedAt: time.Now()}
+	if err := s.StoreToken(ctx, owned); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.StoreToken(ctx, anon); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AdjustBalance(ctx, "02k", 40); err != nil {
+		t.Fatal(err)
+	}
+
+	// Snapshot the tx's input outpoints — including one that has no token
+	// row at all (a plain sats input), which must simply be absent.
+	snapshot, err := s.SnapshotTokens(ctx, []Outpoint{
+		{Txid: "aa", OutputIndex: 0},
+		{Txid: "bb", OutputIndex: 2},
+		{Txid: "cc", OutputIndex: 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot) != 2 {
+		t.Fatalf("snapshot rows = %d, want 2", len(snapshot))
+	}
+
+	// Simulate ls_mandala.OutputSpent on both rows.
+	if err := s.AdjustBalance(ctx, "02k", -40); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteToken(ctx, "aa", 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteToken(ctx, "bb", 2); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.RestoreTokens(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.GetTokenRow(ctx, "aa", 0)
+	if err != nil || got == nil {
+		t.Fatal(got, err)
+	}
+	if got.Amount != 40 || got.IdentityKey != "02k" || got.AssetID != "a.0" {
+		t.Fatalf("restored row: %+v", got)
+	}
+	if got, _ := s.GetTokenRow(ctx, "bb", 2); got == nil || got.Amount != 7 || got.IdentityKey != "" {
+		t.Fatalf("restored anon row: %+v", got)
+	}
+	if b, _ := s.GetBalance(ctx, "02k"); b != 40 {
+		t.Fatalf("balance after restore = %d, want 40", b)
+	}
+}
+
+// TestRestoreTokensIdempotent proves a re-run (retry after a partial
+// failure, or a double compensation) neither duplicates rows nor
+// double-credits balances: the balance is only re-incremented when the
+// upsert actually re-inserted the row.
+func TestRestoreTokensIdempotent(t *testing.T) {
+	ctx := context.Background()
+	s := NewStore(testDB(t))
+
+	row := TokenRow{Txid: "dd", OutputIndex: 1, AssetID: "a.0", Amount: 25, IdentityKey: "02k", CreatedAt: time.Now()}
+	if err := s.StoreToken(ctx, row); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AdjustBalance(ctx, "02k", 25); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := s.SnapshotTokens(ctx, []Outpoint{{Txid: "dd", OutputIndex: 1}})
+	if err != nil || len(snapshot) != 1 {
+		t.Fatalf("snapshot: %d rows, err %v", len(snapshot), err)
+	}
+	if err := s.AdjustBalance(ctx, "02k", -25); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteToken(ctx, "dd", 1); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.RestoreTokens(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RestoreTokens(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+
+	if b, _ := s.GetBalance(ctx, "02k"); b != 25 {
+		t.Fatalf("balance after double restore = %d, want 25 (no double credit)", b)
+	}
+	n, err := s.tokens.CountDocuments(ctx, bson.D{{Key: "txid", Value: "dd"}, {Key: "outputIndex", Value: 1}})
+	if err != nil || n != 1 {
+		t.Fatalf("row count after double restore = %d err %v, want 1", n, err)
+	}
+
+	// Restoring rows that were never deleted must also not double-credit.
+	if err := s.RestoreTokens(ctx, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := s.GetBalance(ctx, "02k"); b != 25 {
+		t.Fatalf("balance = %d, want 25", b)
+	}
+}
+
+func TestSnapshotTokensEmpty(t *testing.T) {
+	ctx := context.Background()
+	s := NewStore(testDB(t))
+	rows, err := s.SnapshotTokens(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("rows = %d, want 0", len(rows))
+	}
+	if err := s.RestoreTokens(ctx, nil); err != nil {
+		t.Fatal("empty restore:", err)
+	}
+}

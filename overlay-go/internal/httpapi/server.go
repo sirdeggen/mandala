@@ -36,20 +36,24 @@ var _ Lookuper = (*engine.Engine)(nil)
 func New(app *wiring.App) *fiber.App {
 	var opts []ServerOption
 	if app.ArcadeEnabled {
-		opts = append(opts, WithArcade(app.Engine, app.ArcadeCallbackToken))
+		opts = append(opts,
+			WithArcade(app.Engine, app.ArcadeCallbackToken),
+			WithBroadcastCompensation(app.PrepareSubmitCompensation))
 	}
 	return newServer(app.Engine, app.Engine, app.Store, func(ctx context.Context) error {
 		return app.Mongo.Client().Ping(ctx, nil)
 	}, opts...)
 }
 
-// serverOptions carries newServer's optional seams — today just Arcade's
-// /arc-ingest route (Task 16). A struct (rather than more positional
-// params) keeps every pre-Task-16 newServer call site source-compatible.
+// serverOptions carries newServer's optional seams — Arcade's /arc-ingest
+// route (Task 16) and the submit broadcast-failure compensation seam. A
+// struct (rather than more positional params) keeps every pre-Task-16
+// newServer call site source-compatible.
 type serverOptions struct {
-	arcadeEnabled    bool
-	merkleHandler    MerkleProofHandler
-	arcCallbackToken string
+	arcadeEnabled       bool
+	merkleHandler       MerkleProofHandler
+	arcCallbackToken    string
+	prepareCompensation PrepareSubmitCompensation
 }
 
 // ServerOption customizes newServer without changing its required
@@ -64,6 +68,14 @@ func WithArcade(handler MerkleProofHandler, callbackToken string) ServerOption {
 		o.arcadeEnabled = true
 		o.merkleHandler = handler
 		o.arcCallbackToken = callbackToken
+	}
+}
+
+// WithBroadcastCompensation threads the pre-Submit snapshot / post-failure
+// compensation closure into POST /submit (see PrepareSubmitCompensation).
+func WithBroadcastCompensation(prepare PrepareSubmitCompensation) ServerOption {
+	return func(o *serverOptions) {
+		o.prepareCompensation = prepare
 	}
 }
 
@@ -83,7 +95,7 @@ func newServer(submitter Submitter, lookuper Lookuper, store AdminStore, ping Pi
 
 	f.Use(corsMiddleware)
 
-	registerSubmitRoutes(f, submitter)
+	registerSubmitRoutes(f, submitter, o.prepareCompensation)
 	registerLookupRoutes(f, lookuper)
 	registerAdminRoutes(f, store)
 	registerHealthRoutes(f, ping)

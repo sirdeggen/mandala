@@ -14,9 +14,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
+	"github.com/bsv-blockchain/go-sdk/script"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 
 	"github.com/sirdeggen/mandala/overlay-go/internal/arcade"
+	"github.com/sirdeggen/mandala/overlay-go/internal/mandala"
 )
 
 // Arbitrary valid secp256k1 private key (test-only).
@@ -51,6 +55,9 @@ func TestBuildAndLookupEndToEnd(t *testing.T) {
 	}
 	if app.ArcadeEnabled {
 		t.Fatal("ArcadeEnabled must be false when ArcadeURL is empty")
+	}
+	if app.PrepareSubmitCompensation != nil {
+		t.Fatal("compensation closure must be nil without Arcade (no broadcaster, broadcast cannot fail)")
 	}
 	if app.Mongo.Name() != "mandala_wiring_test_lookup_services" {
 		t.Fatalf("db name = %q", app.Mongo.Name())
@@ -164,5 +171,144 @@ func TestScriptsOnlyTracker(t *testing.T) {
 	}
 	if _, err := tr.CurrentHeight(ctx); err != nil {
 		t.Fatal("CurrentHeight:", err)
+	}
+}
+
+// --- Task 18: broadcast-failure compensation + terminal-status eviction ---
+
+// wiringTestTx builds a minimal transaction: one input spending src:vout
+// (or a dummy outpoint when src is nil) and n outputs.
+func wiringTestTx(t *testing.T, src *transaction.Transaction, vout uint32, outputs int, fill byte) *transaction.Transaction {
+	t.Helper()
+	tx := transaction.NewTransaction()
+	var srcID *chainhash.Hash
+	if src != nil {
+		srcID = src.TxID()
+	} else {
+		raw := make([]byte, 32)
+		for i := range raw {
+			raw[i] = fill
+		}
+		var err error
+		if srcID, err = chainhash.NewHash(raw); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tx.AddInput(&transaction.TransactionInput{
+		SourceTXID:       srcID,
+		SourceTxOutIndex: vout,
+		UnlockingScript:  &script.Script{},
+	})
+	for i := 0; i < outputs; i++ {
+		tx.AddOutput(&transaction.TransactionOutput{Satoshis: uint64(i + 1), LockingScript: &script.Script{}})
+	}
+	return tx
+}
+
+// TestBuildArcadeCompensationRoundTrip drives Build's
+// PrepareSubmitCompensation closure against real Mongo: seed the state the
+// engine would have seen pre-submit, snapshot, replay the exact mutations
+// v1.3.2's markSpentAndNotify performs before a failed broadcast, then
+// compensate and assert everything is restored.
+func TestBuildArcadeCompensationRoundTrip(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	app, err := Build(ctx, Config{
+		NodeName:         "mandala_wiring_test_comp",
+		ServerPrivKeyHex: testPrivHex,
+		HostingURL:       "https://overlay.example.com",
+		MongoURL:         "mongodb://localhost:27017",
+		Network:          "test",
+		ArcadeURL:        "https://arcade.example.com",
+	})
+	if err != nil {
+		t.Skip("mongo unavailable or build failed:", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx := context.Background()
+		_ = app.Mongo.Drop(cleanupCtx)
+		_ = app.Mongo.Client().Disconnect(cleanupCtx)
+	})
+	if app.PrepareSubmitCompensation == nil {
+		t.Fatal("Arcade-enabled Build must wire PrepareSubmitCompensation")
+	}
+
+	const topic = "tm_mandala"
+	parent := wiringTestTx(t, nil, 0, 1, 0x41)
+	parentID := parent.TxID()
+	child := wiringTestTx(t, parent, 0, 1, 0)
+	childID := child.TxID()
+	beefBytes, err := child.AtomicBEEF(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	st := app.Engine.Storage
+	if err := st.InsertOutputs(ctx, topic, parentID, []uint32{0}, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Store.StoreToken(ctx, mandala.TokenRow{
+		Txid: parentID.String(), OutputIndex: 0, AssetID: "a.0", Amount: 40,
+		IdentityKey: "02k", CreatedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Store.AdjustBalance(ctx, "02k", 40); err != nil {
+		t.Fatal(err)
+	}
+
+	// The submit handler snapshots BEFORE Engine.Submit.
+	compensate, err := app.PrepareSubmitCompensation(ctx, beefBytes)
+	if err != nil {
+		t.Fatal("prepare:", err)
+	}
+	if compensate == nil {
+		t.Fatal("prepare returned nil compensation for a valid BEEF")
+	}
+
+	// Replay what v1.3.2's markSpentAndNotify does before broadcastIfNeeded
+	// fails: MarkUTXOsAsSpent + ls_mandala.OutputSpent (balance debit + row
+	// delete).
+	if err := st.MarkUTXOsAsSpent(ctx, []*transaction.Outpoint{{Txid: *parentID, Index: 0}}, topic, childID); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Store.AdjustBalance(ctx, "02k", -40); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Store.DeleteToken(ctx, parentID.String(), 0); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := compensate(ctx); err != nil {
+		t.Fatal("compensate:", err)
+	}
+
+	topicName := topic
+	unspent := false
+	got, err := st.FindOutput(ctx, &transaction.Outpoint{Txid: *parentID, Index: 0}, &topicName, &unspent, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || got.Spent {
+		t.Fatalf("parent:0 must be unspent again after compensation, got %+v", got)
+	}
+	row, err := app.Store.GetTokenRow(ctx, parentID.String(), 0)
+	if err != nil || row == nil {
+		t.Fatal(row, err)
+	}
+	if row.Amount != 40 || row.IdentityKey != "02k" || row.AssetID != "a.0" {
+		t.Fatalf("restored token row: %+v", row)
+	}
+	if b, _ := app.Store.GetBalance(ctx, "02k"); b != 40 {
+		t.Fatalf("balance after compensation = %d, want 40", b)
+	}
+
+	// Running the compensation twice must not double-credit.
+	if err := compensate(ctx); err != nil {
+		t.Fatal("second compensate:", err)
+	}
+	if b, _ := app.Store.GetBalance(ctx, "02k"); b != 40 {
+		t.Fatalf("balance after double compensation = %d, want 40", b)
 	}
 }

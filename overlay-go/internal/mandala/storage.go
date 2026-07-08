@@ -199,6 +199,58 @@ func (s *Store) FindByOutpoint(ctx context.Context, txid string, vout uint32) ([
 	return rows, nil
 }
 
+// SnapshotTokens fetches the full token rows for the given outpoints (the
+// inputs of a tx about to be submitted). Outpoints with no token row are
+// simply absent from the result. The snapshot feeds RestoreTokens when the
+// pinned overlay engine's broadcast fails after OutputSpent already deleted
+// the rows and debited the balances (broadcast-failure compensation).
+func (s *Store) SnapshotTokens(ctx context.Context, outpoints []Outpoint) ([]TokenRow, error) {
+	if len(outpoints) == 0 {
+		// $or with an empty array is a Mongo error — short-circuit.
+		return []TokenRow{}, nil
+	}
+	or := make(bson.A, 0, len(outpoints))
+	for _, op := range outpoints {
+		or = append(or, bson.D{{Key: "txid", Value: op.Txid}, {Key: "outputIndex", Value: op.OutputIndex}})
+	}
+	cur, err := s.tokens.Find(ctx, bson.D{{Key: "$or", Value: or}})
+	if err != nil {
+		return nil, err
+	}
+	var rows []TokenRow
+	if err := cur.All(ctx, &rows); err != nil {
+		return nil, err
+	}
+	if rows == nil {
+		rows = []TokenRow{}
+	}
+	return rows, nil
+}
+
+// RestoreTokens re-inserts snapshotted token rows and re-credits the balance
+// of every row carrying an identityKey — the inverse of what OutputSpent did
+// (§4.3). Idempotent: each row is upserted by outpoint with $setOnInsert, and
+// the balance is only re-incremented when the upsert actually re-inserted the
+// row, so a double restore (retry, duplicate compensation) neither duplicates
+// rows nor double-credits.
+func (s *Store) RestoreTokens(ctx context.Context, rows []TokenRow) error {
+	for _, r := range rows {
+		res, err := s.tokens.UpdateOne(ctx,
+			bson.D{{Key: "txid", Value: r.Txid}, {Key: "outputIndex", Value: r.OutputIndex}},
+			bson.D{{Key: "$setOnInsert", Value: r}},
+			options.UpdateOne().SetUpsert(true))
+		if err != nil {
+			return err
+		}
+		if res.UpsertedCount == 1 && r.IdentityKey != "" {
+			if err := s.AdjustBalance(ctx, r.IdentityKey, r.Amount); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // --- linkage ---
 
 func (s *Store) StoreLinkage(ctx context.Context, r LinkageRow) error {

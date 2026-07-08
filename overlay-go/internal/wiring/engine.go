@@ -55,6 +55,16 @@ type App struct {
 	Mongo               *mongo.Database
 	ArcadeEnabled       bool
 	ArcadeCallbackToken string
+
+	// PrepareSubmitCompensation compensates for the pinned v1.3.2 engine's
+	// submit ordering (inputs marked spent + mandala projections destroyed
+	// BEFORE broadcast; a failed broadcast aborts without unwinding). The
+	// submit handler calls it with the raw BEEF before Engine.Submit; the
+	// returned closure — run only on a broadcast-classified Submit error —
+	// unmarks the engine-side spends (UnmarkSpentBySpendTxid) and restores
+	// the snapshotted mandala token rows/balances (RestoreTokens). Set only
+	// when Arcade is enabled (without a broadcaster, broadcast cannot fail).
+	PrepareSubmitCompensation func(ctx context.Context, beef []byte) (func(context.Context) error, error)
 }
 
 // buildOptions carries the Task 16 injection seams.
@@ -161,21 +171,63 @@ func Build(ctx context.Context, cfg Config, opts ...Option) (*App, error) {
 		tracker = scriptsOnlyTracker{}
 	}
 
+	es := enginestore.New(db)
 	eng := engine.NewEngine(&engine.Config{
 		Managers:       map[string]engine.TopicManager{"tm_mandala": tm},
 		LookupServices: map[string]engine.LookupService{"ls_mandala": ls},
-		Storage:        enginestore.New(db),
+		Storage:        es,
 		ChainTracker:   tracker,
 		Broadcaster:    o.broadcaster,
 		HostingURL:     cfg.HostingURL,
 	})
 
-	return &App{
+	app := &App{
 		Engine:              eng,
 		Store:               store,
 		Verifier:            verifier,
 		Mongo:               db,
 		ArcadeEnabled:       cfg.ArcadeURL != "",
 		ArcadeCallbackToken: cfg.ArcadeCallbackToken,
-	}, nil
+	}
+	if app.ArcadeEnabled {
+		app.PrepareSubmitCompensation = prepareSubmitCompensation(store, es)
+	}
+	return app, nil
+}
+
+// prepareSubmitCompensation builds the App.PrepareSubmitCompensation closure
+// over the mandala store (token-row snapshot/restore) and the concrete
+// engine store (spend unmarking) — the two projections the pinned engine
+// mutates before a broadcast can fail (see App.PrepareSubmitCompensation).
+func prepareSubmitCompensation(store *mandala.Store, es *enginestore.Store) func(context.Context, []byte) (func(context.Context) error, error) {
+	return func(ctx context.Context, beefBytes []byte) (func(context.Context) error, error) {
+		_, tx, txid, err := transaction.ParseBeef(beefBytes)
+		if err != nil || tx == nil {
+			// Engine.Submit parses the same bytes first thing and will
+			// reject them before markSpentAndNotify runs — nothing will be
+			// mutated, so there is nothing to compensate.
+			return nil, nil
+		}
+		outpoints := make([]mandala.Outpoint, 0, len(tx.Inputs))
+		for _, in := range tx.Inputs {
+			if in.SourceTXID == nil {
+				continue
+			}
+			outpoints = append(outpoints, mandala.Outpoint{Txid: in.SourceTXID.String(), OutputIndex: in.SourceTxOutIndex})
+		}
+		snapshot, err := store.SnapshotTokens(ctx, outpoints)
+		if err != nil {
+			return nil, fmt.Errorf("wiring: snapshot token rows for %s: %w", txid.String(), err)
+		}
+		spendTxid := txid.String()
+		return func(ctx context.Context) error {
+			if _, err := es.UnmarkSpentBySpendTxid(ctx, spendTxid); err != nil {
+				return fmt.Errorf("wiring: unmark spends of %s: %w", spendTxid, err)
+			}
+			if err := store.RestoreTokens(ctx, snapshot); err != nil {
+				return fmt.Errorf("wiring: restore token rows spent by %s: %w", spendTxid, err)
+			}
+			return nil
+		}, nil
+	}
 }

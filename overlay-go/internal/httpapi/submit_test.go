@@ -13,6 +13,7 @@ import (
 
 	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
 	"github.com/bsv-blockchain/go-sdk/overlay"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/sirdeggen/mandala/overlay-go/internal/mandala"
@@ -424,5 +425,142 @@ func TestUnknownRoute404(t *testing.T) {
 		if body[k] != v {
 			t.Errorf("body[%q] = %v, want %v", k, body[k], v)
 		}
+	}
+}
+
+// --- broadcast-failure compensation (Task: engine marks spent before broadcast) ---
+
+// stubCompensation is a PrepareSubmitCompensation double: prepare records
+// the beef it saw and hands back a compensate closure that records calls.
+type stubCompensation struct {
+	prepareErr    error
+	compensateErr error
+
+	prepareCalls    int
+	compensateCalls int
+	gotBeef         []byte
+}
+
+func (s *stubCompensation) prepare(_ context.Context, beef []byte) (func(context.Context) error, error) {
+	s.prepareCalls++
+	s.gotBeef = append([]byte(nil), beef...)
+	if s.prepareErr != nil {
+		return nil, s.prepareErr
+	}
+	return func(context.Context) error {
+		s.compensateCalls++
+		return s.compensateErr
+	}, nil
+}
+
+func submitReq(body []byte) *http.Request {
+	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader(body))
+	req.Header.Set("X-Topics", `["tm_mandala"]`)
+	return req
+}
+
+func TestSubmit_BroadcastFailureRunsCompensation(t *testing.T) {
+	comp := &stubCompensation{}
+	stub := &stubSubmitter{err: &transaction.BroadcastFailure{Code: "REJECTED", Description: "terminal"}}
+	app := newServer(stub, nil, nil, nil, WithBroadcastCompensation(comp.prepare))
+
+	beef := []byte{0xde, 0xad, 0xbe, 0xef}
+	resp := doRequest(t, app, submitReq(beef))
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (broadcast failure still rejects the submit)", resp.StatusCode)
+	}
+	body := decodeJSON(t, resp)
+	if body["status"] != "error" {
+		t.Fatalf("body = %v, want status:error", body)
+	}
+	if comp.prepareCalls != 1 {
+		t.Fatalf("prepare calls = %d, want 1 (snapshot must be taken before Submit)", comp.prepareCalls)
+	}
+	if !bytes.Equal(comp.gotBeef, beef) {
+		t.Fatalf("prepare beef = %v, want %v", comp.gotBeef, beef)
+	}
+	if comp.compensateCalls != 1 {
+		t.Fatalf("compensate calls = %d, want 1", comp.compensateCalls)
+	}
+}
+
+func TestSubmit_NonBroadcastErrorSkipsCompensation(t *testing.T) {
+	comp := &stubCompensation{}
+	stub := &stubSubmitter{err: errors.New("unknown-topic")}
+	app := newServer(stub, nil, nil, nil, WithBroadcastCompensation(comp.prepare))
+
+	resp := doRequest(t, app, submitReq([]byte{0x01}))
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+	if comp.compensateCalls != 0 {
+		t.Fatalf("compensate calls = %d, want 0 (validation errors occur before the engine marks anything)", comp.compensateCalls)
+	}
+}
+
+func TestSubmit_SuccessSkipsCompensation(t *testing.T) {
+	comp := &stubCompensation{}
+	stub := &stubSubmitter{steak: overlay.Steak{}}
+	app := newServer(stub, nil, nil, nil, WithBroadcastCompensation(comp.prepare))
+
+	resp := doRequest(t, app, submitReq([]byte{0x01}))
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	if comp.prepareCalls != 1 {
+		t.Fatalf("prepare calls = %d, want 1", comp.prepareCalls)
+	}
+	if comp.compensateCalls != 0 {
+		t.Fatalf("compensate calls = %d, want 0", comp.compensateCalls)
+	}
+}
+
+// TestSubmit_PrepareErrorRejectsBeforeSubmit: if the snapshot cannot be
+// taken, submitting would risk unrecoverable state on a broadcast failure —
+// the handler refuses (500) without calling Submit.
+func TestSubmit_PrepareErrorRejectsBeforeSubmit(t *testing.T) {
+	comp := &stubCompensation{prepareErr: errors.New("mongo down")}
+	stub := &stubSubmitter{steak: overlay.Steak{}}
+	app := newServer(stub, nil, nil, nil, WithBroadcastCompensation(comp.prepare))
+
+	resp := doRequest(t, app, submitReq([]byte{0x01}))
+
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", resp.StatusCode)
+	}
+	if stub.gotCtx != nil {
+		t.Fatal("Submit must not be called when the compensation snapshot failed")
+	}
+}
+
+// TestSubmit_CompensationErrorStillReturns400: a failing compensation is
+// logged, not surfaced — the client still sees the broadcast failure.
+func TestSubmit_CompensationErrorStillReturns400(t *testing.T) {
+	comp := &stubCompensation{compensateErr: errors.New("restore failed")}
+	stub := &stubSubmitter{err: &transaction.BroadcastFailure{Code: "REJECTED", Description: "terminal"}}
+	app := newServer(stub, nil, nil, nil, WithBroadcastCompensation(comp.prepare))
+
+	resp := doRequest(t, app, submitReq([]byte{0x01}))
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+	if comp.compensateCalls != 1 {
+		t.Fatalf("compensate calls = %d, want 1", comp.compensateCalls)
+	}
+}
+
+// TestSubmit_NoCompensationConfiguredStillWorks pins the non-Arcade path:
+// nil PrepareSubmitCompensation keeps the pre-existing behavior.
+func TestSubmit_NoCompensationConfiguredStillWorks(t *testing.T) {
+	stub := &stubSubmitter{err: &transaction.BroadcastFailure{Code: "REJECTED", Description: "terminal"}}
+	app := newServer(stub, nil, nil, nil)
+
+	resp := doRequest(t, app, submitReq([]byte{0x01}))
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
 	}
 }

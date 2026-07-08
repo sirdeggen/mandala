@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"log"
 
 	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
 	"github.com/bsv-blockchain/go-sdk/overlay"
 	"github.com/gofiber/fiber/v2"
 
+	"github.com/sirdeggen/mandala/overlay-go/internal/arcade"
 	"github.com/sirdeggen/mandala/overlay-go/internal/mandala"
 )
 
@@ -24,8 +26,21 @@ type Submitter interface {
 
 var _ Submitter = (*engine.Engine)(nil)
 
-func registerSubmitRoutes(f *fiber.App, s Submitter) {
-	f.Post("/submit", submitHandler(s))
+// PrepareSubmitCompensation is the Arcade-path compensation seam for the
+// pinned go-overlay-services v1.3.2 engine's submit ordering (validate →
+// mark inputs spent + notify OutputSpent → broadcast → fold): a failed
+// broadcast aborts Submit AFTER the inputs were marked spent and the mandala
+// projections destroyed, and the engine never unwinds that. The handler
+// calls prepare BEFORE Engine.Submit (it must snapshot the restorable state
+// while it still exists); the returned compensate closure is invoked only
+// when Submit fails with a broadcast-classified error
+// (arcade.IsBroadcastFailureErr). A nil compensate return means "nothing to
+// compensate" (e.g. the BEEF won't survive Submit's own parse step anyway).
+// Wired by wiring.Build when Arcade is enabled; nil otherwise.
+type PrepareSubmitCompensation func(ctx context.Context, beef []byte) (compensate func(context.Context) error, err error)
+
+func registerSubmitRoutes(f *fiber.App, s Submitter, prepare PrepareSubmitCompensation) {
+	f.Post("/submit", submitHandler(s, prepare))
 }
 
 // submitHandler implements Appendix B §1: parse X-Topics, split the
@@ -34,7 +49,7 @@ func registerSubmitRoutes(f *fiber.App, s Submitter) {
 // from there) as well as onto TaggedBEEF.OffChainValues (the lookup
 // service reads it from there), submit, and respond with either the bare
 // STEAK map or a {status:"error"} shape.
-func submitHandler(s Submitter) fiber.Handler {
+func submitHandler(s Submitter, prepare PrepareSubmitCompensation) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		topicsHeader := c.Get("X-Topics")
 		if topicsHeader == "" {
@@ -69,12 +84,37 @@ func submitHandler(s Submitter) fiber.Handler {
 		}
 		ctx := mandala.WithPayload(c.UserContext(), payload)
 
+		// Snapshot restorable state BEFORE Submit: the engine's OutputSpent
+		// notifications delete the mandala token rows mid-Submit, so a
+		// post-failure snapshot would find nothing left to restore. If the
+		// snapshot itself fails, refuse to submit — a broadcast failure
+		// afterwards would be uncompensatable.
+		var compensate func(context.Context) error
+		if prepare != nil {
+			var prepErr error
+			if compensate, prepErr = prepare(ctx, beef); prepErr != nil {
+				return errorResponse(c, fiber.StatusInternalServerError,
+					"broadcast-failure compensation unavailable: "+prepErr.Error())
+			}
+		}
+
 		steak, err := s.Submit(ctx, overlay.TaggedBEEF{
 			Beef:           beef,
 			Topics:         topics,
 			OffChainValues: offChain,
 		}, engine.SubmitModeCurrent, nil)
 		if err != nil {
+			// Broadcast failures are the one error path the pinned engine
+			// takes after marking inputs spent (see PrepareSubmitCompensation)
+			// — undo that marking. Every other Submit error either happened
+			// before markSpentAndNotify (nothing to undo) or is a mid-commit
+			// storage fault with no clean inverse (compensating those could
+			// resurrect state the commit already deleted).
+			if compensate != nil && arcade.IsBroadcastFailureErr(err) {
+				if cerr := compensate(ctx); cerr != nil {
+					log.Printf("submit: broadcast-failure compensation failed (state may need manual repair): submit=%v compensation=%v", err, cerr)
+				}
+			}
 			return errorResponse(c, fiber.StatusBadRequest, err.Error())
 		}
 

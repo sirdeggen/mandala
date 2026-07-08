@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -216,5 +218,27 @@ func TestBroadcastCtxMatchesBroadcast(t *testing.T) {
 	}
 	if success == nil || success.Txid != "abc123" {
 		t.Fatalf("success = %+v", success)
+	}
+}
+
+// TestIsBroadcastFailureErr pins the classification contract the submit
+// handler's compensation path depends on: the pinned engine's
+// broadcastIfNeeded returns our Broadcaster's *transaction.BroadcastFailure
+// directly as the Submit error, so matching that type (through any future
+// wrapping) identifies exactly the failed-broadcast case.
+func TestIsBroadcastFailureErr(t *testing.T) {
+	failure := &transaction.BroadcastFailure{Code: "REJECTED", Description: "terminal"}
+
+	if !IsBroadcastFailureErr(failure) {
+		t.Fatal("bare *transaction.BroadcastFailure must classify as broadcast failure")
+	}
+	if !IsBroadcastFailureErr(fmt.Errorf("submit: %w", failure)) {
+		t.Fatal("wrapped BroadcastFailure must classify as broadcast failure")
+	}
+	if IsBroadcastFailureErr(errors.New("unknown-topic")) {
+		t.Fatal("ordinary error must not classify as broadcast failure")
+	}
+	if IsBroadcastFailureErr(nil) {
+		t.Fatal("nil must not classify as broadcast failure")
 	}
 }
