@@ -7,10 +7,12 @@ package wiring
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/overlay"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/bsv-blockchain/go-sdk/transaction/chaintracker"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -229,6 +231,29 @@ func prepareSubmitCompensation(store *mandala.Store, es *enginestore.Store) func
 		}
 		spendTxid := txid.String()
 		return func(ctx context.Context) error {
+			// A duplicate resubmit of an already-committed tx can reach this
+			// closure too: go-overlay-services v1.3.2's per-topic dupe gate
+			// lets a resubmit past validation, and a broadcast failure on
+			// THAT attempt is classified the same as a genuine one. But a
+			// genuine broadcast failure can never have an applied-transaction
+			// record for this txid — commitAdmittedOutputs (which writes it)
+			// only runs after a successful broadcast. If the record exists,
+			// the original submit already committed: unmarking the spend and
+			// restoring the snapshotted token rows here would corrupt that
+			// committed state (resurrecting rows the original commit
+			// correctly deleted, flipping its retained input back to
+			// unspent). Skip compensation entirely in that case.
+			committed, err := es.DoesAppliedTransactionExist(ctx, &overlay.AppliedTransaction{
+				Txid:  txid,
+				Topic: "tm_mandala",
+			})
+			if err != nil {
+				return fmt.Errorf("wiring: check applied-transaction record for %s: %w", spendTxid, err)
+			}
+			if committed {
+				log.Printf("wiring: skipping compensation: tx already committed (duplicate resubmit): %s", spendTxid)
+				return nil
+			}
 			if _, err := es.UnmarkSpentBySpendTxid(ctx, spendTxid); err != nil {
 				return fmt.Errorf("wiring: unmark spends of %s: %w", spendTxid, err)
 			}

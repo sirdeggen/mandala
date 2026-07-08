@@ -314,6 +314,95 @@ func TestBuildArcadeCompensationRoundTrip(t *testing.T) {
 	}
 }
 
+// TestBuildArcadeCompensationSkipsAlreadyCommittedTx is the dupe-resubmit
+// case: a tx already folded (applied-transaction record exists, its input
+// already spent by it, and the mandala token row it consumed already gone)
+// gets resubmitted — go-overlay-services v1.3.2 lets a duplicate through its
+// per-topic dupe gate before re-attempting broadcast, so a broadcast failure
+// on the SECOND attempt must not compensate: doing so would unmark the
+// original successful submit's spent input and try to resurrect a token row
+// that was correctly deleted. A genuine broadcast failure can never reach
+// this state (commitAdmittedOutputs — which inserts the applied-transaction
+// record — never runs before a failed broadcast).
+func TestBuildArcadeCompensationSkipsAlreadyCommittedTx(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	app, err := Build(ctx, Config{
+		NodeName:         "mandala_wiring_test_comp_dup",
+		ServerPrivKeyHex: testPrivHex,
+		HostingURL:       "https://overlay.example.com",
+		MongoURL:         "mongodb://localhost:27017",
+		Network:          "test",
+		ArcadeURL:        "https://arcade.example.com",
+	})
+	if err != nil {
+		t.Skip("mongo unavailable or build failed:", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx := context.Background()
+		_ = app.Mongo.Drop(cleanupCtx)
+		_ = app.Mongo.Client().Disconnect(cleanupCtx)
+	})
+
+	const topic = "tm_mandala"
+	parent := wiringTestTx(t, nil, 0, 1, 0x61)
+	parentID := parent.TxID()
+	child := wiringTestTx(t, parent, 0, 1, 0)
+	childID := child.TxID()
+	beefBytes, err := child.AtomicBEEF(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	st := app.Engine.Storage
+
+	// Seed the state left behind by the ORIGINAL successful submit of child:
+	// parent:0 already spent by childID, an applied-transaction record for
+	// childID under tm_mandala, and NO mandala token row for parent:0 (it was
+	// correctly consumed when that submit committed).
+	if err := st.InsertOutputs(ctx, topic, parentID, []uint32{0}, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.MarkUTXOsAsSpent(ctx, []*transaction.Outpoint{{Txid: *parentID, Index: 0}}, topic, childID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.InsertAppliedTransaction(ctx, &overlay.AppliedTransaction{Txid: childID, Topic: topic}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The submit handler snapshots BEFORE Engine.Submit, exactly as it would
+	// for the duplicate resubmit attempt.
+	compensate, err := app.PrepareSubmitCompensation(ctx, beefBytes)
+	if err != nil {
+		t.Fatal("prepare:", err)
+	}
+	if compensate == nil {
+		t.Fatal("prepare returned nil compensation for a valid BEEF")
+	}
+
+	if err := compensate(ctx); err != nil {
+		t.Fatal("compensate:", err)
+	}
+
+	topicName := topic
+	spent := true
+	got, err := st.FindOutput(ctx, &transaction.Outpoint{Txid: *parentID, Index: 0}, &topicName, &spent, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil {
+		t.Fatal("parent:0 must remain spent after skipped compensation (already-committed tx)")
+	}
+	row, err := app.Store.GetTokenRow(ctx, parentID.String(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row != nil {
+		t.Fatalf("token row must not be resurrected by skipped compensation: %+v", row)
+	}
+}
+
 // TestBuildArcadeEvictTxRoundTrip drives Build's EvictTx closure against
 // real Mongo: seed a folded transaction (engine outputs + applied record +
 // mandala token/metadata projections), evict by txid, and assert everything
