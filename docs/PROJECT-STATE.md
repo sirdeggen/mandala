@@ -556,7 +556,84 @@ in `adminState.ts` and `adminHistory.ts` (not via `LookupResolver`).
 
 ---
 
-## 10. End-to-end flow (happy path)
+## 10. `overlay-go` — Go port (wire parity)
+
+**What it is.** A case-for-case Go port of `overlay/` (the demo overlay's
+Express app): the `go-overlay-services` engine (topic manager `tm_mandala` +
+lookup service `ls_mandala`, pinned at v1.3.2) plus a hand-written Fiber HTTP
+layer that reproduces the same custom admin endpoints, `/submit`, `/lookup`,
+CORS, and 404/error shapes to match what the frontend expects. Lives in
+`overlay-go/`. It's an interchangeable alternative backend, not additive — the
+frontend talks to one overlay at a time via `VITE_OVERLAY_URL`.
+
+**How to run.** `docker compose` service `overlay-go` in
+`overlay/docker-compose.yml`, built from `../overlay-go`, env file
+`overlay-go/.env` (`NODE_NAME`, `SERVER_PRIVATE_KEY`, `HOSTING_URL`,
+`MONGO_URL`, `NETWORK=main`). Listens on container port 8080, published as
+**8081** on the host so it can run side by side with `overlay` (8080) against
+the same Mongo.
+
+**Storage.** Shares every `mandala*` Mongo collection with the TS overlay
+(`mandalaTokens`, `mandalaLinkageRecords`, `mandalaBalances`,
+`mandalaMetadata`, `mandalaAssetStates`, `mandalaAdminHistory`,
+`mandalaCounters`) — both sides read/write the same admin state and history.
+Where TS keeps the go-overlay engine's own applied-transaction/output store in
+a SQLite file (`SQLITE_FILE`, default `/data/overlay.sqlite`, via Knex), Go's
+engine store (`engineOutputs`, `engineAppliedTransactions`) lives in Mongo
+instead — no SQLite dependency. Boot-time index creation is idempotent
+against TS's pre-existing indexes on `mandalaTokens`/`mandalaLinkageRecords`
+(identical key specs, no conflict); `mandalaBalances`/`mandalaAssetStates` log
+a harmless `IndexOptionsConflict` warning on startup (an index already exists
+under a different name) but the server still starts and serves normally.
+
+**Parity status** (Task 19 matrix, run against real demo data in the shared
+Mongo, both servers live on 8080/8081). All read-shape endpoints matched:
+`/admin/asset-state`, `/admin/admin-history` (+ `-page`), `/admin/admin-summary`,
+unknown-route 404 shape, and OPTIONS preflight/CORS headers were identical
+across both servers for every asset tested. Three findings, none requiring a
+code fix here:
+1. `createdAt` ISO timestamps: Go trims a trailing zero in milliseconds
+   (`...86Z` vs TS's `...860Z`) — same instant, cosmetic string difference
+   (`new Date(...)` parses both identically).
+2. `POST /submit` (empty body) and similar validation errors use the same JSON
+   shape (`{status,message}`) on both, but the message text differs verbatim
+   ("X-Topics header is required" vs "Missing x-topics header").
+3. `/admin/activity` and `POST /lookup` currently return empty results
+   (`entries:[]` / `outputs:[]`) on Go for data TS resolves fully. Root cause
+   confirmed, not a Go bug: both endpoints hydrate their answers from the
+   engine's own raw-tx/output store (`engineOutputs`/`engineAppliedTransactions`),
+   which is empty because every existing token in this demo Mongo was
+   submitted through the TS overlay, never through Go. `/admin/activity`'s
+   cursor/pagination math is computed correctly from the shared
+   `mandalaLinkageRecords` collection even while entries are empty, confirming
+   the grouping/paging logic itself is sound — only the raw-tx lookup is cold.
+   This resolves itself the first time a real submit flows through Go.
+
+**Upstream engine bug + compensation.** The pinned `go-overlay-services@v1.3.2`
+engine's `Submit` marks spent inputs in engine storage *before* broadcasting,
+and never unwinds that mark if the broadcast fails — a bug that would
+otherwise permanently and incorrectly lock up UTXOs on any failed broadcast.
+`overlay-go` compensates at the wiring/HTTP layer: `submit.go`'s
+`PrepareSubmitCompensation` seam captures a compensation closure before
+calling the engine, and when the error path detects a broadcast failure
+(`arcade.IsBroadcastFailureErr`), it calls
+`enginestore.UnmarkSpentBySpendTxid` to flip the wrongly-marked outputs back
+to unspent (idempotent — re-running it is a no-op). The same store also adds
+eviction/output-deletion methods the pinned engine's `Storage` interface has
+no way to trigger itself, wired through `wiring/engine.go`'s eviction path for
+terminal-status cleanup.
+
+**Remaining human step.** The matrix above only exercises reads and error
+shapes. A full write-path browser demo — register → issue → send → freeze →
+reissue → redeem → pause — has not yet been run end-to-end against Go. To do
+that: point the app at Go (`VITE_OVERLAY_URL=http://localhost:8081` in
+`app/.env`) and walk the flow manually in-browser; this is also the step that
+will populate Go's own `engineOutputs`/`engineAppliedTransactions` and resolve
+finding 3 above.
+
+---
+
+## 11. End-to-end flow (happy path)
 
 1. **Register** (issuer): one tx, one genesis output (metadata + first auth).
    assetId = `genesisTxid.0`.
@@ -575,7 +652,7 @@ in `adminState.ts` and `adminHistory.ts` (not via `LookupResolver`).
 
 ---
 
-## 11. State of the repo / open threads
+## 12. State of the repo / open threads
 
 - On `master`. Package versions: `@bsv/templates@^1.9.0`,
   `@bsv/overlay-topics@^1.5.0`, `@bsv/overlay@^2.2.0`.
@@ -603,10 +680,16 @@ in `adminState.ts` and `adminHistory.ts` (not via `LookupResolver`).
   another party — no UI yet); `submitGlobalAdminAction` for cross-asset
   block/allow is in `assets.ts` but not yet wired to a UI control; richer
   metadata (ticker is surfaced via `publicData` and used for $/€ display).
+- **`overlay-go` (Go port) wire-parity matrix run** (Task 19, §10): read-path
+  endpoints match TS byte-for-byte; two cosmetic findings (timestamp
+  formatting, error message text) and one expected-empty finding
+  (`/admin/activity`, `/lookup` cold until a real submit goes through Go).
+  Remaining human step: full write-path browser demo against
+  `VITE_OVERLAY_URL=http://localhost:8081`.
 
 ---
 
-## 12. Quick reference
+## 13. Quick reference
 
 | Thing | Value |
 |---|---|
