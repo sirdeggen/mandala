@@ -353,3 +353,52 @@ func (s *stubAdminStore) PageAdminHistory(context.Context, string, int64, int64)
 func (s *stubAdminStore) AdminSummary(context.Context, string) (int64, int64, int64, error) {
 	return 0, 0, 0, s.summaryErr
 }
+
+// TestHealthReady_TimeoutBeforeBlockingPing asserts that /health/ready
+// wraps the context with an explicit 2-second timeout before calling the
+// Pinger. A pinger that blocks indefinitely (or longer than 2s) must not
+// hang the handler — it should return 503 quickly.
+func TestHealthReady_TimeoutBeforeBlockingPing(t *testing.T) {
+	blockingPinger := func(ctx context.Context) error {
+		// Simulate a blocking operation by sleeping much longer than the expected timeout
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(10 * time.Second):
+			return nil
+		}
+	}
+
+	app := newServer(&stubSubmitter{}, &stubLookuper{}, nil, blockingPinger)
+
+	start := time.Now()
+	resp := doRequest(t, app, httptest.NewRequest(http.MethodGet, "/health/ready", nil))
+	elapsed := time.Since(start)
+
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503 (body: %s)", resp.StatusCode, readRawBody(t, resp))
+	}
+	body := decodeJSON(t, resp)
+	if body["status"] != "error" {
+		t.Fatalf("body = %v, want status:error", body)
+	}
+	// Assert handler returned promptly (well under 5s wall-clock)
+	if elapsed > 5*time.Second {
+		t.Fatalf("handler took %v, want < 5s (timeout not working)", elapsed)
+	}
+}
+
+// TestAdminAssetState_NilStoreReturns500 asserts that a nil AdminStore
+// returns 500 with {"error": "store unavailable"} rather than panicking.
+func TestAdminAssetState_NilStoreReturns500(t *testing.T) {
+	app := newServer(&stubSubmitter{}, &stubLookuper{}, nil, nil)
+
+	resp := doRequest(t, app, httptest.NewRequest(http.MethodGet, "/admin/asset-state/a.0", nil))
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", resp.StatusCode)
+	}
+	body := decodeJSON(t, resp)
+	if body["error"] != "store unavailable" {
+		t.Fatalf("body = %v, want error:store unavailable", body)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -56,7 +57,9 @@ func healthOKHandler(c *fiber.Ctx) error {
 func healthReadyHandler(ping Pinger) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if ping != nil {
-			if err := ping(c.UserContext()); err != nil {
+			ctx, cancel := context.WithTimeout(c.UserContext(), 2*time.Second)
+			defer cancel()
+			if err := ping(ctx); err != nil {
 				return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"status": "error"})
 			}
 		}
@@ -83,6 +86,9 @@ func adminErrorResponse(c *fiber.Ctx, err error) error {
 
 func assetStateHandler(store AdminStore) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if store == nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "store unavailable"})
+		}
 		assetID, err := assetIDParam(c)
 		if err != nil {
 			return adminErrorResponse(c, err)
@@ -97,6 +103,9 @@ func assetStateHandler(store AdminStore) fiber.Handler {
 
 func adminHistoryHandler(store AdminStore) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if store == nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "store unavailable"})
+		}
 		assetID, err := assetIDParam(c)
 		if err != nil {
 			return adminErrorResponse(c, err)
@@ -117,6 +126,9 @@ func adminHistoryHandler(store AdminStore) fiber.Handler {
 // so this handler does not duplicate that logic.
 func adminHistoryPageHandler(store AdminStore) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if store == nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "store unavailable"})
+		}
 		assetID, err := assetIDParam(c)
 		if err != nil {
 			return adminErrorResponse(c, err)
@@ -133,6 +145,9 @@ func adminHistoryPageHandler(store AdminStore) fiber.Handler {
 
 func adminSummaryHandler(store AdminStore) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		if store == nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "store unavailable"})
+		}
 		assetID, err := assetIDParam(c)
 		if err != nil {
 			return adminErrorResponse(c, err)
