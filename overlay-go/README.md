@@ -3,9 +3,18 @@
 Go port of the Mandala BSV overlay service (replaces the TS `overlay/` service).
 Module path: `github.com/sirdeggen/mandala/overlay-go`.
 
-Status: Task 1 (module scaffold + pinned deps + ctx-propagation spike) only.
-Nothing is wired up yet — `cmd/overlay/main.go` is a placeholder and
-`internal/mandala` is an empty package awaiting the domain-logic port.
+Status: full port. `cmd/overlay/main.go` is the real entrypoint (env-driven
+config, `wiring.Build`, graceful shutdown); the engine (topic manager
+`tm_mandala` + lookup service `ls_mandala`, pinned `go-overlay-services`) is
+wired up behind a hand-written Fiber HTTP layer that reproduces the TS
+overlay's admin endpoints, `/submit`, `/lookup`, `/arc-ingest`, CORS, and
+error shapes. Package layout: `internal/mandala` (domain logic — topic
+manager, lookup service, verifier, admin wallet, Mongo store),
+`internal/enginestore` (the in-repo `engine.Storage` Mongo implementation),
+`internal/wiring` (assembles Mongo + mandala + engine into one `App`),
+`internal/httpapi` (the Fiber server and routes), `internal/activity`
+(the `/admin/activity` feed), and `internal/arcade` (optional Arcade
+broadcaster/chaintracks client — see §10 of `docs/PROJECT-STATE.md`).
 
 ## Toolchain
 
@@ -29,10 +38,8 @@ Task 12**: no published tag implements go-overlay-services v1.3.2's
 `engine.Storage` (see the compatibility verdict below), so the spec fallback
 governs and `internal/enginestore` is the in-repo Mongo implementation.
 
-`go mod tidy` is now safe to run: everything except fiber is imported by
-shipped code, and the root `tools.go` (build tag `tools`, never compiled
-into real builds) blank-imports fiber so tidy keeps that pin until Task 13's
-HTTP server imports it directly.
+`go mod tidy` is safe to run: every pinned dependency, including fiber, is a
+direct import of shipped code (`internal/httpapi` imports fiber directly).
 
 ## Pinned API notes
 
@@ -163,9 +170,15 @@ type Storage interface {
 typed `*transaction.Beef`, not `[]byte`. This matters for the compatibility
 verdict below.
 
-## b-open-io/overlay compatibility verdict: **NOT COMPATIBLE** (as of v0.3.0, 2026-07-07)
+## b-open-io/overlay compatibility verdict (historical record): **NOT COMPATIBLE** (as of v0.3.0, 2026-07-07)
 
-**Verdict: `github.com/b-open-io/overlay` does NOT implement
+This section documents the Task 1 investigation that justified dropping
+`b-open-io/overlay` from `go.mod` in Task 12 (see "Pinned dependencies"
+above) in favor of `internal/enginestore`, an in-repo `engine.Storage`
+implementation. It is kept verbatim as the record of that decision, not as a
+description of the current dependency graph.
+
+**Verdict: `github.com/b-open-io/overlay` did NOT implement
 `go-overlay-services@v1.3.2`'s `engine.Storage` interface, at any currently
 published tag (`v0.1.0`, `v0.2.0`, `v0.2.1`, `v0.3.0` — there is no v2.x/v3.x
 line; the module has never left 0.x).** This contradicts the brief's
@@ -241,26 +254,28 @@ implementation) is the spec-level decision a later task needs to make.**
      block the build early the same way, so the real errors surface
      directly). All four tags fail the same way.
 
-4. Conclusion: no published `b-open-io/overlay` tag builds cleanly as an
+4. Conclusion: no published `b-open-io/overlay` tag built cleanly as an
    `engine.Storage` against `go-overlay-services@v1.3.2`, independent of the
-   `pubsub` compile bug. `go.mod` still pins `b-open-io/overlay@v0.3.0` (the
-   most recent tag, and the only one that gets past the interface-shape
-   issues once the unrelated `pubsub` bug is set aside) because the brief's
-   Step 1 explicitly calls for `@latest`, and no better-fitting tag exists —
-   but **nothing in `overlay-go` imports it yet**, so this does not block
-   `go build ./...` today. Whoever picks up storage (a later task) must
-   choose between (i) waiting on/forking a b-open-io fix, or (ii) writing an
-   in-repo `engine.Storage` implementation against MongoDB directly. This
-   repo does not decide that here — flagging per the brief's instruction.
+   `pubsub` compile bug. At the time of this investigation, `go.mod` still
+   pinned `b-open-io/overlay@v0.3.0` (the most recent tag, and the only one
+   that got past the interface-shape issues once the unrelated `pubsub` bug
+   was set aside) because the brief's Step 1 explicitly called for
+   `@latest`, and no better-fitting tag existed — but nothing in `overlay-go`
+   imported it, so it did not block `go build ./...` at the time. Task 12
+   made the call this section flagged as open: it dropped
+   `b-open-io/overlay` from `go.mod` entirely and wrote
+   `internal/enginestore`, an in-repo `engine.Storage` implementation
+   against MongoDB directly.
 
-Constructor names for reference, in case a future task still wants to try
-b-open-io/overlay's Mongo-backed storage (e.g. against a patched fork):
+Constructor names kept for reference only, in case a future effort wants to
+revisit b-open-io/overlay's Mongo-backed storage (e.g. against a patched
+fork) instead of `internal/enginestore`:
 `storage.NewMongoEventDataStorage(connString string, beefStore beef.BeefStorage, pubsub pubsub.PubSub) (*MongoEventDataStorage, error)`.
 BEEF store: `beef.BeefStorage` interface (see `github.com/b-open-io/overlay/beef`),
 concrete constructors include `beef.NewSQLiteBeefStorage`, `beef.NewFilesystemBeefStorage`,
 `beef.NewJunglebusBeefStorage`, `beef.NewRedisBeefStorage` (signatures not
-reconciled further here since the interface-level blocker above makes this
-moot until the Storage question is resolved).
+reconciled further here — moot since `internal/enginestore` already resolved
+the Storage question).
 
 ## ctx-propagation verdict: **YES**
 
@@ -290,6 +305,13 @@ strategy**, not the `sync.Map` fallback.
 ```
 overlay-go/
   go.mod
-  cmd/overlay/main.go       — entrypoint stub, not wired up
-  internal/mandala/doc.go   — package doc; domain-logic port target for later tasks
+  cmd/overlay/main.go        — entrypoint: env config, wiring.Build, graceful shutdown
+  internal/mandala/          — domain logic: topic manager, lookup service, verifier,
+                                admin wallet, admin-state reducer, Mongo store
+  internal/enginestore/      — in-repo engine.Storage Mongo implementation
+  internal/wiring/           — assembles Mongo + mandala + engine into one App
+  internal/httpapi/          — Fiber HTTP server: /submit, /lookup, /arc-ingest,
+                                admin routes, CORS, error shapes
+  internal/activity/         — the /admin/activity feed
+  internal/arcade/           — optional Arcade broadcaster + chaintracks client
 ```

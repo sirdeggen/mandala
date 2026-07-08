@@ -14,9 +14,11 @@ services:
   # Go port of `overlay` (overlay-go/). Either service can serve the app —
   # point the frontend's VITE_OVERLAY_URL at whichever one is running
   # (http://localhost:8080 for `overlay`, http://localhost:8081 for
-  # `overlay-go`). Both read/write the same Mongo database (`mandala`), so
-  # they are interchangeable, not additive — don't run app traffic against
-  # both at once.
+  # `overlay-go`). The `/mandala` path on MONGO_URL below is unused by both:
+  # each server explicitly selects db `${NODE_NAME}_lookup_services` (i.e.
+  # `mandala_lookup_services`, NODE_NAME=mandala) via its Mongo client, so
+  # both services share that one real database — interchangeable, not
+  # additive; don't run app traffic against both at once.
   overlay-go:
     build:
       context: ../overlay-go

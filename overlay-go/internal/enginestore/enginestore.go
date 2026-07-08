@@ -14,6 +14,7 @@ package enginestore
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
@@ -56,19 +57,20 @@ func New(db *mongo.Database) *Store {
 		{Keys: bson.D{{Key: "topic", Value: 1}, {Key: "spent", Value: 1}, {Key: "score", Value: 1}}},
 		{Keys: bson.D{{Key: "topic", Value: 1}, {Key: "merkleState", Value: 1}}},
 	}); err != nil {
-		// Mirror mandala.NewStore's stance: index trouble surfaces on first
-		// write via the driver; the constructor stays infallible.
-		_ = err
+		// Mirror mandala.NewStore's stance: the constructor stays infallible
+		// and index trouble still surfaces on first write via the driver —
+		// but it is logged here too, exactly as mandala.NewStore does.
+		log.Printf("engine store: index creation failed on %s: %v", "engineOutputs", err)
 	}
 	if _, err := s.applied.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: bson.D{{Key: "topic", Value: 1}, {Key: "txid", Value: 1}}, Options: uniq},
 	}); err != nil {
-		_ = err
+		log.Printf("engine store: index creation failed on %s: %v", "engineAppliedTransactions", err)
 	}
 	if _, err := s.interactions.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: bson.D{{Key: "host", Value: 1}, {Key: "topic", Value: 1}}, Options: uniq},
 	}); err != nil {
-		_ = err
+		log.Printf("engine store: index creation failed on %s: %v", "engineInteractions", err)
 	}
 	return s
 }

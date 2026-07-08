@@ -19,6 +19,8 @@ import (
 	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/sirdeggen/mandala/overlay-go/internal/arcade"
 	"github.com/sirdeggen/mandala/overlay-go/internal/mandala"
@@ -27,7 +29,27 @@ import (
 // Arbitrary valid secp256k1 private key (test-only).
 const testPrivHex = "1e99423a4ed27608a15a2616a2b0e9e52ced330ac530edcc32c8ffc6a526aedd"
 
+// requireMongo pre-flight-pings mongodb://localhost:27017 (the same
+// connect-then-ping shape as httpapi/admin_test.go's testAdminDB) so a test
+// skips ONLY when Mongo itself is unreachable in this environment. Any
+// Build error that occurs after this succeeds is a real failure, not an
+// environment gap, and must fail the test via t.Fatal instead of skipping.
+func requireMongo(t *testing.T) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	client, err := mongo.Connect(options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		t.Skip("mongo unavailable:", err)
+	}
+	defer func() { _ = client.Disconnect(context.Background()) }()
+	if err := client.Ping(ctx, nil); err != nil {
+		t.Skip("mongo unavailable:", err)
+	}
+}
+
 func TestBuildAndLookupEndToEnd(t *testing.T) {
+	requireMongo(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -40,7 +62,7 @@ func TestBuildAndLookupEndToEnd(t *testing.T) {
 		// ArcadeURL empty: scripts-only chain tracker, nil broadcaster.
 	})
 	if err != nil {
-		t.Skip("mongo unavailable or build failed:", err)
+		t.Fatal("Build:", err)
 	}
 	t.Cleanup(func() {
 		cleanupCtx := context.Background()
@@ -96,6 +118,7 @@ func TestBuildAndLookupEndToEnd(t *testing.T) {
 // arcade.NewBroadcaster/NewChaintracks only build HTTP clients at
 // construction time.
 func TestBuildWithArcadeURLDefaultsBroadcasterAndTracker(t *testing.T) {
+	requireMongo(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -110,7 +133,7 @@ func TestBuildWithArcadeURLDefaultsBroadcasterAndTracker(t *testing.T) {
 		ArcadeCallbackToken: "test-callback-token",
 	})
 	if err != nil {
-		t.Skip("mongo unavailable or build failed:", err)
+		t.Fatal("Build:", err)
 	}
 	t.Cleanup(func() {
 		cleanupCtx := context.Background()
@@ -136,6 +159,7 @@ func TestBuildWithArcadeURLDefaultsBroadcasterAndTracker(t *testing.T) {
 // WithChainTracker seam still wins over the ArcadeURL default — the seam
 // tests substitute a stub through instead of a real Arcade deployment.
 func TestBuildWithArcadeURLHonorsOptionOverride(t *testing.T) {
+	requireMongo(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -149,7 +173,7 @@ func TestBuildWithArcadeURLHonorsOptionOverride(t *testing.T) {
 		ArcadeURL:        "https://arcade.example.com",
 	}, WithChainTracker(stubTracker))
 	if err != nil {
-		t.Skip("mongo unavailable or build failed:", err)
+		t.Fatal("Build:", err)
 	}
 	t.Cleanup(func() {
 		cleanupCtx := context.Background()
@@ -215,6 +239,7 @@ func wiringTestTx(t *testing.T, src *transaction.Transaction, vout uint32, outpu
 // v1.3.2's markSpentAndNotify performs before a failed broadcast, then
 // compensate and assert everything is restored.
 func TestBuildArcadeCompensationRoundTrip(t *testing.T) {
+	requireMongo(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -227,7 +252,7 @@ func TestBuildArcadeCompensationRoundTrip(t *testing.T) {
 		ArcadeURL:        "https://arcade.example.com",
 	})
 	if err != nil {
-		t.Skip("mongo unavailable or build failed:", err)
+		t.Fatal("Build:", err)
 	}
 	t.Cleanup(func() {
 		cleanupCtx := context.Background()
@@ -328,6 +353,7 @@ func TestBuildArcadeCompensationRoundTrip(t *testing.T) {
 // this state (commitAdmittedOutputs — which inserts the applied-transaction
 // record — never runs before a failed broadcast).
 func TestBuildArcadeCompensationSkipsAlreadyCommittedTx(t *testing.T) {
+	requireMongo(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -340,7 +366,7 @@ func TestBuildArcadeCompensationSkipsAlreadyCommittedTx(t *testing.T) {
 		ArcadeURL:        "https://arcade.example.com",
 	})
 	if err != nil {
-		t.Skip("mongo unavailable or build failed:", err)
+		t.Fatal("Build:", err)
 	}
 	t.Cleanup(func() {
 		cleanupCtx := context.Background()
@@ -412,6 +438,7 @@ func TestBuildArcadeCompensationSkipsAlreadyCommittedTx(t *testing.T) {
 // is gone — with balances untouched (TS OutputEvicted parity: eviction never
 // adjusts balances).
 func TestBuildArcadeEvictTxRoundTrip(t *testing.T) {
+	requireMongo(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -424,7 +451,7 @@ func TestBuildArcadeEvictTxRoundTrip(t *testing.T) {
 		ArcadeURL:        "https://arcade.example.com",
 	})
 	if err != nil {
-		t.Skip("mongo unavailable or build failed:", err)
+		t.Fatal("Build:", err)
 	}
 	t.Cleanup(func() {
 		cleanupCtx := context.Background()
@@ -490,6 +517,7 @@ func TestBuildArcadeEvictTxRoundTrip(t *testing.T) {
 // resolve every stored txid to its raw hex and simply omit unknown ones,
 // batching several txids in one call.
 func TestFindRawTxsBatchesOverEnginestore(t *testing.T) {
+	requireMongo(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -501,7 +529,7 @@ func TestFindRawTxsBatchesOverEnginestore(t *testing.T) {
 		Network:          "test",
 	})
 	if err != nil {
-		t.Skip("mongo unavailable or build failed:", err)
+		t.Fatal("Build:", err)
 	}
 	t.Cleanup(func() {
 		cleanupCtx := context.Background()

@@ -101,8 +101,9 @@ func requireEnv(getenv envLookup, name string) (string, error) {
 // loadConfig builds a wiring.Config from the environment. Required:
 // NODE_NAME, SERVER_PRIVATE_KEY, HOSTING_URL, MONGO_URL, NETWORK (must be
 // "main" or "test", matching overlay/src/index.ts's check). Optional:
-// ARCADE_URL, ARCADE_API_KEY, CHAINTRACKS_URL, CHAINTRACKS_API_PREFIX —
-// wiring.Build applies their TS-parity defaults itself when unset.
+// ARCADE_URL, ARCADE_API_KEY, ARCADE_CALLBACK_TOKEN, CHAINTRACKS_URL,
+// CHAINTRACKS_API_PREFIX — wiring.Build applies their TS-parity defaults
+// itself when unset.
 func loadConfig(getenv envLookup) (wiring.Config, error) {
 	var cfg wiring.Config
 
@@ -129,6 +130,7 @@ func loadConfig(getenv envLookup) (wiring.Config, error) {
 
 	cfg.ArcadeURL = getenv("ARCADE_URL")
 	cfg.ArcadeAPIKey = getenv("ARCADE_API_KEY")
+	cfg.ArcadeCallbackToken = getenv("ARCADE_CALLBACK_TOKEN")
 	cfg.ChaintracksURL = getenv("CHAINTRACKS_URL")
 	cfg.ChaintracksPrefix = getenv("CHAINTRACKS_API_PREFIX")
 

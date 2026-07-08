@@ -19,7 +19,6 @@ var adminProtocol = wallet.Protocol{
 // (Appendix A §1.4 key binding, §3.2c verification).
 type AdminWallet struct {
 	deriver *wallet.KeyDeriver
-	rootPub *ec.PublicKey
 }
 
 // NewAdminWallet builds an AdminWallet from a hex-encoded secp256k1 private
@@ -29,11 +28,8 @@ func NewAdminWallet(privHex string) (*AdminWallet, error) {
 	if err != nil {
 		return nil, fmt.Errorf("admin key: %w", err)
 	}
-	return &AdminWallet{deriver: wallet.NewKeyDeriver(priv), rootPub: priv.PubKey()}, nil
+	return &AdminWallet{deriver: wallet.NewKeyDeriver(priv)}, nil
 }
-
-// IdentityKey returns the admin root identity public key, hex-encoded.
-func (w *AdminWallet) IdentityKey() string { return w.rootPub.ToDERHex() }
 
 // ExpectedPKH derives hash160(derivePublicKey(ADMIN_PROTOCOL,
 // Commitment(details), counterparty, forSelf=false)). The counterparty is

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"crypto/subtle"
 	"log"
 	"strings"
 
@@ -127,12 +128,21 @@ func arcIngestHandler(h MerkleProofHandler, callbackToken string, evict EvictTx)
 // hasValidCallbackToken checks the Authorization: Bearer <token> and
 // x-callback-token: <token> header forms Arcade may present (either one
 // matching is sufficient), mirroring OverlayExpress.ts's /arc-ingest token
-// check.
+// check. Comparisons are constant-time so a mistimed guess can't leak how
+// many leading bytes of the configured token it got right.
 func hasValidCallbackToken(c *fiber.Ctx, token string) bool {
 	auth := c.Get(fiber.HeaderAuthorization)
 	bearer := strings.TrimPrefix(auth, "Bearer ")
-	if bearer == token {
+	if constantTimeEqual(bearer, token) {
 		return true
 	}
-	return c.Get("x-callback-token") == token
+	return constantTimeEqual(c.Get("x-callback-token"), token)
+}
+
+// constantTimeEqual reports whether a and b are equal without leaking
+// timing information about a mismatch's position (subtle.ConstantTimeCompare
+// requires equal-length inputs, so the length check is a fast, non-secret
+// gate before the constant-time byte comparison).
+func constantTimeEqual(a, b string) bool {
+	return len(a) == len(b) && subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }

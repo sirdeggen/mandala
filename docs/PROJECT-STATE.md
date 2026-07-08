@@ -566,6 +566,15 @@ CORS, and 404/error shapes to match what the frontend expects. Lives in
 `overlay-go/`. It's an interchangeable alternative backend, not additive — the
 frontend talks to one overlay at a time via `VITE_OVERLAY_URL`.
 
+**Optional Arcade path.** Setting `ARCADE_URL` (+ `ARCADE_API_KEY`) switches
+the engine from local scripts-only verification to a real Arcade v2
+broadcaster and `CHAINTRACKS_URL`/`CHAINTRACKS_API_PREFIX`-backed SPV chain
+tracker, and mounts `POST /arc-ingest` for Arcade's broadcast-status/proof
+callbacks (gated by `ARCADE_CALLBACK_TOKEN` when set — see the accepted-risk
+note below); `GET /health`, `/health/live`, `/health/ready` are always
+mounted regardless of Arcade. Leaving `ARCADE_URL` unset keeps the original
+local-demo behavior (scripts-only tracker, no broadcaster, no `/arc-ingest`).
+
 **How to run.** `docker compose` service `overlay-go` in
 `overlay/docker-compose.yml`, built from `../overlay-go`, env file
 `overlay-go/.env` (`NODE_NAME`, `SERVER_PRIVATE_KEY`, `HOSTING_URL`,
@@ -579,7 +588,8 @@ the same Mongo.
 `mandalaCounters`) — both sides read/write the same admin state and history.
 Where TS keeps the go-overlay engine's own applied-transaction/output store in
 a SQLite file (`SQLITE_FILE`, default `/data/overlay.sqlite`, via Knex), Go's
-engine store (`engineOutputs`, `engineAppliedTransactions`) lives in Mongo
+engine store (`engineOutputs`, `engineAppliedTransactions`, and
+`engineInteractions` for GASP last-interaction bookkeeping) lives in Mongo
 instead — no SQLite dependency. Boot-time index creation is idempotent
 against TS's pre-existing indexes on `mandalaTokens`/`mandalaLinkageRecords`
 (identical key specs, no conflict); `mandalaBalances`/`mandalaAssetStates` log
@@ -630,6 +640,14 @@ that: point the app at Go (`VITE_OVERLAY_URL=http://localhost:8081` in
 `app/.env`) and walk the flow manually in-browser; this is also the step that
 will populate Go's own `engineOutputs`/`engineAppliedTransactions` and resolve
 finding 3 above.
+
+**Accepted risk (TS parity, not a Go-specific gap).** The admin `GET`
+endpoints (`/admin/asset-state`, `/admin/admin-history(-page)`,
+`/admin/admin-summary`, `/admin/activity`) are unauthenticated on both
+servers — this mirrors the TS overlay's own posture, not a regression
+introduced by the port. `POST /arc-ingest` is likewise unauthenticated
+unless `ARCADE_CALLBACK_TOKEN` is set (see "Optional Arcade path" above);
+the demo's threat model accepts this for both.
 
 ---
 
