@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
+
+	"github.com/sirdeggen/mandala/overlay-go/internal/arcade"
 )
 
 // Arbitrary valid secp256k1 private key (test-only).
@@ -72,6 +74,84 @@ func TestBuildAndLookupEndToEnd(t *testing.T) {
 	}
 	if len(answer.Outputs) != 0 {
 		t.Fatalf("outputs = %d, want 0", len(answer.Outputs))
+	}
+}
+
+// TestBuildWithArcadeURLDefaultsBroadcasterAndTracker proves Task 16's
+// wiring: a non-empty ArcadeURL makes Build default the engine's
+// Broadcaster/ChainTracker to Arcade-backed implementations (rather than
+// nil/scriptsOnlyTracker) without any Option override, and threads
+// ArcadeCallbackToken onto App. No real Arcade deployment is contacted —
+// arcade.NewBroadcaster/NewChaintracks only build HTTP clients at
+// construction time.
+func TestBuildWithArcadeURLDefaultsBroadcasterAndTracker(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	app, err := Build(ctx, Config{
+		NodeName:            "mandala_wiring_test_arcade",
+		ServerPrivKeyHex:    testPrivHex,
+		HostingURL:          "https://overlay.example.com",
+		MongoURL:            "mongodb://localhost:27017",
+		Network:             "test",
+		ArcadeURL:           "https://arcade.example.com",
+		ArcadeAPIKey:        "test-api-key",
+		ArcadeCallbackToken: "test-callback-token",
+	})
+	if err != nil {
+		t.Skip("mongo unavailable or build failed:", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx := context.Background()
+		_ = app.Mongo.Drop(cleanupCtx)
+		_ = app.Mongo.Client().Disconnect(cleanupCtx)
+	})
+
+	if !app.ArcadeEnabled {
+		t.Fatal("ArcadeEnabled must be true when ArcadeURL is set")
+	}
+	if app.ArcadeCallbackToken != "test-callback-token" {
+		t.Fatalf("ArcadeCallbackToken = %q, want test-callback-token", app.ArcadeCallbackToken)
+	}
+	if _, ok := app.Engine.Broadcaster.(*arcade.Broadcaster); !ok {
+		t.Fatalf("Engine.Broadcaster = %T, want *arcade.Broadcaster", app.Engine.Broadcaster)
+	}
+	if _, ok := app.Engine.ChainTracker.(*arcade.Chaintracks); !ok {
+		t.Fatalf("Engine.ChainTracker = %T, want *arcade.Chaintracks", app.Engine.ChainTracker)
+	}
+}
+
+// TestBuildWithArcadeURLHonorsOptionOverride proves the WithBroadcaster/
+// WithChainTracker seam still wins over the ArcadeURL default — the seam
+// tests substitute a stub through instead of a real Arcade deployment.
+func TestBuildWithArcadeURLHonorsOptionOverride(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	stubTracker := scriptsOnlyTracker{}
+	app, err := Build(ctx, Config{
+		NodeName:         "mandala_wiring_test_arcade_override",
+		ServerPrivKeyHex: testPrivHex,
+		HostingURL:       "https://overlay.example.com",
+		MongoURL:         "mongodb://localhost:27017",
+		Network:          "test",
+		ArcadeURL:        "https://arcade.example.com",
+	}, WithChainTracker(stubTracker))
+	if err != nil {
+		t.Skip("mongo unavailable or build failed:", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx := context.Background()
+		_ = app.Mongo.Drop(cleanupCtx)
+		_ = app.Mongo.Client().Disconnect(cleanupCtx)
+	})
+
+	if _, ok := app.Engine.ChainTracker.(scriptsOnlyTracker); !ok {
+		t.Fatalf("Engine.ChainTracker = %T, want the injected scriptsOnlyTracker override", app.Engine.ChainTracker)
+	}
+	// Broadcaster wasn't overridden, so it should still default to Arcade.
+	if _, ok := app.Engine.Broadcaster.(*arcade.Broadcaster); !ok {
+		t.Fatalf("Engine.Broadcaster = %T, want *arcade.Broadcaster", app.Engine.Broadcaster)
 	}
 }
 

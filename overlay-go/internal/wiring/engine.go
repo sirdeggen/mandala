@@ -7,6 +7,7 @@ package wiring
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -15,31 +16,45 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
+	"github.com/sirdeggen/mandala/overlay-go/internal/arcade"
 	"github.com/sirdeggen/mandala/overlay-go/internal/enginestore"
 	"github.com/sirdeggen/mandala/overlay-go/internal/mandala"
 )
 
-// Config is the node configuration (mirrors the TS overlay's env surface).
+// defaultChaintracksPrefix mirrors overlay/src/index.ts's
+// `process.env.CHAINTRACKS_API_PREFIX ?? '/v2'`.
+const defaultChaintracksPrefix = "/v2"
+
+// Config is the node configuration (mirrors the TS overlay's env surface —
+// overlay/src/index.ts's ARCADE_URL/ARCADE_API_KEY/CHAINTRACKS_URL/
+// CHAINTRACKS_API_PREFIX). ArcadeCallbackURL/ArcadeCallbackToken have no TS
+// env-var counterpart in that file (it never calls configureArcCallbackToken
+// and lets OverlayExpress derive callbackUrl from its own advertisable
+// FQDN); leaving both empty here reproduces that no-token, no-callback-url
+// default.
 type Config struct {
-	NodeName          string
-	ServerPrivKeyHex  string
-	HostingURL        string
-	MongoURL          string
-	Network           string
-	ArcadeURL         string
-	ArcadeAPIKey      string
-	ChaintracksURL    string
-	ChaintracksPrefix string
+	NodeName            string
+	ServerPrivKeyHex    string
+	HostingURL          string
+	MongoURL            string
+	Network             string
+	ArcadeURL           string
+	ArcadeAPIKey        string
+	ArcadeCallbackURL   string
+	ArcadeCallbackToken string
+	ChaintracksURL      string
+	ChaintracksPrefix   string
 }
 
 // App is the wired application: the overlay engine plus the mandala domain
 // handles the HTTP layer (Task 13) serves from.
 type App struct {
-	Engine        *engine.Engine
-	Store         *mandala.Store
-	Verifier      *mandala.Verifier
-	Mongo         *mongo.Database
-	ArcadeEnabled bool
+	Engine              *engine.Engine
+	Store               *mandala.Store
+	Verifier            *mandala.Verifier
+	Mongo               *mongo.Database
+	ArcadeEnabled       bool
+	ArcadeCallbackToken string
 }
 
 // buildOptions carries the Task 16 injection seams.
@@ -84,11 +99,36 @@ func (scriptsOnlyTracker) CurrentHeight(context.Context) (uint32, error) {
 // Build connects Mongo (db ${NodeName}_lookup_services — same db handle for
 // the mandala Store and the engine storage), wires tm_mandala/ls_mandala and
 // returns the assembled App. With an empty ArcadeURL the chain tracker is
-// scripts-only and the broadcaster nil, unless options inject otherwise.
+// scripts-only and the broadcaster nil. With a non-empty ArcadeURL, Build
+// defaults the tracker/broadcaster to Arcade-backed implementations
+// (overlay/src/index.ts's ARCADE_URL branch) unless opts already injected
+// them — the WithBroadcaster/WithChainTracker seam exists so tests can
+// substitute a stub instead of hitting a real Arcade deployment.
 func Build(ctx context.Context, cfg Config, opts ...Option) (*App, error) {
 	var o buildOptions
 	for _, opt := range opts {
 		opt(&o)
+	}
+
+	if cfg.ArcadeURL != "" {
+		if o.broadcaster == nil {
+			callbackURL := cfg.ArcadeCallbackURL
+			if callbackURL == "" && cfg.HostingURL != "" {
+				callbackURL = strings.TrimRight(cfg.HostingURL, "/") + "/arc-ingest"
+			}
+			o.broadcaster = arcade.NewBroadcaster(cfg.ArcadeURL, cfg.ArcadeAPIKey, callbackURL, cfg.ArcadeCallbackToken, nil)
+		}
+		if o.tracker == nil {
+			chaintracksURL := cfg.ChaintracksURL
+			if chaintracksURL == "" {
+				chaintracksURL = strings.TrimRight(cfg.ArcadeURL, "/") + "/chaintracks"
+			}
+			prefix := cfg.ChaintracksPrefix
+			if prefix == "" {
+				prefix = defaultChaintracksPrefix
+			}
+			o.tracker = arcade.NewChaintracks(chaintracksURL, prefix, nil)
+		}
 	}
 
 	client, err := mongo.Connect(options.Client().ApplyURI(cfg.MongoURL))
@@ -131,10 +171,11 @@ func Build(ctx context.Context, cfg Config, opts ...Option) (*App, error) {
 	})
 
 	return &App{
-		Engine:        eng,
-		Store:         store,
-		Verifier:      verifier,
-		Mongo:         db,
-		ArcadeEnabled: cfg.ArcadeURL != "",
+		Engine:              eng,
+		Store:               store,
+		Verifier:            verifier,
+		Mongo:               db,
+		ArcadeEnabled:       cfg.ArcadeURL != "",
+		ArcadeCallbackToken: cfg.ArcadeCallbackToken,
 	}, nil
 }
