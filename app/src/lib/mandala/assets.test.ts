@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildAdminActionArgs, buildGlobalAdminActionArgs } from './assets'
+import { buildAdminActionArgs, buildGlobalAdminActionArgs, withReason } from './assets'
 import type { AdminAsset } from './assets'
 import type { MandalaActionDetails } from './encoding'
 import { BASKET } from './constants'
@@ -86,5 +86,17 @@ describe('buildGlobalAdminActionArgs (multi-asset pure builder)', () => {
     const args = buildGlobalAdminActionArgs([assetA, assetB], detailsFor, ['lockA', 'lockB'])
     expect(args.description).toContain('unpause')
     expect(args.labels).toContain('unpause')
+  })
+})
+
+describe('withReason', () => {
+  it('adds a trimmed reason when present', () => {
+    expect(withReason({ kind: 'freezeOutput' }, '  court order  ')).toEqual({ kind: 'freezeOutput', reason: 'court order' })
+  })
+
+  it('omits the key entirely when empty/whitespace (commitment stays identical)', () => {
+    expect(withReason({ kind: 'pause' }, '')).toEqual({ kind: 'pause' })
+    expect(withReason({ kind: 'pause' }, '   ')).toEqual({ kind: 'pause' })
+    expect(withReason({ kind: 'pause' }, undefined)).toEqual({ kind: 'pause' })
   })
 })

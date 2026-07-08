@@ -6,7 +6,7 @@ import { Input } from '../ui/input'
 import { Select } from '../ui/select'
 import { Spinner } from '../ui/spinner'
 import { useWallet } from '../../context/WalletContext'
-import { AdminAsset, submitAdminAction } from '../../lib/mandala/assets'
+import { AdminAsset, submitAdminAction, withReason } from '../../lib/mandala/assets'
 import { AssetAdminStateView } from '../../lib/mandala/adminState'
 import { formatAmount } from '../../lib/mandala/amount'
 import { useAssetState, useInvalidateAssetState } from '../../hooks/useAssetState'
@@ -32,6 +32,11 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // pressed button shows its spinner; every other control is merely disabled.
   const [busyAction, setBusyAction] = useState<ActionKey | null>(null)
   const busy = busyAction !== null
+
+  // Admin Operations form: which action is selected in the dropdown, and the
+  // shared optional reason carried in every action's committed details.
+  const [op, setOp] = useState<ActionKey>('freeze')
+  const [reason, setReason] = useState('')
 
   // Freeze/unfreeze
   const [freezeOutpoint, setFreezeOutpoint] = useState('')
@@ -106,6 +111,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     setBusyAction(action)
     try {
       await fn()
+      setReason('')
       // Refresh every cache this action can touch instead of a manual reload.
       await invalidateAssetState(activeAssetId)
       void invalidateAdminHistory(activeAssetId)
@@ -125,11 +131,11 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     await submitAdminAction({
       wallet: wallet as any,
       asset: asset!,
-      details: {
+      details: withReason({
         kind: isPaused ? 'unpause' : 'pause',
         assetId: asset!.assetId,
         priorOutpoint: asset!.authOutpoint
-      },
+      }, reason),
       identityKey: identityKey!,
       messageBoxClient: messageBoxClient ?? undefined
     })
@@ -145,7 +151,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     await submitAdminAction({
       wallet: wallet as any,
       asset: asset!,
-      details: { kind: 'freezeOutput', assetId: asset!.assetId, outpoint: op, priorOutpoint: asset!.authOutpoint },
+      details: withReason({ kind: 'freezeOutput', assetId: asset!.assetId, outpoint: op, priorOutpoint: asset!.authOutpoint }, reason),
       identityKey: identityKey!,
       messageBoxClient: messageBoxClient ?? undefined
     })
@@ -162,7 +168,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     await submitAdminAction({
       wallet: wallet as any,
       asset: asset!,
-      details: { kind: 'unfreezeOutput', assetId: asset!.assetId, outpoint: op, priorOutpoint: asset!.authOutpoint },
+      details: withReason({ kind: 'unfreezeOutput', assetId: asset!.assetId, outpoint: op, priorOutpoint: asset!.authOutpoint }, reason),
       identityKey: identityKey!,
       messageBoxClient: messageBoxClient ?? undefined
     })
@@ -180,7 +186,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     await submitAdminAction({
       wallet: wallet as any,
       asset: asset!,
-      details: { kind, assetId: asset!.assetId, identityKey: key, priorOutpoint: asset!.authOutpoint },
+      details: withReason({ kind, assetId: asset!.assetId, identityKey: key, priorOutpoint: asset!.authOutpoint }, reason),
       identityKey: identityKey!,
       messageBoxClient: messageBoxClient ?? undefined
     })
@@ -202,7 +208,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     await submitAdminAction({
       wallet: wallet as any,
       asset: asset!,
-      details: { kind: 'setAccessMode', assetId: asset!.assetId, mode: newAccessMode, priorOutpoint: asset!.authOutpoint },
+      details: withReason({ kind: 'setAccessMode', assetId: asset!.assetId, mode: newAccessMode, priorOutpoint: asset!.authOutpoint }, reason),
       identityKey: identityKey!,
       messageBoxClient: messageBoxClient ?? undefined
     })
@@ -222,14 +228,14 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     await submitAdminAction({
       wallet: wallet as any,
       asset: asset!,
-      details: {
+      details: withReason({
         kind: 'reissue',
         assetId: asset!.assetId,
         outpoint: op,
         amount,
         recipient,
         priorOutpoint: asset!.authOutpoint
-      },
+      }, reason),
       ftOutput: { recipient, amount },
       identityKey: identityKey!,
       messageBoxClient: messageBoxClient ?? undefined
@@ -257,6 +263,58 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   const isPaused = state?.isPaused ?? false
   const hasFrozen = (state?.frozenOutpoints.length ?? 0) > 0
   const identityKeyEmpty = resolvedIdentityKey === '' && publicKeyInput.trim() === ''
+
+  // Per-action "is this ready to submit" gate for the shared submit button.
+  const opDisabled = (() => {
+    switch (op) {
+      case 'freeze': return freezeOutpoint.trim() === ''
+      case 'unfreeze': return freezeOutpoint.trim() === '' && selectedFreezeRef === ''
+      case 'blockIdentity':
+      case 'unblockIdentity':
+      case 'allowIdentity':
+      case 'unallowIdentity':
+        return identityKeyEmpty
+      case 'reissue':
+        return reissueOutpoint === '' || reissueAmount === '' || (reissueRecipient === '' && reissuePublicKeyInput.trim() === '')
+      default:
+        return false
+    }
+  })()
+
+  const submitLabel: Record<ActionKey, string> = {
+    pause: isPaused ? 'Unpause transfers' : 'Pause transfers',
+    accessMode: 'Apply access mode',
+    freeze: 'Freeze',
+    unfreeze: 'Unfreeze',
+    blockIdentity: 'Block',
+    unblockIdentity: 'Unblock',
+    allowIdentity: 'Allow',
+    unallowIdentity: 'Unallow',
+    reissue: 'Reissue tokens'
+  }
+
+  const runSelectedOp = () => {
+    switch (op) {
+      case 'pause': handlePauseToggle(); break
+      case 'accessMode': handleSetAccessMode(); break
+      case 'freeze': handleFreeze(); break
+      case 'unfreeze': handleUnfreeze(); break
+      case 'blockIdentity': handleIdentityAction('blockIdentity'); break
+      case 'unblockIdentity': handleIdentityAction('unblockIdentity'); break
+      case 'allowIdentity': handleIdentityAction('allowIdentity'); break
+      case 'unallowIdentity': handleIdentityAction('unallowIdentity'); break
+      case 'reissue': handleReissue(); break
+    }
+  }
+
+  const submitButtonClassName = op === 'pause' && !isPaused
+    ? 'w-full rounded py-[11px] text-[13px] font-semibold mt-3 flex items-center justify-center gap-2 disabled:opacity-50 bg-destructive text-destructive-foreground'
+    : op === 'blockIdentity'
+      ? 'w-full rounded py-[11px] text-[13px] font-semibold mt-3 flex items-center justify-center gap-2 disabled:opacity-50 bg-card border border-destructive/40 text-destructive'
+      : 'w-full rounded py-[11px] text-[13px] font-semibold mt-3 flex items-center justify-center gap-2 disabled:opacity-50'
+  const submitButtonStyle = (op === 'pause' && !isPaused) || op === 'blockIdentity'
+    ? undefined
+    : { background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }
 
   return (
     <div className="space-y-[14px]">
@@ -355,282 +413,122 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
         </div>
       </div>
 
-      {/* Control cards grid */}
-      <div className="grid grid-cols-2 gap-[14px]">
-        {/* Card 1 — Transfers */}
-        <div className="bg-card border border-border rounded-md p-[16px_18px]">
-          <div className="text-[13.5px] font-semibold mb-[10px]">Transfers</div>
-          <p className="text-[12px] text-subtle-foreground leading-[1.5]">
-            {isPaused
-              ? 'Transfers are paused. Resuming will allow all holder transfers.'
-              : 'Peer transfers are currently enabled. Pausing stops all holder transfers; admin actions still work.'}
-          </p>
-          <button
-            onClick={handlePauseToggle}
-            disabled={busy || asset == null}
-            className={`w-full rounded py-3 text-[13px] font-semibold mt-[14px] flex items-center justify-center gap-2 disabled:opacity-50 ${
-              isPaused
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-destructive text-destructive-foreground'
-            }`}
-          >
-            {busyAction === 'pause' && <Spinner size="sm" tone="current" />}
-            {isPaused ? 'Unpause transfers' : 'Pause transfers'}
-          </button>
-        </div>
+      {/* Admin Operations form — single action selector + dynamic fields + shared reason */}
+      <div className="bg-card border border-border rounded-md p-[16px_18px]">
+        <div className="text-[13.5px] font-semibold mb-[10px]">Admin operations</div>
 
-        {/* Card 2 — Access mode */}
-        <div className="bg-card border border-border rounded-md p-[16px_18px]">
-          <div className="text-[13.5px] font-semibold mb-[10px]">Access mode</div>
-          <p className="text-[12px] text-subtle-foreground leading-[1.5]">
-            Denylist = anyone except blocked. Allowlist = only allowed identities.
-          </p>
-          {/* Segmented control */}
-          <div className="flex bg-muted rounded p-[3px] mt-[13px]">
-            <button
-              onClick={() => setNewAccessMode('denylist')}
-              className={
-                newAccessMode === 'denylist'
-                  ? 'flex-1 text-center py-2 bg-card rounded-sm font-semibold text-[12px] shadow-[0_1px_2px_var(--separator)] text-foreground'
-                  : 'flex-1 text-center py-2 font-medium text-[12px] text-subtle-foreground cursor-pointer'
-              }
-            >
-              Denylist
-            </button>
-            <button
-              onClick={() => setNewAccessMode('allowlist')}
-              className={
-                newAccessMode === 'allowlist'
-                  ? 'flex-1 text-center py-2 bg-card rounded-sm font-semibold text-[12px] shadow-[0_1px_2px_var(--separator)] text-foreground'
-                  : 'flex-1 text-center py-2 font-medium text-[12px] text-subtle-foreground cursor-pointer'
-              }
-            >
-              Allowlist
-            </button>
-          </div>
-          <button
-            onClick={handleSetAccessMode}
-            disabled={busy || asset == null}
-            className="w-full rounded py-[11px] text-[13px] font-semibold mt-3 flex items-center justify-center gap-2 disabled:opacity-50"
-            style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
-          >
-            {busyAction === 'accessMode' && <Spinner size="sm" tone="current" />}
-            Apply access mode
-          </button>
-        </div>
+        <label className="text-[10.5px] text-subtle-foreground font-medium">Action</label>
+        <Select
+          value={op}
+          onChange={e => setOp(e.target.value as ActionKey)}
+          className="w-full mt-1 text-[13px] font-medium"
+        >
+          <option value="pause">{isPaused ? 'Unpause transfers' : 'Pause transfers'}</option>
+          <option value="accessMode">Set access mode</option>
+          <option value="freeze">Freeze output</option>
+          <option value="unfreeze">Unfreeze output</option>
+          <option value="blockIdentity">Block identity</option>
+          <option value="unblockIdentity">Unblock identity</option>
+          <option value="allowIdentity">Allow identity</option>
+          <option value="unallowIdentity">Unallow identity</option>
+          <option value="reissue">Reissue from frozen output</option>
+        </Select>
 
-        {/* Card 3 — Freeze output */}
-        <div className="bg-card border border-border rounded-md p-[16px_18px]">
-          <div className="text-[13.5px] font-semibold mb-[6px]">Freeze output</div>
-          <input
-            value={freezeOutpoint}
-            onChange={e => setFreezeOutpoint(e.target.value)}
-            placeholder="txid.vout"
-            className="bg-muted border border-border rounded px-[13px] py-[11px] font-mono text-[12px] text-subtle-foreground placeholder:text-subtle-foreground w-full mt-3 outline-none focus:border-ring"
-          />
-          {hasFrozen && (
-            <Select
-              value={selectedFreezeRef}
-              onChange={e => {
-                setSelectedFreezeRef(e.target.value)
-                setFreezeOutpoint(e.target.value)
-              }}
-              className="w-full mt-2 text-[12px]"
-            >
-              <option value="">Select frozen output…</option>
-              {state!.frozenOutpoints.map(r => (
-                <option key={r.outpoint} value={r.outpoint}>
-                  {r.outpoint.slice(0, 20)}… — {formatAmount(r.amount, decimals)} — {r.owner.slice(0, 10)}…
-                </option>
-              ))}
-            </Select>
-          )}
-          <div className="flex gap-2 mt-3">
-            <button
-              onClick={handleFreeze}
-              disabled={busy || freezeOutpoint.trim() === '' || asset == null}
-              className="flex-1 rounded py-[11px] text-[13px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
-              style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
-            >
-              {busyAction === 'freeze' && <Spinner size="sm" tone="current" />}
-              Freeze
-            </button>
-            <button
-              onClick={handleUnfreeze}
-              disabled={busy || (freezeOutpoint.trim() === '' && selectedFreezeRef === '') || asset == null}
-              className="flex-1 rounded py-[11px] text-[13px] font-semibold bg-card border border-border text-foreground flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {busyAction === 'unfreeze' && <Spinner size="sm" tone="current" />}
-              Unfreeze
-            </button>
-          </div>
-        </div>
-
-        {/* Card 4 — Block / allow identity */}
-        <div className="bg-card border border-border rounded-md p-[16px_18px]">
-          <div className="text-[13.5px] font-semibold mb-[10px]">Block / allow identity</div>
-
-          {/* Identity search */}
-          <Input
-            icon={<Search className="h-[18px] w-[18px]" />}
-            value={identitySearch.inputValue}
-            onChange={e => identitySearch.handleInputChange(e, e.target.value, 'input')}
-            placeholder="Search by name, email…"
-            disabled={!!(resolvedIdentityKey && publicKeyInput)}
-          />
-          {identitySearch.isLoading && (
-            <p className="mt-1.5 text-[12px] text-muted-foreground flex items-center gap-1">
-              <Spinner size="sm" tone="brand" className="h-3 w-3" /> Searching…
+        {/* Dynamic fields for the selected action */}
+        <div className="mt-3">
+          {op === 'pause' && (
+            <p className="text-[12px] text-subtle-foreground leading-[1.5]">
+              {isPaused
+                ? 'Transfers are paused. Resuming will allow all holder transfers.'
+                : 'Peer transfers are currently enabled. Pausing stops all holder transfers; admin actions still work.'}
             </p>
           )}
-          {identitySearch.inputValue && identitySearch.identities.length > 0 && !identitySearch.selectedIdentity && (
-            <div className="mt-2 max-h-48 overflow-auto rounded-md bg-popover shadow-[var(--shadow-pop)]">
-              {identitySearch.identities.map(identity => {
-                if (typeof identity === 'string') return null
-                return (
-                  <div
-                    key={identity.identityKey}
-                    onClick={() => {
-                      identitySearch.handleSelect(null as any, identity)
-                      setResolvedIdentityKey(identity.identityKey)
-                      setPublicKeyInput(identity.identityKey)
-                    }}
-                    className="flex cursor-pointer items-center gap-2 border-b border-separator p-3 text-[14px] transition-colors last:border-b-0 hover:bg-muted"
-                  >
-                    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-[12px] font-semibold text-primary-foreground">
-                      {(identity.name ?? identity.identityKey).slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{identity.name || 'Unknown'}</div>
-                      <div className="tabular truncate text-[11px] text-subtle-foreground">{identity.identityKey.slice(0, 20)}…</div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+
+          {op === 'accessMode' && (
+            <>
+              <p className="text-[12px] text-subtle-foreground leading-[1.5] mb-[13px]">
+                Denylist = anyone except blocked. Allowlist = only allowed identities.
+              </p>
+              {/* Segmented control */}
+              <div className="flex bg-muted rounded p-[3px]">
+                <button
+                  onClick={() => setNewAccessMode('denylist')}
+                  className={
+                    newAccessMode === 'denylist'
+                      ? 'flex-1 text-center py-2 bg-card rounded-sm font-semibold text-[12px] shadow-[0_1px_2px_var(--separator)] text-foreground'
+                      : 'flex-1 text-center py-2 font-medium text-[12px] text-subtle-foreground cursor-pointer'
+                  }
+                >
+                  Denylist
+                </button>
+                <button
+                  onClick={() => setNewAccessMode('allowlist')}
+                  className={
+                    newAccessMode === 'allowlist'
+                      ? 'flex-1 text-center py-2 bg-card rounded-sm font-semibold text-[12px] shadow-[0_1px_2px_var(--separator)] text-foreground'
+                      : 'flex-1 text-center py-2 font-medium text-[12px] text-subtle-foreground cursor-pointer'
+                  }
+                >
+                  Allowlist
+                </button>
+              </div>
+            </>
           )}
 
-          {/* Paste key */}
-          <Input
-            value={publicKeyInput}
-            onChange={e => {
-              setPublicKeyInput(e.target.value.trim())
-              setResolvedIdentityKey(e.target.value.trim())
-              identitySearch.handleSelect(null as any, null)
-            }}
-            disabled={!!identitySearch.selectedIdentity}
-            placeholder="Or paste identity key"
-            className="tabular mt-2"
-          />
+          {(op === 'freeze' || op === 'unfreeze') && (
+            <>
+              <input
+                value={freezeOutpoint}
+                onChange={e => setFreezeOutpoint(e.target.value)}
+                placeholder="txid.vout"
+                className="bg-muted border border-border rounded px-[13px] py-[11px] font-mono text-[12px] text-subtle-foreground placeholder:text-subtle-foreground w-full outline-none focus:border-ring"
+              />
+              {hasFrozen && (
+                <Select
+                  value={selectedFreezeRef}
+                  onChange={e => {
+                    setSelectedFreezeRef(e.target.value)
+                    setFreezeOutpoint(e.target.value)
+                  }}
+                  className="w-full mt-2 text-[12px]"
+                >
+                  <option value="">Select frozen output…</option>
+                  {state!.frozenOutpoints.map(r => (
+                    <option key={r.outpoint} value={r.outpoint}>
+                      {r.outpoint.slice(0, 20)}… — {formatAmount(r.amount, decimals)} — {r.owner.slice(0, 10)}…
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </>
+          )}
 
-          {/* Primary action row: Block + Allow */}
-          <div className="flex gap-2 mt-3">
-            <button
-              onClick={() => handleIdentityAction('blockIdentity')}
-              disabled={busy || identityKeyEmpty || asset == null}
-              className="flex-1 rounded py-[11px] text-[13px] font-semibold bg-card border border-destructive/40 text-destructive flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {busyAction === 'blockIdentity' && <Spinner size="sm" tone="current" />}
-              Block
-            </button>
-            <button
-              onClick={() => handleIdentityAction('allowIdentity')}
-              disabled={busy || identityKeyEmpty || asset == null}
-              className="flex-1 rounded py-[11px] text-[13px] font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
-              style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
-            >
-              {busyAction === 'allowIdentity' && <Spinner size="sm" tone="current" />}
-              Allow
-            </button>
-          </div>
-
-          {/* Secondary row: Unblock + Unallow */}
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={() => handleIdentityAction('unblockIdentity')}
-              disabled={busy || identityKeyEmpty || asset == null}
-              className="flex-1 rounded py-[9px] text-[12px] font-medium text-subtle-foreground bg-muted flex items-center justify-center gap-2 disabled:opacity-40"
-            >
-              {busyAction === 'unblockIdentity' && <Spinner size="sm" tone="current" />}
-              Unblock
-            </button>
-            <button
-              onClick={() => handleIdentityAction('unallowIdentity')}
-              disabled={busy || identityKeyEmpty || asset == null}
-              className="flex-1 rounded py-[9px] text-[12px] font-medium text-subtle-foreground bg-muted flex items-center justify-center gap-2 disabled:opacity-40"
-            >
-              {busyAction === 'unallowIdentity' && <Spinner size="sm" tone="current" />}
-              Unallow
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Reissue from frozen — slim strip */}
-      <div className="bg-muted border border-dashed border-input-border rounded-md p-[14px_18px] mt-[14px]">
-        {!hasFrozen ? (
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-[13px] font-semibold">Reissue from frozen output</div>
-              <div className="text-[12px] text-subtle-foreground mt-[2px]">No frozen outputs available</div>
-            </div>
-            <div className="text-[12px] text-subtle-foreground">Nothing to reissue</div>
-          </div>
-        ) : (
-          <>
-            <div className="text-[13px] font-semibold mb-[12px]">Reissue from frozen output</div>
-
-            {/* Frozen output select */}
-            <Select
-              value={reissueOutpoint}
-              onChange={e => setReissueOutpoint(e.target.value)}
-              className="w-full text-[12px]"
-            >
-              <option value="">Select frozen output…</option>
-              {state!.frozenOutpoints.map(r => (
-                <option key={r.outpoint} value={r.outpoint}>
-                  {r.outpoint.slice(0, 20)}… — {formatAmount(r.amount, decimals)} — {r.owner.slice(0, 10)}…
-                </option>
-              ))}
-            </Select>
-
-            {/* Amount — locked to the selected frozen output's value. The
-                overlay's reissue guard rejects any mismatch, so circulation is
-                conserved; keep the field read-only so it can't be understated. */}
-            <input
-              type="number"
-              value={reissueAmount}
-              readOnly
-              aria-readonly="true"
-              tabIndex={-1}
-              placeholder="Select a frozen output"
-              className="bg-muted border border-border rounded px-[13px] py-[11px] font-mono text-[12px] text-foreground w-full mt-2 outline-none cursor-not-allowed"
-            />
-            <p className="text-[11px] text-subtle-foreground mt-1">
-              Locked to the frozen output's amount — reissuing a different value is rejected by the overlay, so circulation stays constant.
-            </p>
-
-            {/* Recipient search */}
-            <div className="mt-2">
+          {(op === 'blockIdentity' || op === 'unblockIdentity' || op === 'allowIdentity' || op === 'unallowIdentity') && (
+            <>
+              {/* Identity search */}
               <Input
                 icon={<Search className="h-[18px] w-[18px]" />}
-                value={reissueIdentitySearch.inputValue}
-                onChange={e => reissueIdentitySearch.handleInputChange(e, e.target.value, 'input')}
-                placeholder="Search recipient by name…"
-                disabled={!!(reissueRecipient && reissuePublicKeyInput)}
+                value={identitySearch.inputValue}
+                onChange={e => identitySearch.handleInputChange(e, e.target.value, 'input')}
+                placeholder="Search by name, email…"
+                disabled={!!(resolvedIdentityKey && publicKeyInput)}
               />
-              {reissueIdentitySearch.inputValue && reissueIdentitySearch.identities.length > 0 && !reissueIdentitySearch.selectedIdentity && (
+              {identitySearch.isLoading && (
+                <p className="mt-1.5 text-[12px] text-muted-foreground flex items-center gap-1">
+                  <Spinner size="sm" tone="brand" className="h-3 w-3" /> Searching…
+                </p>
+              )}
+              {identitySearch.inputValue && identitySearch.identities.length > 0 && !identitySearch.selectedIdentity && (
                 <div className="mt-2 max-h-48 overflow-auto rounded-md bg-popover shadow-[var(--shadow-pop)]">
-                  {reissueIdentitySearch.identities.map(identity => {
+                  {identitySearch.identities.map(identity => {
                     if (typeof identity === 'string') return null
                     return (
                       <div
                         key={identity.identityKey}
                         onClick={() => {
-                          reissueIdentitySearch.handleSelect(null as any, identity)
-                          setReissueRecipient(identity.identityKey)
-                          setReissueRecipientPublicKey(identity.identityKey)
-                          setReissuePublicKeyInput(identity.identityKey)
+                          identitySearch.handleSelect(null as any, identity)
+                          setResolvedIdentityKey(identity.identityKey)
+                          setPublicKeyInput(identity.identityKey)
                         }}
                         className="flex cursor-pointer items-center gap-2 border-b border-separator p-3 text-[14px] transition-colors last:border-b-0 hover:bg-muted"
                       >
@@ -646,34 +544,134 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
                   })}
                 </div>
               )}
-            </div>
 
-            {/* Paste recipient key */}
-            <Input
-              value={reissuePublicKeyInput}
-              onChange={e => {
-                setReissuePublicKeyInput(e.target.value.trim())
-                setReissueRecipient(e.target.value.trim())
-                setReissueRecipientPublicKey(e.target.value.trim())
-                reissueIdentitySearch.handleSelect(null as any, null)
-              }}
-              disabled={!!reissueIdentitySearch.selectedIdentity}
-              placeholder="Or paste recipient identity key"
-              className="tabular mt-2"
-            />
+              {/* Paste key */}
+              <Input
+                value={publicKeyInput}
+                onChange={e => {
+                  setPublicKeyInput(e.target.value.trim())
+                  setResolvedIdentityKey(e.target.value.trim())
+                  identitySearch.handleSelect(null as any, null)
+                }}
+                disabled={!!identitySearch.selectedIdentity}
+                placeholder="Or paste identity key"
+                className="tabular mt-2"
+              />
+            </>
+          )}
 
-            {/* Reissue button */}
-            <button
-              onClick={handleReissue}
-              disabled={busy || reissueOutpoint === '' || reissueAmount === '' || (reissueRecipient === '' && reissuePublicKeyInput.trim() === '') || asset == null}
-              className="w-full rounded py-[11px] text-[13px] font-semibold mt-3 flex items-center justify-center gap-2 disabled:opacity-50"
-              style={{ background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }}
-            >
-              {busyAction === 'reissue' && <Spinner size="sm" tone="current" />}
-              Reissue tokens
-            </button>
-          </>
-        )}
+          {op === 'reissue' && (
+            !hasFrozen ? (
+              <p className="text-[12px] text-subtle-foreground">No frozen outputs available — freeze an output first to reissue from it.</p>
+            ) : (
+              <>
+                {/* Frozen output select */}
+                <Select
+                  value={reissueOutpoint}
+                  onChange={e => setReissueOutpoint(e.target.value)}
+                  className="w-full text-[12px]"
+                >
+                  <option value="">Select frozen output…</option>
+                  {state!.frozenOutpoints.map(r => (
+                    <option key={r.outpoint} value={r.outpoint}>
+                      {r.outpoint.slice(0, 20)}… — {formatAmount(r.amount, decimals)} — {r.owner.slice(0, 10)}…
+                    </option>
+                  ))}
+                </Select>
+
+                {/* Amount — locked to the selected frozen output's value. The
+                    overlay's reissue guard rejects any mismatch, so circulation is
+                    conserved; keep the field read-only so it can't be understated. */}
+                <input
+                  type="number"
+                  value={reissueAmount}
+                  readOnly
+                  aria-readonly="true"
+                  tabIndex={-1}
+                  placeholder="Select a frozen output"
+                  className="bg-muted border border-border rounded px-[13px] py-[11px] font-mono text-[12px] text-foreground w-full mt-2 outline-none cursor-not-allowed"
+                />
+                <p className="text-[11px] text-subtle-foreground mt-1">
+                  Locked to the frozen output's amount — reissuing a different value is rejected by the overlay, so circulation stays constant.
+                </p>
+
+                {/* Recipient search */}
+                <div className="mt-2">
+                  <Input
+                    icon={<Search className="h-[18px] w-[18px]" />}
+                    value={reissueIdentitySearch.inputValue}
+                    onChange={e => reissueIdentitySearch.handleInputChange(e, e.target.value, 'input')}
+                    placeholder="Search recipient by name…"
+                    disabled={!!(reissueRecipient && reissuePublicKeyInput)}
+                  />
+                  {reissueIdentitySearch.inputValue && reissueIdentitySearch.identities.length > 0 && !reissueIdentitySearch.selectedIdentity && (
+                    <div className="mt-2 max-h-48 overflow-auto rounded-md bg-popover shadow-[var(--shadow-pop)]">
+                      {reissueIdentitySearch.identities.map(identity => {
+                        if (typeof identity === 'string') return null
+                        return (
+                          <div
+                            key={identity.identityKey}
+                            onClick={() => {
+                              reissueIdentitySearch.handleSelect(null as any, identity)
+                              setReissueRecipient(identity.identityKey)
+                              setReissueRecipientPublicKey(identity.identityKey)
+                              setReissuePublicKeyInput(identity.identityKey)
+                            }}
+                            className="flex cursor-pointer items-center gap-2 border-b border-separator p-3 text-[14px] transition-colors last:border-b-0 hover:bg-muted"
+                          >
+                            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-[12px] font-semibold text-primary-foreground">
+                              {(identity.name ?? identity.identityKey).slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="truncate font-medium">{identity.name || 'Unknown'}</div>
+                              <div className="tabular truncate text-[11px] text-subtle-foreground">{identity.identityKey.slice(0, 20)}…</div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Paste recipient key */}
+                <Input
+                  value={reissuePublicKeyInput}
+                  onChange={e => {
+                    setReissuePublicKeyInput(e.target.value.trim())
+                    setReissueRecipient(e.target.value.trim())
+                    setReissueRecipientPublicKey(e.target.value.trim())
+                    reissueIdentitySearch.handleSelect(null as any, null)
+                  }}
+                  disabled={!!reissueIdentitySearch.selectedIdentity}
+                  placeholder="Or paste recipient identity key"
+                  className="tabular mt-2"
+                />
+              </>
+            )
+          )}
+        </div>
+
+        {/* Shared reason input — carried into the committed action details for every op */}
+        <div className="mt-3">
+          <label className="text-[10.5px] text-subtle-foreground font-medium">Reason (optional)</label>
+          <input
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            placeholder="e.g. court order 12/A"
+            className="bg-muted border border-border rounded px-[13px] py-[11px] text-[12px] w-full mt-1 outline-none focus:border-ring"
+          />
+        </div>
+
+        {/* Shared submit */}
+        <button
+          onClick={runSelectedOp}
+          disabled={busy || asset == null || (op === 'reissue' && !hasFrozen) || opDisabled}
+          className={submitButtonClassName}
+          style={submitButtonStyle}
+        >
+          {busyAction === op && <Spinner size="sm" tone="current" />}
+          {submitLabel[op]}
+        </button>
       </div>
     </div>
   )

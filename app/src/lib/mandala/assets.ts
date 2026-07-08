@@ -44,6 +44,17 @@ export function parseAdminCI (ci: string | null | undefined): AdminCI | null {
   }
 }
 
+/**
+ * Attach an optional admin-action reason. Omits the key when empty so the
+ * commitment for reason-less actions is byte-identical to before this feature —
+ * the admin locking key derives from Commitment(details), and an extra key would
+ * change it.
+ */
+export function withReason<T extends Record<string, unknown>> (details: T, reason?: string): T {
+  const r = reason?.trim()
+  return r ? { ...details, reason: r } : details
+}
+
 // Map a wallet output (with customInstructions) to an AdminAsset, or null if it
 // is not a mandala admin auth output.
 export function adminAssetFromOutput (
