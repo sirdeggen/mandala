@@ -476,6 +476,46 @@ func (s *Store) DeleteOutputsByTxid(ctx context.Context, txid string) error {
 	return err
 }
 
+// RawTxHexByTxid reconstructs the raw transaction hex for txid from any
+// stored output document that carries a BEEF containing it — the concrete
+// method the /admin/activity route (Task 17) is built over. enginestore has
+// no dedicated raw-tx collection (BEEF bytes live inline per output
+// document, per the package doc comment); every admitted output shares the
+// same submitted BEEF, so the first document found (any topic) is enough.
+// Returns (_, false, nil) when no stored output carries this txid at all —
+// not an error, mirroring FindOutput's nil-on-missing contract.
+func (s *Store) RawTxHexByTxid(ctx context.Context, txid string) (string, bool, error) {
+	h, err := chainhash.NewHashFromHex(txid)
+	if err != nil {
+		return "", false, fmt.Errorf("enginestore: bad txid %q: %w", txid, err)
+	}
+	var doc struct {
+		Beef []byte `bson:"beef"`
+	}
+	err = s.outputs.FindOne(ctx,
+		bson.D{
+			{Key: "txid", Value: txid},
+			{Key: "beef", Value: bson.D{{Key: "$exists", Value: true}}},
+		},
+		options.FindOne().SetProjection(bson.D{{Key: "beef", Value: 1}}),
+	).Decode(&doc)
+	if err == mongo.ErrNoDocuments {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	beef, err := transaction.NewBeefFromBytes(doc.Beef)
+	if err != nil {
+		return "", false, fmt.Errorf("enginestore: stored BEEF for %s unparseable: %w", txid, err)
+	}
+	tx := beef.FindTransactionByHash(h)
+	if tx == nil {
+		return "", false, nil
+	}
+	return tx.Hex(), true, nil
+}
+
 // DeleteAppliedTransactionsByTxid removes the applied-transaction records of
 // txid across all topics, so a later re-submit of the same tx is not treated
 // as a duplicate (terminal-status eviction). Unknown txid is a no-op.

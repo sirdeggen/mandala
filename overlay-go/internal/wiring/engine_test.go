@@ -60,6 +60,9 @@ func TestBuildAndLookupEndToEnd(t *testing.T) {
 	if app.PrepareSubmitCompensation != nil || app.EvictTx != nil {
 		t.Fatal("compensation/eviction closures must be nil without Arcade (no broadcaster, no /arc-ingest)")
 	}
+	if app.FindRawTxs == nil {
+		t.Fatal("FindRawTxs must always be wired -- /admin/activity has no Arcade dependency")
+	}
 	if app.Mongo.Name() != "mandala_wiring_test_lookup_services" {
 		t.Fatalf("db name = %q", app.Mongo.Name())
 	}
@@ -479,5 +482,71 @@ func TestBuildArcadeEvictTxRoundTrip(t *testing.T) {
 	// Evicting the same txid again is a no-op.
 	if err := app.EvictTx(ctx, txidStr); err != nil {
 		t.Fatal("second EvictTx:", err)
+	}
+}
+
+// TestFindRawTxsBatchesOverEnginestore is Task 17's wiring test: App's
+// FindRawTxs (activity.Deps.FindRawTxs's production implementation) must
+// resolve every stored txid to its raw hex and simply omit unknown ones,
+// batching several txids in one call.
+func TestFindRawTxsBatchesOverEnginestore(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	app, err := Build(ctx, Config{
+		NodeName:         "mandala_wiring_test_rawtxs",
+		ServerPrivKeyHex: testPrivHex,
+		HostingURL:       "http://localhost:8080",
+		MongoURL:         "mongodb://localhost:27017",
+		Network:          "test",
+	})
+	if err != nil {
+		t.Skip("mongo unavailable or build failed:", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx := context.Background()
+		_ = app.Mongo.Drop(cleanupCtx)
+		_ = app.Mongo.Client().Disconnect(cleanupCtx)
+	})
+
+	const topic = "tm_mandala"
+	tx1 := wiringTestTx(t, nil, 0, 1, 0x71)
+	tx1id := tx1.TxID()
+	tx2 := wiringTestTx(t, nil, 0, 1, 0x72)
+	tx2id := tx2.TxID()
+
+	beef1 := transaction.NewBeefV2()
+	if _, err := beef1.MergeTransaction(tx1); err != nil {
+		t.Fatal(err)
+	}
+	beef2 := transaction.NewBeefV2()
+	if _, err := beef2.MergeTransaction(tx2); err != nil {
+		t.Fatal(err)
+	}
+
+	st := app.Engine.Storage
+	if err := st.InsertOutputs(ctx, topic, tx1id, []uint32{0}, nil, beef1, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.InsertOutputs(ctx, topic, tx2id, []uint32{0}, nil, beef2, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	missingID := wiringTestTx(t, nil, 0, 1, 0x73).TxID().String()
+	got, err := app.FindRawTxs(ctx, []string{tx1id.String(), tx2id.String(), missingID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[tx1id.String()] != tx1.Hex() {
+		t.Fatalf("tx1 hex = %q, want %q", got[tx1id.String()], tx1.Hex())
+	}
+	if got[tx2id.String()] != tx2.Hex() {
+		t.Fatalf("tx2 hex = %q, want %q", got[tx2id.String()], tx2.Hex())
+	}
+	if _, ok := got[missingID]; ok {
+		t.Fatalf("missing txid must be absent from the map, got %q", got[missingID])
+	}
+	if len(got) != 2 {
+		t.Fatalf("len(got) = %d, want 2", len(got))
 	}
 }

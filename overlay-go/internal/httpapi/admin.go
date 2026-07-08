@@ -29,8 +29,9 @@ var _ AdminStore = (*mandala.Store)(nil)
 type Pinger func(ctx context.Context) error
 
 // registerAdminRoutes wires the four bespoke admin GET endpoints (Appendix B
-// §3a-3d). /admin/activity is Task 17 and is deliberately not registered
-// here.
+// §3a-3d). /admin/activity (Appendix B §3e, Task 17) is registered
+// separately via the WithActivity ServerOption (see server.go/activity.go)
+// since it depends on the engine's raw-tx store, not just AdminStore.
 func registerAdminRoutes(f *fiber.App, store AdminStore) {
 	f.Get("/admin/asset-state/:assetId", assetStateHandler(store))
 	f.Get("/admin/admin-history/:assetId", adminHistoryHandler(store))

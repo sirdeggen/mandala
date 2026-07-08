@@ -750,3 +750,67 @@ func TestFindAndDeleteOutputsByTxid(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestRawTxHexByTxid is Task 17's TDD case for the small concrete method the
+// /admin/activity route's FindRawTxs adapter is built over: enginestore has
+// no dedicated raw-tx collection (BEEF bytes live inline on each output
+// document, per the package doc comment), so reconstructing a raw tx by
+// txid means finding any output document carrying that txid's BEEF and
+// pulling the transaction back out of it.
+func TestRawTxHexByTxid(t *testing.T) {
+	ctx := context.Background()
+	st := New(testDB(t))
+
+	tx := newTx(0x41, 2)
+	txid := tx.TxID()
+	if err := st.InsertOutputs(ctx, topic, txid, []uint32{0, 1}, nil, beefFor(t, tx), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	hexStr, ok, err := st.RawTxHexByTxid(ctx, txid.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("ok = false, want true for a stored txid")
+	}
+	if hexStr != tx.Hex() {
+		t.Fatalf("hex = %q, want %q", hexStr, tx.Hex())
+	}
+
+	// A second topic's output for the SAME txid (e.g. change output filed
+	// under a different topic manager) must resolve identically — any output
+	// document carrying the txid's BEEF is sufficient.
+	if err := st.InsertOutputs(ctx, "tm_other", txid, []uint32{0}, nil, beefFor(t, tx), nil); err != nil {
+		t.Fatal(err)
+	}
+	if hexStr, ok, err = st.RawTxHexByTxid(ctx, txid.String()); err != nil || !ok || hexStr != tx.Hex() {
+		t.Fatalf("cross-topic lookup: hex=%q ok=%v err=%v", hexStr, ok, err)
+	}
+
+	// Unknown txid: (_, false, nil) — not an error (mirrors FindOutput's
+	// nil-on-missing contract elsewhere in this package).
+	missingHex, ok, err := st.RawTxHexByTxid(ctx, newTx(0x42, 1).TxID().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok || missingHex != "" {
+		t.Fatalf("missing txid: hex=%q ok=%v, want \"\",false", missingHex, ok)
+	}
+
+	// An output document inserted with a nil BEEF (InsertOutputs' zero-BEEF
+	// no-BEEF path — see e.g. TestFindAndDeleteOutputsByTxid's `nil` beef
+	// arguments) has no beef field at all; it must not satisfy the lookup.
+	noBeefTx := newTx(0x43, 1)
+	noBeefTxid := noBeefTx.TxID()
+	if err := st.InsertOutputs(ctx, topic, noBeefTxid, []uint32{0}, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := st.RawTxHexByTxid(ctx, noBeefTxid.String()); err != nil || ok {
+		t.Fatalf("no-beef output: ok=%v err=%v, want false,nil", ok, err)
+	}
+
+	if _, _, err := st.RawTxHexByTxid(ctx, "not-a-txid"); err == nil {
+		t.Fatal("bad txid: want an error, got nil")
+	}
+}

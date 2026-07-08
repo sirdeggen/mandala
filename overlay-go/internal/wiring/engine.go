@@ -74,6 +74,12 @@ type App struct {
 	// the engine's output docs and applied-transaction records. Set only
 	// when Arcade is enabled (the /arc-ingest route is only mounted then).
 	EvictTx func(ctx context.Context, txid string) error
+
+	// FindRawTxs implements activity.Deps.FindRawTxs (Task 17, Appendix B
+	// §3e): raw tx hex by txid, batched over the enginestore's per-output
+	// BEEFs (enginestore.Store.RawTxHexByTxid — there is no dedicated raw-tx
+	// collection). Always set; /admin/activity has no Arcade dependency.
+	FindRawTxs func(ctx context.Context, txids []string) (map[string]string, error)
 }
 
 // buildOptions carries the Task 16 injection seams.
@@ -197,12 +203,37 @@ func Build(ctx context.Context, cfg Config, opts ...Option) (*App, error) {
 		Mongo:               db,
 		ArcadeEnabled:       cfg.ArcadeURL != "",
 		ArcadeCallbackToken: cfg.ArcadeCallbackToken,
+		FindRawTxs:          findRawTxs(es),
 	}
 	if app.ArcadeEnabled {
 		app.PrepareSubmitCompensation = prepareSubmitCompensation(store, es)
 		app.EvictTx = evictTx(es, ls)
 	}
 	return app, nil
+}
+
+// findRawTxs adapts enginestore.Store.RawTxHexByTxid (single txid in, single
+// raw hex out — the method Task 17 added) into activity.Deps.FindRawTxs's
+// batch shape (many txids in, a txid->hex map out). This is the same
+// "for each txid, load its BEEF" loop the TS route's Mongo-backed
+// findRawTransactions(txids) query condenses into one round trip; here it's
+// one RawTxHexByTxid call per txid instead, since enginestore keeps BEEF
+// bytes on individual output documents rather than in a dedicated
+// raw-tx-by-txid collection. Missing txids are simply absent from the map.
+func findRawTxs(es *enginestore.Store) func(context.Context, []string) (map[string]string, error) {
+	return func(ctx context.Context, txids []string) (map[string]string, error) {
+		out := make(map[string]string, len(txids))
+		for _, txid := range txids {
+			hexStr, ok, err := es.RawTxHexByTxid(ctx, txid)
+			if err != nil {
+				return nil, fmt.Errorf("wiring: raw tx %s: %w", txid, err)
+			}
+			if ok {
+				out[txid] = hexStr
+			}
+		}
+		return out, nil
+	}
 }
 
 // prepareSubmitCompensation builds the App.PrepareSubmitCompensation closure

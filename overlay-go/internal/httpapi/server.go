@@ -1,8 +1,8 @@
 // Package httpapi is the HTTP entry point the unchanged TS frontend talks
-// to: a Fiber app exposing POST /submit, POST /lookup, the four bespoke
-// /admin/* read endpoints, and /health* — all mounted on the same
-// constructor so the global middleware (CORS, body limit, 404 fallback)
-// applies uniformly. /admin/activity (Task 17) is not yet registered.
+// to: a Fiber app exposing POST /submit, POST /lookup, the five bespoke
+// /admin/* read endpoints (including /admin/activity, Task 17), and
+// /health* — all mounted on the same constructor so the global middleware
+// (CORS, body limit, 404 fallback) applies uniformly.
 package httpapi
 
 import (
@@ -32,9 +32,11 @@ var _ Lookuper = (*engine.Engine)(nil)
 // New builds the production Fiber app from a fully wired App (Mongo, the
 // engine, topic/lookup services already constructed by wiring.Build).
 // /arc-ingest is mounted only when Task 16's Arcade wiring set
-// app.ArcadeEnabled (WithArcade below).
+// app.ArcadeEnabled (WithArcade below). /admin/activity (Task 17) is always
+// mounted — app.Store and app.FindRawTxs are unconditionally wired
+// regardless of Arcade.
 func New(app *wiring.App) *fiber.App {
-	var opts []ServerOption
+	opts := []ServerOption{WithActivity(app.Store, app.FindRawTxs)}
 	if app.ArcadeEnabled {
 		opts = append(opts,
 			WithArcade(app.Engine, app.ArcadeCallbackToken, app.EvictTx),
@@ -56,6 +58,8 @@ type serverOptions struct {
 	arcCallbackToken    string
 	evictTx             EvictTx
 	prepareCompensation PrepareSubmitCompensation
+	activityLinkage     ActivityLinkage
+	activityFindRawTxs  FindRawTxsFunc
 }
 
 // ServerOption customizes newServer without changing its required
@@ -83,6 +87,18 @@ func WithBroadcastCompensation(prepare PrepareSubmitCompensation) ServerOption {
 	}
 }
 
+// WithActivity mounts GET /admin/activity (Task 17), reading linkage rows
+// through linkage and raw tx hex through findRawTxs. Kept as an option
+// rather than a required newServer parameter so the package's many existing
+// stub-based tests don't all need updating; New(app) always supplies it in
+// production.
+func WithActivity(linkage ActivityLinkage, findRawTxs FindRawTxsFunc) ServerOption {
+	return func(o *serverOptions) {
+		o.activityLinkage = linkage
+		o.activityFindRawTxs = findRawTxs
+	}
+}
+
 // newServer assembles the Fiber app from narrow per-route interfaces
 // (Submitter, Lookuper, AdminStore, Pinger) so tests can stub dependencies
 // without a wiring.App or a live Mongo connection. The global middleware
@@ -103,6 +119,9 @@ func newServer(submitter Submitter, lookuper Lookuper, store AdminStore, ping Pi
 	registerLookupRoutes(f, lookuper)
 	registerAdminRoutes(f, store)
 	registerHealthRoutes(f, ping)
+	if o.activityLinkage != nil {
+		registerActivityRoute(f, o.activityLinkage, o.activityFindRawTxs)
+	}
 	if o.arcadeEnabled {
 		registerArcIngestRoutes(f, o.merkleHandler, o.arcCallbackToken, o.evictTx)
 	}
