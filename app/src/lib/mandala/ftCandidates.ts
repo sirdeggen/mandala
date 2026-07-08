@@ -7,6 +7,7 @@ import { LockingScript, WalletInterface } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
 import { BASKET } from './constants'
 import { FtCandidate } from './ftSelect'
+import { resolveAssetState } from './adminState'
 
 // Wallet action statuses we treat as confirmed for coin-selection purposes.
 // Everything else (nosend/unproven/sending/unprocessed/…) is "unconfirmed" and
@@ -30,6 +31,15 @@ async function loadTxMeta(wallet: WalletInterface): Promise<Map<string, TxMeta>>
     })
   } catch { /* status unavailable — callers treat every output as unconfirmed */ }
   return map
+}
+
+/**
+ * Drop candidates the overlay has frozen. Pure so it is unit-testable; the
+ * frozen set is sourced from the admin-state endpoint by loadFtCandidates.
+ */
+export function excludeFrozen (candidates: FtCandidate[], frozen: Set<string>): FtCandidate[] {
+  if (frozen.size === 0) return candidates
+  return candidates.filter(c => !frozen.has(c.outpoint))
 }
 
 /**
@@ -77,5 +87,10 @@ export async function loadFtCandidates(
     })
   }
 
-  return { candidates, beef: beefRes.BEEF as number[] }
+  // Overlay-authoritative freeze list; fail open (null → empty set) so a brief
+  // endpoint outage never blocks sends — the overlay still rejects a frozen spend.
+  const state = await resolveAssetState(assetId)
+  const frozen = new Set((state?.frozenOutpoints ?? []).map(f => f.outpoint))
+
+  return { candidates: excludeFrozen(candidates, frozen), beef: beefRes.BEEF as number[] }
 }
