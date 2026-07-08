@@ -201,10 +201,6 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // Set access mode
   // ---------------------------------------------------------------------------
   const handleSetAccessMode = () => void run('accessMode', async () => {
-    if (newAccessMode === 'allowlist' && (state?.allowedIdentities.length ?? 0) === 0) {
-      toast.error('Add at least one allowed identity first')
-      return
-    }
     await submitAdminAction({
       wallet: wallet as any,
       asset: asset!,
@@ -472,6 +468,11 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
                   Allowlist
                 </button>
               </div>
+              {newAccessMode === 'allowlist' && (state?.allowedIdentities.length ?? 0) === 0 && (
+                <p className="text-[12px] text-subtle-foreground leading-[1.5] mt-[9px]">
+                  Allowlist is empty — transfers stay blocked until you add allowed identities.
+                </p>
+              )}
             </>
           )}
 
