@@ -8,10 +8,8 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -66,7 +64,7 @@ func run() error {
 
 	select {
 	case err, ok := <-serverErr:
-		if ok && err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if ok && err != nil {
 			return fmt.Errorf("listen: %w", err)
 		}
 		return nil
@@ -78,6 +76,9 @@ func run() error {
 	defer cancel()
 	if err := fiberApp.ShutdownWithContext(shutdownCtx); err != nil {
 		return fmt.Errorf("shutdown: %w", err)
+	}
+	if err := app.Mongo.Client().Disconnect(shutdownCtx); err != nil {
+		return fmt.Errorf("mongo disconnect: %w", err)
 	}
 	return nil
 }
