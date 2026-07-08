@@ -4,6 +4,7 @@ type FrozenRef struct {
 	Outpoint string `json:"outpoint" bson:"outpoint"`
 	Amount   int64  `json:"amount" bson:"amount"`
 	Owner    string `json:"owner" bson:"owner"`
+	Reason   string `json:"reason" bson:"reason"`
 }
 
 type AssetAdminState struct {
@@ -98,8 +99,9 @@ func FoldAction(prev AssetAdminState, details ActionDetails, ctx FoldContext) As
 		}
 	case "freezeOutput":
 		if op, ok := details.Str("outpoint"); ok {
+			reason, _ := details.Str("reason")
 			s.FrozenOutpoints = append(removeFrozen(prev.FrozenOutpoints, op),
-				FrozenRef{Outpoint: op, Amount: ctx.FrozenAmount, Owner: ctx.FrozenOwner})
+				FrozenRef{Outpoint: op, Amount: ctx.FrozenAmount, Owner: ctx.FrozenOwner, Reason: reason})
 		}
 	case "unfreezeOutput":
 		if op, ok := details.Str("outpoint"); ok {

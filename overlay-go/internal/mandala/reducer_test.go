@@ -52,6 +52,14 @@ func TestFoldActionTable(t *testing.T) {
 					t.Fatalf("%+v", s.FrozenOutpoints)
 				}
 			}},
+		{"freeze records reason", ActionDetails{"kind": "freezeOutput", "outpoint": "t.1", "reason": "court order 12/A"},
+			FoldContext{FrozenAmount: 40, FrozenOwner: "02own", HasFrozenRow: true},
+			func(t *testing.T, s AssetAdminState) {
+				want := []FrozenRef{{Outpoint: "t.1", Amount: 40, Owner: "02own", Reason: "court order 12/A"}}
+				if !reflect.DeepEqual(s.FrozenOutpoints, want) {
+					t.Fatalf("%+v", s.FrozenOutpoints)
+				}
+			}},
 		{"issue is a no-op", ActionDetails{"kind": "issue", "amount": float64(5)}, FoldContext{},
 			func(t *testing.T, s AssetAdminState) {
 				if !reflect.DeepEqual(s, s0) {
@@ -86,5 +94,20 @@ func TestFoldIsPure(t *testing.T) {
 	_ = FoldAction(s, ActionDetails{"kind": "blockIdentity", "identityKey": "02y"}, FoldContext{})
 	if !reflect.DeepEqual(before, s.BlockedIdentities) {
 		t.Fatal("FoldAction mutated its input")
+	}
+}
+
+func TestFreezeReasonRebuildParity(t *testing.T) {
+	// Folding the same persisted details twice (live admit vs later rebuild)
+	// must reproduce the identical FrozenRef, reason included.
+	details := ActionDetails{"kind": "freezeOutput", "outpoint": "t.9", "reason": "aml hold"}
+	fctx := FoldContext{FrozenAmount: 7, FrozenOwner: "02z", HasFrozenRow: true}
+	live := FoldAction(DefaultAssetState("a.0"), details, fctx)
+	rebuilt := FoldAction(DefaultAssetState("a.0"), details, fctx)
+	if !reflect.DeepEqual(live.FrozenOutpoints, rebuilt.FrozenOutpoints) {
+		t.Fatalf("live %+v != rebuilt %+v", live.FrozenOutpoints, rebuilt.FrozenOutpoints)
+	}
+	if live.FrozenOutpoints[0].Reason != "aml hold" {
+		t.Fatalf("reason lost: %+v", live.FrozenOutpoints[0])
 	}
 }
