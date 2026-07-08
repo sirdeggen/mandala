@@ -14,6 +14,8 @@ import { useContactsData } from '../hooks/useContactsData'
 import { useAssetState } from '../hooks/useAssetState'
 import { useSendMutation } from '../hooks/useSendMutation'
 import { useDevMode } from '../lib/devMode'
+import { reconcileBans } from '../lib/mandala/reconcileBans'
+import { resolveAssetState } from '../lib/mandala/adminState'
 import QrScanModal from './QrScanModal'
 
 // ---------------------------------------------------------------------------
@@ -54,6 +56,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   const [sendError, setSendError] = useState('')
   const [sentTxid, setSentTxid] = useState('')
   const [receiptCopied, setReceiptCopied] = useState(false)
+  const [frozenNote, setFrozenNote] = useState<Array<{ amount: number, reason: string }>>([])
 
   // Shared cached data — instant render, background refetch.
   const holder = useHolderData()
@@ -77,6 +80,31 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   useEffect(() => {
     if (locked) setAssetId(lockedAssetId as string)
   }, [lockedAssetId, locked])
+
+  // Relinquish any evicted-and-held outputs for the selected asset on mount /
+  // asset change, so stale basket entries clear before the user tries to send.
+  // Fail-open — a reconcile failure shouldn't block the flow.
+  useEffect(() => {
+    if (wallet == null || assetId === '') return
+    void reconcileBans(wallet as any, [assetId]).catch(() => {})
+  }, [wallet, assetId])
+
+  // Surface any frozen outputs the current identity owns for the selected
+  // asset, with the freeze reason, so the holder understands why part of
+  // their balance may be unspendable.
+  useEffect(() => {
+    let live = true
+    if (assetId === '' || identityKey == null) { setFrozenNote([]); return }
+    void resolveAssetState(assetId).then(s => {
+      if (!live || s == null) return
+      setFrozenNote(
+        s.frozenOutpoints
+          .filter(f => f.owner === identityKey)
+          .map(f => ({ amount: f.amount, reason: f.reason }))
+      )
+    })
+    return () => { live = false }
+  }, [assetId, identityKey])
 
   // ---------------------------------------------------------------------------
   // Identity search — local state replacing useIdentitySearch hook
@@ -583,6 +611,18 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
           </div>
         )}
       </div>
+
+      {/* Frozen holdings note — only the current identity's frozen outputs for
+          this asset, so a send that needs one can be understood up front. */}
+      {frozenNote.length > 0 && (
+        <div className="mx-5 mt-[18px] rounded-md border border-warning/40 bg-warning/10 p-3 text-[12px] text-warning">
+          {frozenNote.map((f, i) => (
+            <div key={i}>
+              {formatAmount(f.amount, decimals)} {labelFor(assetId)} frozen{f.reason ? ` — ${f.reason}` : ''} (unspendable)
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Note field */}
       <div className="px-5 pt-[22px]">
