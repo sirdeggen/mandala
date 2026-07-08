@@ -37,7 +37,7 @@ func New(app *wiring.App) *fiber.App {
 	var opts []ServerOption
 	if app.ArcadeEnabled {
 		opts = append(opts,
-			WithArcade(app.Engine, app.ArcadeCallbackToken),
+			WithArcade(app.Engine, app.ArcadeCallbackToken, app.EvictTx),
 			WithBroadcastCompensation(app.PrepareSubmitCompensation))
 	}
 	return newServer(app.Engine, app.Engine, app.Store, func(ctx context.Context) error {
@@ -46,13 +46,15 @@ func New(app *wiring.App) *fiber.App {
 }
 
 // serverOptions carries newServer's optional seams — Arcade's /arc-ingest
-// route (Task 16) and the submit broadcast-failure compensation seam. A
-// struct (rather than more positional params) keeps every pre-Task-16
-// newServer call site source-compatible.
+// route with its terminal-status eviction hook (Tasks 16/18) and the
+// submit broadcast-failure compensation seam (Task 18). A struct (rather
+// than more positional params) keeps every pre-Task-16 newServer call site
+// source-compatible.
 type serverOptions struct {
 	arcadeEnabled       bool
 	merkleHandler       MerkleProofHandler
 	arcCallbackToken    string
+	evictTx             EvictTx
 	prepareCompensation PrepareSubmitCompensation
 }
 
@@ -63,11 +65,13 @@ type ServerOption func(*serverOptions)
 // WithArcade mounts POST /arc-ingest, delegating merkle-proof ingestion to
 // handler and gating requests behind callbackToken when it's non-empty
 // (empty disables the token check, matching OverlayExpress.ts's default).
-func WithArcade(handler MerkleProofHandler, callbackToken string) ServerOption {
+// evict handles terminal txStatus callbacks (nil degrades to log-only).
+func WithArcade(handler MerkleProofHandler, callbackToken string, evict EvictTx) ServerOption {
 	return func(o *serverOptions) {
 		o.arcadeEnabled = true
 		o.merkleHandler = handler
 		o.arcCallbackToken = callbackToken
+		o.evictTx = evict
 	}
 }
 
@@ -100,7 +104,7 @@ func newServer(submitter Submitter, lookuper Lookuper, store AdminStore, ping Pi
 	registerAdminRoutes(f, store)
 	registerHealthRoutes(f, ping)
 	if o.arcadeEnabled {
-		registerArcIngestRoutes(f, o.merkleHandler, o.arcCallbackToken)
+		registerArcIngestRoutes(f, o.merkleHandler, o.arcCallbackToken, o.evictTx)
 	}
 
 	// Registered last: Fiber falls through to this catch-all only when no

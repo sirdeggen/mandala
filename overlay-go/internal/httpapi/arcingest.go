@@ -23,13 +23,21 @@ type MerkleProofHandler interface {
 
 var _ MerkleProofHandler = (*engine.Engine)(nil)
 
+// EvictTx removes an applied transaction from the overlay on a terminal
+// Arcade txStatus — the Go stand-in for the TS /arc-ingest route's
+// Engine.evictAppliedTransaction (which deletes the tx's outputs and
+// notifies each lookup service via OutputEvicted). go-overlay-services
+// v1.3.2's engine exposes no eviction API, so wiring.Build assembles the
+// equivalent from the concrete enginestore + ls_mandala and threads it here.
+type EvictTx func(ctx context.Context, txid string) error
+
 // registerArcIngestRoutes wires POST /arc-ingest (OverlayExpress.ts
 // ~1578-1653) — the Arcade broadcast-status/proof callback. Callers
 // register this only when Arcade is configured (see WithArcade); a
 // non-empty callbackToken gates every request behind
 // "Authorization: Bearer <token>" or "x-callback-token: <token>".
-func registerArcIngestRoutes(f *fiber.App, h MerkleProofHandler, callbackToken string) {
-	f.Post("/arc-ingest", arcIngestHandler(h, callbackToken))
+func registerArcIngestRoutes(f *fiber.App, h MerkleProofHandler, callbackToken string, evict EvictTx) {
+	f.Post("/arc-ingest", arcIngestHandler(h, callbackToken, evict))
 }
 
 // arcIngestBody mirrors the JSON body Arcade posts to /arc-ingest
@@ -46,14 +54,15 @@ type arcIngestBody struct {
 // arcIngestHandler implements OverlayExpress.ts's /arc-ingest route: token
 // check, then classify by txStatus/merklePath presence.
 //
-// A terminal txStatus is logged and acknowledged (200) rather than fed to
-// an eviction call: go-overlay-services v1.3.2's *engine.Engine exposes no
-// evictAppliedTransaction (or evict/delete-shaped) public method — that
-// call is a BASMCapableEngine extension unique to this project's TS fork of
-// @bsv/overlay, not part of the upstream engine either TS or Go builds on
-// (see task-16-report.md). Nothing in this handler evicts state; it simply
-// stops Arcade from retrying the callback.
-func arcIngestHandler(h MerkleProofHandler, callbackToken string) fiber.Handler {
+// A terminal txStatus evicts the applied transaction via evict (mirroring
+// the TS route's Engine.evictAppliedTransaction — a real @bsv/overlay
+// method that deletes the tx's outputs and notifies lookup services'
+// OutputEvicted; the Go engine has no such API, so the equivalent is
+// assembled in wiring.Build). Eviction success is logged and acknowledged
+// with 200; an eviction error answers 500 so Arcade retries the callback.
+// With a nil evict (eviction not wired) the terminal status is log-only,
+// acknowledged 200 to stop Arcade retrying.
+func arcIngestHandler(h MerkleProofHandler, callbackToken string, evict EvictTx) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if callbackToken != "" && !hasValidCallbackToken(c, callbackToken) {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -71,7 +80,18 @@ func arcIngestHandler(h MerkleProofHandler, callbackToken string) fiber.Handler 
 		}
 
 		if arcade.IsTerminalStatus(body.TxStatus, body.ExtraInfo) {
-			log.Printf("arc-ingest: terminal status %q for txid %s (no engine eviction hook available)", body.TxStatus, body.Txid)
+			if evict == nil {
+				log.Printf("arc-ingest: terminal status %q for txid %s (eviction not wired — state left in place)", body.TxStatus, body.Txid)
+				return c.Status(fiber.StatusOK).JSON(fiber.Map{
+					"status":  "success",
+					"message": "Terminal transaction status received",
+				})
+			}
+			if err := evict(c.UserContext(), body.Txid); err != nil {
+				log.Printf("arc-ingest: eviction for terminal status %q txid %s failed: %v", body.TxStatus, body.Txid, err)
+				return errorResponse(c, fiber.StatusInternalServerError, "failed to evict transaction: "+err.Error())
+			}
+			log.Printf("arc-ingest: terminal status %q for txid %s — applied transaction evicted", body.TxStatus, body.Txid)
 			return c.Status(fiber.StatusOK).JSON(fiber.Map{
 				"status":  "success",
 				"message": "Terminal transaction status received",

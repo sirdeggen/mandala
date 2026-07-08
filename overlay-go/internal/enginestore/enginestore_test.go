@@ -671,3 +671,82 @@ func TestUnmarkSpentBySpendTxid(t *testing.T) {
 		t.Fatalf("second unmark = %d, %v; want 0, nil", n, err)
 	}
 }
+
+// --- terminal-status eviction (FindOutputsByTxid / Delete*ByTxid) ---
+
+func TestFindAndDeleteOutputsByTxid(t *testing.T) {
+	ctx := context.Background()
+	st := New(testDB(t))
+
+	tx := newTx(0x31, 2)
+	txid := tx.TxID()
+	keep := newTx(0x32, 1)
+	keepID := keep.TxID()
+	if err := st.InsertOutputs(ctx, topic, txid, []uint32{0, 1}, nil, beefFor(t, tx), nil); err != nil {
+		t.Fatal(err)
+	}
+	// Same txid under a second topic: FindOutputsByTxid must dedupe the
+	// outpoint, DeleteOutputsByTxid must remove both docs.
+	if err := st.InsertOutputs(ctx, "tm_other", txid, []uint32{0}, nil, beefFor(t, tx), nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.InsertOutputs(ctx, topic, keepID, []uint32{0}, nil, beefFor(t, keep), nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.InsertAppliedTransaction(ctx, &overlay.AppliedTransaction{Txid: txid, Topic: topic}); err != nil {
+		t.Fatal(err)
+	}
+
+	ops, err := st.FindOutputsByTxid(ctx, txid.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ops) != 2 {
+		t.Fatalf("outpoints = %d, want 2 (deduped across topics)", len(ops))
+	}
+	seen := map[uint32]bool{}
+	for _, o := range ops {
+		if !o.Txid.Equal(*txid) {
+			t.Fatalf("foreign outpoint %s", o.String())
+		}
+		seen[o.Index] = true
+	}
+	if !seen[0] || !seen[1] {
+		t.Fatalf("outpoints missing a vout: %v", seen)
+	}
+
+	if err := st.DeleteOutputsByTxid(ctx, txid.String()); err != nil {
+		t.Fatal(err)
+	}
+	all, err := st.FindOutputsForTransaction(ctx, txid, false)
+	if err != nil || len(all) != 0 {
+		t.Fatalf("outputs after delete = %d err %v, want 0", len(all), err)
+	}
+	// Unrelated outputs survive.
+	if got, err := st.FindOutput(ctx, op(keepID, 0), nil, nil, false); err != nil || got == nil {
+		t.Fatal("unrelated output was deleted:", got, err)
+	}
+
+	if err := st.DeleteAppliedTransactionsByTxid(ctx, txid.String()); err != nil {
+		t.Fatal(err)
+	}
+	exists, err := st.DoesAppliedTransactionExist(ctx, &overlay.AppliedTransaction{Txid: txid, Topic: topic})
+	if err != nil || exists {
+		t.Fatalf("applied record survived eviction: exists=%v err=%v", exists, err)
+	}
+
+	// Evicting an unknown txid is a no-op, not an error.
+	if ops, err := st.FindOutputsByTxid(ctx, keep.TxID().String()); err != nil || len(ops) != 1 {
+		t.Fatalf("keep outpoints = %d err %v", len(ops), err)
+	}
+	missing := newTx(0x33, 1).TxID().String()
+	if ops, err := st.FindOutputsByTxid(ctx, missing); err != nil || len(ops) != 0 {
+		t.Fatalf("missing txid: %d outpoints, err %v", len(ops), err)
+	}
+	if err := st.DeleteOutputsByTxid(ctx, missing); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DeleteAppliedTransactionsByTxid(ctx, missing); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -65,6 +65,13 @@ type App struct {
 	// the snapshotted mandala token rows/balances (RestoreTokens). Set only
 	// when Arcade is enabled (without a broadcaster, broadcast cannot fail).
 	PrepareSubmitCompensation func(ctx context.Context, beef []byte) (func(context.Context) error, error)
+
+	// EvictTx implements the TS /arc-ingest route's
+	// Engine.evictAppliedTransaction for terminal Arcade statuses: notify
+	// ls_mandala's OutputEvicted for each of the txid's outputs, then delete
+	// the engine's output docs and applied-transaction records. Set only
+	// when Arcade is enabled (the /arc-ingest route is only mounted then).
+	EvictTx func(ctx context.Context, txid string) error
 }
 
 // buildOptions carries the Task 16 injection seams.
@@ -191,6 +198,7 @@ func Build(ctx context.Context, cfg Config, opts ...Option) (*App, error) {
 	}
 	if app.ArcadeEnabled {
 		app.PrepareSubmitCompensation = prepareSubmitCompensation(store, es)
+		app.EvictTx = evictTx(es, ls)
 	}
 	return app, nil
 }
@@ -229,5 +237,30 @@ func prepareSubmitCompensation(store *mandala.Store, es *enginestore.Store) func
 			}
 			return nil
 		}, nil
+	}
+}
+
+// evictTx builds the App.EvictTx closure: the Go equivalent of the TS
+// Engine.evictAppliedTransaction (notify OutputEvicted per output, then
+// delete the outputs and the applied-transaction records), assembled from
+// the concrete stores because the pinned engine exposes no eviction API.
+func evictTx(es *enginestore.Store, ls *mandala.LookupService) func(context.Context, string) error {
+	return func(ctx context.Context, txid string) error {
+		outpoints, err := es.FindOutputsByTxid(ctx, txid)
+		if err != nil {
+			return fmt.Errorf("wiring: find outputs of %s: %w", txid, err)
+		}
+		for _, op := range outpoints {
+			if err := ls.OutputEvicted(ctx, op); err != nil {
+				return fmt.Errorf("wiring: notify eviction of %s: %w", op.String(), err)
+			}
+		}
+		if err := es.DeleteOutputsByTxid(ctx, txid); err != nil {
+			return fmt.Errorf("wiring: delete outputs of %s: %w", txid, err)
+		}
+		if err := es.DeleteAppliedTransactionsByTxid(ctx, txid); err != nil {
+			return fmt.Errorf("wiring: delete applied tx records of %s: %w", txid, err)
+		}
+		return nil
 	}
 }

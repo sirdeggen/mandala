@@ -27,9 +27,10 @@ import (
 
 // Store is the concrete Mongo-backed engine.Storage. It is exported (rather
 // than hidden behind the interface) because the wiring layer needs the
-// compensation methods below — UnmarkSpentBySpendTxid — which are
-// deliberately NOT part of go-overlay-services' engine.Storage: they exist
-// to undo what the pinned v1.3.2 engine cannot.
+// compensation/eviction methods below — UnmarkSpentBySpendTxid,
+// FindOutputsByTxid, DeleteOutputsByTxid, DeleteAppliedTransactionsByTxid —
+// which are deliberately NOT part of go-overlay-services' engine.Storage:
+// they exist to undo/evict what the pinned v1.3.2 engine cannot.
 type Store struct {
 	outputs      *mongo.Collection
 	applied      *mongo.Collection
@@ -432,6 +433,55 @@ func (s *Store) UnmarkSpentBySpendTxid(ctx context.Context, spendTxid string) (i
 		return 0, err
 	}
 	return res.ModifiedCount, nil
+}
+
+// FindOutputsByTxid lists the distinct outpoints of every stored output of
+// txid, deduped across topics. Not part of engine.Storage — it feeds the
+// terminal-status eviction path (wiring's EvictTx notifies OutputEvicted per
+// outpoint before deleting).
+func (s *Store) FindOutputsByTxid(ctx context.Context, txid string) ([]*transaction.Outpoint, error) {
+	cur, err := s.outputs.Find(ctx, bson.D{{Key: "txid", Value: txid}},
+		options.Find().SetProjection(bson.D{
+			{Key: "txid", Value: 1},
+			{Key: "outputIndex", Value: 1},
+		}))
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	seen := make(map[uint32]bool)
+	var ops []*transaction.Outpoint
+	for cur.Next(ctx) {
+		var doc outputDoc
+		if err := cur.Decode(&doc); err != nil {
+			return nil, err
+		}
+		if seen[doc.OutputIndex] {
+			continue // same outpoint under another topic
+		}
+		seen[doc.OutputIndex] = true
+		h, err := chainhash.NewHashFromHex(doc.Txid)
+		if err != nil {
+			return nil, fmt.Errorf("enginestore: bad stored txid %q: %w", doc.Txid, err)
+		}
+		ops = append(ops, &transaction.Outpoint{Txid: *h, Index: doc.OutputIndex})
+	}
+	return ops, cur.Err()
+}
+
+// DeleteOutputsByTxid removes every output document of txid across all
+// topics (terminal-status eviction). Deleting an unknown txid is a no-op.
+func (s *Store) DeleteOutputsByTxid(ctx context.Context, txid string) error {
+	_, err := s.outputs.DeleteMany(ctx, bson.D{{Key: "txid", Value: txid}})
+	return err
+}
+
+// DeleteAppliedTransactionsByTxid removes the applied-transaction records of
+// txid across all topics, so a later re-submit of the same tx is not treated
+// as a duplicate (terminal-status eviction). Unknown txid is a no-op.
+func (s *Store) DeleteAppliedTransactionsByTxid(ctx context.Context, txid string) error {
+	_, err := s.applied.DeleteMany(ctx, bson.D{{Key: "txid", Value: txid}})
+	return err
 }
 
 // UpdateConsumedBy replaces the consumedBy list wholesale — the engine

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
+	"github.com/bsv-blockchain/go-sdk/overlay"
 	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
@@ -56,8 +57,8 @@ func TestBuildAndLookupEndToEnd(t *testing.T) {
 	if app.ArcadeEnabled {
 		t.Fatal("ArcadeEnabled must be false when ArcadeURL is empty")
 	}
-	if app.PrepareSubmitCompensation != nil {
-		t.Fatal("compensation closure must be nil without Arcade (no broadcaster, broadcast cannot fail)")
+	if app.PrepareSubmitCompensation != nil || app.EvictTx != nil {
+		t.Fatal("compensation/eviction closures must be nil without Arcade (no broadcaster, no /arc-ingest)")
 	}
 	if app.Mongo.Name() != "mandala_wiring_test_lookup_services" {
 		t.Fatalf("db name = %q", app.Mongo.Name())
@@ -230,8 +231,8 @@ func TestBuildArcadeCompensationRoundTrip(t *testing.T) {
 		_ = app.Mongo.Drop(cleanupCtx)
 		_ = app.Mongo.Client().Disconnect(cleanupCtx)
 	})
-	if app.PrepareSubmitCompensation == nil {
-		t.Fatal("Arcade-enabled Build must wire PrepareSubmitCompensation")
+	if app.PrepareSubmitCompensation == nil || app.EvictTx == nil {
+		t.Fatal("Arcade-enabled Build must wire PrepareSubmitCompensation and EvictTx")
 	}
 
 	const topic = "tm_mandala"
@@ -310,5 +311,84 @@ func TestBuildArcadeCompensationRoundTrip(t *testing.T) {
 	}
 	if b, _ := app.Store.GetBalance(ctx, "02k"); b != 40 {
 		t.Fatalf("balance after double compensation = %d, want 40", b)
+	}
+}
+
+// TestBuildArcadeEvictTxRoundTrip drives Build's EvictTx closure against
+// real Mongo: seed a folded transaction (engine outputs + applied record +
+// mandala token/metadata projections), evict by txid, and assert everything
+// is gone — with balances untouched (TS OutputEvicted parity: eviction never
+// adjusts balances).
+func TestBuildArcadeEvictTxRoundTrip(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	app, err := Build(ctx, Config{
+		NodeName:         "mandala_wiring_test_evict",
+		ServerPrivKeyHex: testPrivHex,
+		HostingURL:       "https://overlay.example.com",
+		MongoURL:         "mongodb://localhost:27017",
+		Network:          "test",
+		ArcadeURL:        "https://arcade.example.com",
+	})
+	if err != nil {
+		t.Skip("mongo unavailable or build failed:", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx := context.Background()
+		_ = app.Mongo.Drop(cleanupCtx)
+		_ = app.Mongo.Client().Disconnect(cleanupCtx)
+	})
+
+	const topic = "tm_mandala"
+	tx := wiringTestTx(t, nil, 0, 2, 0x51)
+	txid := tx.TxID()
+	txidStr := txid.String()
+
+	st := app.Engine.Storage
+	if err := st.InsertOutputs(ctx, topic, txid, []uint32{0, 1}, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.InsertAppliedTransaction(ctx, &overlay.AppliedTransaction{Txid: txid, Topic: topic}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Store.StoreToken(ctx, mandala.TokenRow{
+		Txid: txidStr, OutputIndex: 0, AssetID: "a.0", Amount: 10,
+		IdentityKey: "02e", CreatedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Store.AdjustBalance(ctx, "02e", 10); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Store.StoreMetadata(ctx, mandala.MetadataRow{Txid: txidStr, OutputIndex: 1, AssetID: "asset-x"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := app.EvictTx(ctx, txidStr); err != nil {
+		t.Fatal("EvictTx:", err)
+	}
+
+	outs, err := st.FindOutputsForTransaction(ctx, txid, false)
+	if err != nil || len(outs) != 0 {
+		t.Fatalf("engine outputs after eviction = %d err %v, want 0", len(outs), err)
+	}
+	exists, err := st.DoesAppliedTransactionExist(ctx, &overlay.AppliedTransaction{Txid: txid, Topic: topic})
+	if err != nil || exists {
+		t.Fatalf("applied record after eviction: exists=%v err=%v", exists, err)
+	}
+	if row, _ := app.Store.GetTokenRow(ctx, txidStr, 0); row != nil {
+		t.Fatalf("token row survived eviction: %+v", row)
+	}
+	if ops, _ := app.Store.FindMetadataByAssetID(ctx, "asset-x"); len(ops) != 0 {
+		t.Fatalf("metadata survived eviction: %v", ops)
+	}
+	if b, _ := app.Store.GetBalance(ctx, "02e"); b != 10 {
+		t.Fatalf("balance after eviction = %d, want 10 (eviction must not adjust balances)", b)
+	}
+
+	// Evicting the same txid again is a no-op.
+	if err := app.EvictTx(ctx, txidStr); err != nil {
+		t.Fatal("second EvictTx:", err)
 	}
 }
