@@ -34,12 +34,12 @@ async function loadTxMeta(wallet: WalletInterface): Promise<Map<string, TxMeta>>
 }
 
 /**
- * Drop candidates the overlay has frozen. Pure so it is unit-testable; the
- * frozen set is sourced from the admin-state endpoint by loadFtCandidates.
+ * Drop candidates the overlay has frozen or evicted. Pure so it is unit-testable; the
+ * excluded set is sourced from the admin-state endpoint by loadFtCandidates.
  */
-export function excludeFrozen (candidates: FtCandidate[], frozen: Set<string>): FtCandidate[] {
-  if (frozen.size === 0) return candidates
-  return candidates.filter(c => !frozen.has(c.outpoint))
+export function excludeFrozen (candidates: FtCandidate[], excluded: Set<string>): FtCandidate[] {
+  if (excluded.size === 0) return candidates
+  return candidates.filter(c => !excluded.has(c.outpoint))
 }
 
 /**
@@ -87,10 +87,13 @@ export async function loadFtCandidates(
     })
   }
 
-  // Overlay-authoritative freeze list; fail open (null → empty set) so a brief
-  // endpoint outage never blocks sends — the overlay still rejects a frozen spend.
+  // Overlay-authoritative freeze + eviction list; fail open (null → empty set) so a brief
+  // endpoint outage never blocks sends — the overlay still rejects a frozen/evicted spend.
   const state = await resolveAssetState(assetId)
-  const frozen = new Set((state?.frozenOutpoints ?? []).map(f => f.outpoint))
+  const excluded = new Set<string>([
+    ...(state?.frozenOutpoints ?? []).map(f => f.outpoint),
+    ...(state?.evictedOutpoints ?? [])
+  ])
 
-  return { candidates: excludeFrozen(candidates, frozen), beef: beefRes.BEEF as number[] }
+  return { candidates: excludeFrozen(candidates, excluded), beef: beefRes.BEEF as number[] }
 }
