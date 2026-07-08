@@ -7,7 +7,7 @@ export interface AssetAdminStateView {
   accessMode: 'denylist' | 'allowlist'
   blockedIdentities: string[]
   allowedIdentities: string[]
-  frozenOutpoints: Array<{ outpoint: string, amount: number, owner: string }>
+  frozenOutpoints: Array<{ outpoint: string, amount: number, owner: string, reason: string }>
   evictedOutpoints: string[]
 }
 

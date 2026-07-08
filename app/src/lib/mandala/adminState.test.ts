@@ -18,7 +18,7 @@ const SAMPLE_STATE = {
   accessMode: 'denylist' as const,
   blockedIdentities: ['key1'],
   allowedIdentities: [],
-  frozenOutpoints: [{ outpoint: 'txid.0', amount: 100, owner: 'key2' }],
+  frozenOutpoints: [{ outpoint: 'txid.0', amount: 100, owner: 'key2', reason: 'court order' }],
   evictedOutpoints: ['txid2.1']
 }
 
@@ -46,6 +46,7 @@ describe('resolveAssetState', () => {
     expect(result?.accessMode).toBe('denylist')
     expect(result?.frozenOutpoints).toHaveLength(1)
     expect(result?.frozenOutpoints[0].outpoint).toBe('txid.0')
+    expect(result?.frozenOutpoints[0].reason).toBe('court order')
     expect(result?.blockedIdentities).toEqual(['key1'])
     expect(result?.evictedOutpoints).toEqual(['txid2.1'])
     expect(mockFetch).toHaveBeenCalledWith(
