@@ -91,7 +91,7 @@ func decodeJSON(t *testing.T, resp *http.Response) map[string]any {
 }
 
 func TestSubmit_MissingTopics(t *testing.T) {
-	app := newServer(&stubSubmitter{})
+	app := newServer(&stubSubmitter{}, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader([]byte{0x01}))
 	resp := doRequest(t, app, req)
@@ -109,7 +109,7 @@ func TestSubmit_MissingTopics(t *testing.T) {
 }
 
 func TestSubmit_InvalidTopicsJSON(t *testing.T) {
-	app := newServer(&stubSubmitter{})
+	app := newServer(&stubSubmitter{}, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader([]byte{0x01}))
 	req.Header.Set("X-Topics", "not-json")
@@ -148,7 +148,7 @@ func TestSubmit_FramedBodySplit(t *testing.T) {
 			wire.Write(offChain)
 
 			stub := &stubSubmitter{steak: overlay.Steak{}}
-			app := newServer(stub)
+			app := newServer(stub, nil)
 
 			req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader(wire.Bytes()))
 			req.Header.Set("X-Topics", `["tm_mandala"]`)
@@ -190,7 +190,7 @@ func TestReadVarInt(t *testing.T) {
 		{"0xfe prefix: max u32", append([]byte{0xfe}, varintBytes(0xffffffff)[1:]...), 0xffffffff, false},
 
 		// 0xff prefix with 8-byte little-endian value
-		{"0xff prefix: 2^32", append([]byte{0xff}, varintBytes(uint64(1)<<32)[1:]...), uint64(1) << 32, false},
+		{"0xff prefix: 2^32", append([]byte{0xff}, varintBytes(uint64(1) << 32)[1:]...), uint64(1) << 32, false},
 
 		// Truncated inputs (missing bytes after prefix)
 		{"truncated: 0xfd without data", []byte{0xfd}, 0, true},
@@ -242,7 +242,7 @@ func TestSubmit_TruncatedFraming(t *testing.T) {
 	wire.Write(offChain)
 
 	stub := &stubSubmitter{steak: overlay.Steak{}}
-	app := newServer(stub)
+	app := newServer(stub, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader(wire.Bytes()))
 	req.Header.Set("X-Topics", `["tm_mandala"]`)
@@ -266,7 +266,7 @@ func TestSubmit_NoOffChainValuesFlag_WholeBodyIsBeef(t *testing.T) {
 	beef := []byte{0xde, 0xad, 0xbe, 0xef, 0x01, 0x02}
 
 	stub := &stubSubmitter{steak: overlay.Steak{}}
-	app := newServer(stub)
+	app := newServer(stub, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader(beef))
 	req.Header.Set("X-Topics", `["tm_mandala"]`)
@@ -293,7 +293,7 @@ func TestSubmit_CtxThreadsDecodedPayload(t *testing.T) {
 	wire.Write(offChain)
 
 	stub := &stubSubmitter{steak: overlay.Steak{}}
-	app := newServer(stub)
+	app := newServer(stub, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader(wire.Bytes()))
 	req.Header.Set("X-Topics", `["tm_mandala"]`)
@@ -322,7 +322,7 @@ func TestSubmit_SuccessReturnsBareSteak(t *testing.T) {
 			},
 		},
 	}
-	app := newServer(stub)
+	app := newServer(stub, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader([]byte{0xde, 0xad}))
 	req.Header.Set("X-Topics", `["tm_mandala"]`)
@@ -364,7 +364,7 @@ func TestSubmit_SuccessReturnsBareSteak(t *testing.T) {
 
 func TestSubmit_EngineErrorReturns400(t *testing.T) {
 	stub := &stubSubmitter{err: errors.New("unknown-topic")}
-	app := newServer(stub)
+	app := newServer(stub, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader([]byte{0x01}))
 	req.Header.Set("X-Topics", `["tm_mandala"]`)
@@ -383,7 +383,7 @@ func TestSubmit_EngineErrorReturns400(t *testing.T) {
 }
 
 func TestOptionsPreflight(t *testing.T) {
-	app := newServer(&stubSubmitter{})
+	app := newServer(&stubSubmitter{}, nil)
 
 	req := httptest.NewRequest(http.MethodOptions, "/submit", nil)
 	resp := doRequest(t, app, req)
@@ -406,7 +406,7 @@ func TestOptionsPreflight(t *testing.T) {
 }
 
 func TestUnknownRoute404(t *testing.T) {
-	app := newServer(&stubSubmitter{})
+	app := newServer(&stubSubmitter{}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/nope-not-a-route", nil)
 	resp := doRequest(t, app, req)

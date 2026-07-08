@@ -1,11 +1,15 @@
 // Package httpapi is the HTTP entry point the unchanged TS frontend talks
-// to: a Fiber app exposing POST /submit (this task) plus, in later tasks,
-// /lookup and the /admin/* read endpoints — all mounted on the same
+// to: a Fiber app exposing POST /submit and POST /lookup (this task) plus,
+// in later tasks, the /admin/* read endpoints — all mounted on the same
 // constructor so the global middleware (CORS, body limit, 404 fallback)
 // applies uniformly.
 package httpapi
 
 import (
+	"context"
+
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
+	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/sirdeggen/mandala/overlay-go/internal/wiring"
@@ -15,19 +19,28 @@ import (
 // (Appendix B §4).
 const bodyLimit = 1 << 30
 
+// Lookuper is the narrow slice of *engine.Engine that POST /lookup depends
+// on (signature per overlay-go/README.md "Pinned API notes" —
+// engine.Lookup). *engine.Engine satisfies it; tests substitute a stub so
+// they never need Mongo or real lookup services.
+type Lookuper interface {
+	Lookup(ctx context.Context, question *lookup.LookupQuestion) (*lookup.LookupAnswer, error)
+}
+
+var _ Lookuper = (*engine.Engine)(nil)
+
 // New builds the production Fiber app from a fully wired App (Mongo, the
 // engine, topic/lookup services already constructed by wiring.Build).
 func New(app *wiring.App) *fiber.App {
-	return newServer(app.Engine)
+	return newServer(app.Engine, app.Engine)
 }
 
 // newServer assembles the Fiber app from narrow per-route interfaces
-// (currently just Submitter) so tests can stub dependencies without a
-// wiring.App or a live Mongo connection. Later tasks add their own
-// registerXRoutes call here (and extend this parameter list) for
-// /lookup and /admin/*; the global middleware wraps whatever routes are
-// registered.
-func newServer(submitter Submitter) *fiber.App {
+// (currently Submitter and Lookuper) so tests can stub dependencies
+// without a wiring.App or a live Mongo connection. Later tasks add their
+// own registerXRoutes call here (and extend this parameter list) for
+// /admin/*; the global middleware wraps whatever routes are registered.
+func newServer(submitter Submitter, lookuper Lookuper) *fiber.App {
 	f := fiber.New(fiber.Config{
 		BodyLimit: bodyLimit,
 	})
@@ -35,6 +48,7 @@ func newServer(submitter Submitter) *fiber.App {
 	f.Use(corsMiddleware)
 
 	registerSubmitRoutes(f, submitter)
+	registerLookupRoutes(f, lookuper)
 
 	// Registered last: Fiber falls through to this catch-all only when no
 	// earlier route matched the method+path, giving the TS-shaped 404 body
