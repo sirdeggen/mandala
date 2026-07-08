@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { useWallet } from '../context/WalletContext'
 import { transferTokens, TransferResult } from '../lib/mandala/transfer'
 import { reconcileWallet } from '../lib/mandala/reconcile'
+import { reconcileBans } from '../lib/mandala/reconcileBans'
 import { holderDataKey, HolderData } from './useHolderData'
 import { contactsKey } from './useContactsData'
 
@@ -77,12 +78,13 @@ export function useSendMutation() {
       }
     },
 
-    onSettled: () => {
+    onSettled: (_d, _e, vars) => {
       void qc.invalidateQueries({ queryKey: key })
       void qc.invalidateQueries({ queryKey: contactsKey(identityKey) })
       // Self-heal any half-finished state (stuck aborts, pending broadcasts)
       // without waiting for the next page load.
       if (wallet != null) void reconcileWallet(wallet as any).catch(() => {})
+      if (wallet != null) void reconcileBans(wallet as any, [vars.assetId]).catch(() => {})
     }
   })
 }
