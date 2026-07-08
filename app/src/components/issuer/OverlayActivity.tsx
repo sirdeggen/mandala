@@ -162,9 +162,15 @@ export default function OverlayActivity ({ assetId, decimals, standalone = false
                     <div className="px-3 min-w-0">
                       <div className="flex flex-col gap-1">
                         <span><KindChip kind={e.kind} /></span>
-                        <span className="font-mono text-[11px] text-subtle-foreground truncate" title={e.txid}>
+                        <a
+                          href={`https://whatsonchain.com/tx/${e.txid}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-mono text-[11px] text-subtle-foreground truncate hover:text-primary hover:underline"
+                          title={e.txid}
+                        >
                           {e.txid.slice(0, 10)}…
-                        </span>
+                        </a>
                       </div>
                     </div>
                     <div className="px-3 text-[12px] min-w-0 truncate">
