@@ -91,7 +91,7 @@ func decodeJSON(t *testing.T, resp *http.Response) map[string]any {
 }
 
 func TestSubmit_MissingTopics(t *testing.T) {
-	app := newServer(&stubSubmitter{}, nil)
+	app := newServer(&stubSubmitter{}, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader([]byte{0x01}))
 	resp := doRequest(t, app, req)
@@ -109,7 +109,7 @@ func TestSubmit_MissingTopics(t *testing.T) {
 }
 
 func TestSubmit_InvalidTopicsJSON(t *testing.T) {
-	app := newServer(&stubSubmitter{}, nil)
+	app := newServer(&stubSubmitter{}, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader([]byte{0x01}))
 	req.Header.Set("X-Topics", "not-json")
@@ -148,7 +148,7 @@ func TestSubmit_FramedBodySplit(t *testing.T) {
 			wire.Write(offChain)
 
 			stub := &stubSubmitter{steak: overlay.Steak{}}
-			app := newServer(stub, nil)
+			app := newServer(stub, nil, nil, nil)
 
 			req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader(wire.Bytes()))
 			req.Header.Set("X-Topics", `["tm_mandala"]`)
@@ -242,7 +242,7 @@ func TestSubmit_TruncatedFraming(t *testing.T) {
 	wire.Write(offChain)
 
 	stub := &stubSubmitter{steak: overlay.Steak{}}
-	app := newServer(stub, nil)
+	app := newServer(stub, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader(wire.Bytes()))
 	req.Header.Set("X-Topics", `["tm_mandala"]`)
@@ -266,7 +266,7 @@ func TestSubmit_NoOffChainValuesFlag_WholeBodyIsBeef(t *testing.T) {
 	beef := []byte{0xde, 0xad, 0xbe, 0xef, 0x01, 0x02}
 
 	stub := &stubSubmitter{steak: overlay.Steak{}}
-	app := newServer(stub, nil)
+	app := newServer(stub, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader(beef))
 	req.Header.Set("X-Topics", `["tm_mandala"]`)
@@ -293,7 +293,7 @@ func TestSubmit_CtxThreadsDecodedPayload(t *testing.T) {
 	wire.Write(offChain)
 
 	stub := &stubSubmitter{steak: overlay.Steak{}}
-	app := newServer(stub, nil)
+	app := newServer(stub, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader(wire.Bytes()))
 	req.Header.Set("X-Topics", `["tm_mandala"]`)
@@ -322,7 +322,7 @@ func TestSubmit_SuccessReturnsBareSteak(t *testing.T) {
 			},
 		},
 	}
-	app := newServer(stub, nil)
+	app := newServer(stub, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader([]byte{0xde, 0xad}))
 	req.Header.Set("X-Topics", `["tm_mandala"]`)
@@ -364,7 +364,7 @@ func TestSubmit_SuccessReturnsBareSteak(t *testing.T) {
 
 func TestSubmit_EngineErrorReturns400(t *testing.T) {
 	stub := &stubSubmitter{err: errors.New("unknown-topic")}
-	app := newServer(stub, nil)
+	app := newServer(stub, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/submit", bytes.NewReader([]byte{0x01}))
 	req.Header.Set("X-Topics", `["tm_mandala"]`)
@@ -383,7 +383,7 @@ func TestSubmit_EngineErrorReturns400(t *testing.T) {
 }
 
 func TestOptionsPreflight(t *testing.T) {
-	app := newServer(&stubSubmitter{}, nil)
+	app := newServer(&stubSubmitter{}, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodOptions, "/submit", nil)
 	resp := doRequest(t, app, req)
@@ -406,7 +406,7 @@ func TestOptionsPreflight(t *testing.T) {
 }
 
 func TestUnknownRoute404(t *testing.T) {
-	app := newServer(&stubSubmitter{}, nil)
+	app := newServer(&stubSubmitter{}, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/nope-not-a-route", nil)
 	resp := doRequest(t, app, req)

@@ -1,8 +1,8 @@
 // Package httpapi is the HTTP entry point the unchanged TS frontend talks
-// to: a Fiber app exposing POST /submit and POST /lookup (this task) plus,
-// in later tasks, the /admin/* read endpoints — all mounted on the same
+// to: a Fiber app exposing POST /submit, POST /lookup, the four bespoke
+// /admin/* read endpoints, and /health* — all mounted on the same
 // constructor so the global middleware (CORS, body limit, 404 fallback)
-// applies uniformly.
+// applies uniformly. /admin/activity (Task 17) is not yet registered.
 package httpapi
 
 import (
@@ -32,15 +32,16 @@ var _ Lookuper = (*engine.Engine)(nil)
 // New builds the production Fiber app from a fully wired App (Mongo, the
 // engine, topic/lookup services already constructed by wiring.Build).
 func New(app *wiring.App) *fiber.App {
-	return newServer(app.Engine, app.Engine)
+	return newServer(app.Engine, app.Engine, app.Store, func(ctx context.Context) error {
+		return app.Mongo.Client().Ping(ctx, nil)
+	})
 }
 
 // newServer assembles the Fiber app from narrow per-route interfaces
-// (currently Submitter and Lookuper) so tests can stub dependencies
-// without a wiring.App or a live Mongo connection. Later tasks add their
-// own registerXRoutes call here (and extend this parameter list) for
-// /admin/*; the global middleware wraps whatever routes are registered.
-func newServer(submitter Submitter, lookuper Lookuper) *fiber.App {
+// (Submitter, Lookuper, AdminStore, Pinger) so tests can stub dependencies
+// without a wiring.App or a live Mongo connection. The global middleware
+// wraps whatever routes are registered.
+func newServer(submitter Submitter, lookuper Lookuper, store AdminStore, ping Pinger) *fiber.App {
 	f := fiber.New(fiber.Config{
 		BodyLimit: bodyLimit,
 	})
@@ -49,6 +50,8 @@ func newServer(submitter Submitter, lookuper Lookuper) *fiber.App {
 
 	registerSubmitRoutes(f, submitter)
 	registerLookupRoutes(f, lookuper)
+	registerAdminRoutes(f, store)
+	registerHealthRoutes(f, ping)
 
 	// Registered last: Fiber falls through to this catch-all only when no
 	// earlier route matched the method+path, giving the TS-shaped 404 body

@@ -51,7 +51,7 @@ func TestLookup_InvalidBody(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			app := newServer(&stubSubmitter{}, &stubLookuper{})
+			app := newServer(&stubSubmitter{}, &stubLookuper{}, nil, nil)
 
 			resp := doRequest(t, app, lookupRequest(tc.body))
 			if resp.StatusCode != http.StatusBadRequest {
@@ -77,7 +77,7 @@ func TestLookup_OutputListAnswer(t *testing.T) {
 			},
 		},
 	}
-	app := newServer(&stubSubmitter{}, stub)
+	app := newServer(&stubSubmitter{}, stub, nil, nil)
 
 	resp := doRequest(t, app, lookupRequest(`{"service":"ls_mandala","query":{"metadataAssetId":"abc.0"}}`))
 	if resp.StatusCode != http.StatusOK {
@@ -119,7 +119,7 @@ func TestLookup_AggregationHeaderIgnored(t *testing.T) {
 			},
 		},
 	}
-	app := newServer(&stubSubmitter{}, stub)
+	app := newServer(&stubSubmitter{}, stub, nil, nil)
 
 	req := lookupRequest(`{"service":"ls_mandala","query":{"metadataAssetId":"abc.0"}}`)
 	req.Header.Set("X-Aggregation", "yes")
@@ -143,7 +143,7 @@ func TestLookup_ForwardsServiceAndRawQuery(t *testing.T) {
 	stub := &stubLookuper{
 		answer: &lookup.LookupAnswer{Type: lookup.AnswerTypeOutputList},
 	}
-	app := newServer(&stubSubmitter{}, stub)
+	app := newServer(&stubSubmitter{}, stub, nil, nil)
 
 	const query = `{"metadataAssetId":"deadbeef.3","extra":[1,2,3]}`
 	body := `{"service":"ls_mandala","query":` + query + `}`
@@ -165,7 +165,7 @@ func TestLookup_ForwardsServiceAndRawQuery(t *testing.T) {
 
 func TestLookup_EngineError(t *testing.T) {
 	stub := &stubLookuper{err: errors.New("boom")}
-	app := newServer(&stubSubmitter{}, stub)
+	app := newServer(&stubSubmitter{}, stub, nil, nil)
 
 	resp := doRequest(t, app, lookupRequest(`{"service":"ls_mandala","query":{"metadataAssetId":"abc.0"}}`))
 	if resp.StatusCode != http.StatusBadRequest {
@@ -184,7 +184,7 @@ func TestLookup_EmptyOutputsIsEmptyArrayNotNull(t *testing.T) {
 	stub := &stubLookuper{
 		answer: &lookup.LookupAnswer{Type: lookup.AnswerTypeOutputList, Outputs: nil},
 	}
-	app := newServer(&stubSubmitter{}, stub)
+	app := newServer(&stubSubmitter{}, stub, nil, nil)
 
 	resp := doRequest(t, app, lookupRequest(`{"service":"ls_mandala","query":{"metadataAssetId":"abc.0"}}`))
 	if resp.StatusCode != http.StatusOK {
