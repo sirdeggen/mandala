@@ -112,8 +112,13 @@ export default function OverviewSection({ assetId, asset, onReload }: Props) {
   }, [summary, transfers])
 
   // Restrictions tile: read from assetAdminState
-  const blockedCount = state?.blockedIdentities.length ?? 0
+  const isAllowlist = state?.accessMode === 'allowlist'
+  const identityCount = isAllowlist
+    ? state?.allowedIdentities.length ?? 0
+    : state?.blockedIdentities.length ?? 0
   const frozenCount = state?.frozenOutpoints.length ?? 0
+  // Warn when identities are blocked, outputs frozen, or allowlist is empty (all transfers blocked)
+  const restrictionsWarn = frozenCount > 0 || (isAllowlist ? identityCount === 0 : identityCount > 0)
 
   // Reserve ratio display
   const reserveValue =
@@ -179,9 +184,9 @@ export default function OverviewSection({ assetId, asset, onReload }: Props) {
         />
         <StatTile
           label="Restrictions"
-          value={loading ? '…' : assetId === '' ? '—' : `${blockedCount} · ${frozenCount}`}
-          sub={`blocked · frozen`}
-          valueColor={(blockedCount > 0 || frozenCount > 0) ? 'text-warning' : undefined}
+          value={loading ? '…' : assetId === '' ? '—' : `${identityCount} · ${frozenCount}`}
+          sub={isAllowlist ? 'allowed · frozen' : 'blocked · frozen'}
+          valueColor={restrictionsWarn ? 'text-warning' : undefined}
         />
       </div>
 
