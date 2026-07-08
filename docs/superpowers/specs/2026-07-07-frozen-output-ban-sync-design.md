@@ -79,41 +79,38 @@ reducer). **`overlay-go` is the only overlay implementation to change.**
 
 ### A. Overlay (Go) — `overlay-go/`
 
+Only **freeze** reason lives in `AssetAdminState` (the holder displays it on the
+Send view). Evict, block, allow, unallow, pause and access-mode reasons are
+captured for audit in `AdminHistoryEntry.ActionDetails` **automatically** — the
+full details map (including `reason`) is already persisted per history entry
+(`storage.go:58`) and surfaced by the `/admin/admin-history/:assetId` endpoint.
+No reducer or state change is needed for those; they only require the TS form to
+put `reason` in `details`. This keeps `EvictedOutpoints []string` unchanged,
+avoiding churn to the topic-manager eviction-enforcement path
+(`topic_manager.go:405`) and the wire format.
+
 **A1. `internal/mandala/reducer.go`**
 - `FrozenRef` gains `Reason string \`json:"reason" bson:"reason"\``.
-- `EvictedOutpoints []string` becomes `EvictedRefs []EvictedRef` where
-  `EvictedRef { Outpoint string; Reason string }` (JSON: `evictedOutpoints`
-  stays the field name for wire compatibility, now an array of objects). Update
-  `DefaultAssetState`, `removeFrozen` unaffected, add an `uniqueAppendEvicted`
-  or adapt `uniqueAppend`.
-- `FoldAction`:
-  - `freezeOutput` case: read `reason, _ := details.Str("reason")` and set it on
-    the appended `FrozenRef`.
-  - `reissue` case: read reason, append `EvictedRef{Outpoint: op, Reason: reason}`
-    (dedup by outpoint), still `removeFrozen` the outpoint.
-- Block/allow/pause/setAccessMode: **no change** — reason is captured in
-  `AdminHistoryEntry.ActionDetails` automatically.
+- `FoldAction` `freezeOutput` case: read `reason, _ := details.Str("reason")`
+  and set it on the appended `FrozenRef`.
+- Everything else (`reissue`/`EvictedOutpoints`, block/allow/pause,
+  `DefaultAssetState`, `removeFrozen`): **no change**.
 
-**A2. `internal/mandala/storage.go`**
-- `FindByAssetID` (lines ~159-186) builds an `evicted` set from
-  `st.EvictedOutpoints`; update to read `EvictedRefs[].Outpoint`.
-- Any other reader of `EvictedOutpoints` updated to the struct form.
-
-**A3. `internal/httpapi/admin.go` / endpoint**
+**A2. `internal/httpapi/admin.go` / endpoint**
 - No handler change: `assetStateHandler` serializes `AssetAdminState` directly;
-  new `reason` fields flow through.
+  the new `FrozenRef.Reason` flows through. `adminHistoryHandler` already returns
+  `ActionDetails`, so every other action's reason is queryable there.
 
-**A4. Tests**
-- `reducer_test.go`: freeze/reissue now assert `reason` and `EvictedRef` shape.
-- `storage_test.go`, `admin_test.go`: update `evictedOutpoints` expectations to
-  the object array (e.g. `admin_test.go:94` `"evictedOutpoints":[]` still valid
-  empty; populated cases become `[{"outpoint":…,"reason":…}]`).
-- New reducer cases: freeze-with-reason, reissue-with-reason, and rebuild parity
-  (fold from persisted details reproduces the reason).
+**A3. Tests**
+- `reducer_test.go`: the freeze case (line ~47) asserts `Reason` on the
+  `FrozenRef`; add a freeze-with-reason case and a rebuild-parity case (folding
+  the same persisted details reproduces the reason). `EvictedOutpoints` tests
+  unchanged.
+- No `storage_test.go` / `admin_test.go` evicted-shape changes (type unchanged).
 
 ### B. Wallet state view (TS) — `app/src/lib/mandala/adminState.ts`
 - `frozenOutpoints[]` item gains `reason: string`.
-- `evictedOutpoints: string[]` → `evictedOutpoints: Array<{ outpoint: string, reason: string }>`.
+- `evictedOutpoints: string[]` **unchanged**.
 
 ### C. Coin-selection filter (TS) — `app/src/lib/mandala/ftCandidates.ts`
 - In `loadFtCandidates`, fetch `resolveAssetState(assetId)` and build a frozen
@@ -167,8 +164,9 @@ reducer). **`overlay-go` is the only overlay implementation to change.**
    frozen outpoint from selection; UI shows "frozen — <reason>".
 
 **Evict (reissue):**
-1. Admin reissues a frozen outpoint → overlay evicts it, `FoldAction` moves it
-   to `EvictedRefs{outpoint, reason}`.
+1. Admin reissues a frozen outpoint (optionally with a reason, captured in
+   admin-history) → overlay evicts it, `FoldAction` appends the outpoint to
+   `EvictedOutpoints` (unchanged).
 2. Holder opens Send (or completes any send) → `reconcileBans` sees the outpoint
    in `evictedOutpoints`, calls `relinquishOutput`. Stale basket entry cleared.
 
@@ -193,8 +191,8 @@ reducer). **`overlay-go` is the only overlay implementation to change.**
 
 ## Testing
 
-- Go: reducer freeze/reissue reason + `EvictedRef` shape; storage evicted-set
-  read; endpoint serialization; rebuild parity.
+- Go: reducer freeze-with-reason + rebuild parity (fold reproduces reason);
+  endpoint serialization carries `frozenOutpoints[].reason`.
 - TS: `loadFtCandidates` excludes frozen + fails open; `reconcileBans`
-  relinquishes only evicted-and-held; `adminState` type/shape; Admin Operations
-  form threads reason into `details` (and omits when empty).
+  relinquishes only evicted-and-held; `adminState` frozen `reason` shape; Admin
+  Operations form threads reason into `details` (and omits when empty).
