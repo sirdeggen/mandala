@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useWallet } from '../../context/WalletContext'
 import { useIssuerMutations } from '../../hooks/useIssuerMutations'
+import { guardRegisterSubmit } from '../../lib/mandala/submitGuards'
+import { registerFlight } from '../../lib/mandala/singleFlight'
 import { Input } from '../ui/input'
 import { Spinner } from '../ui/spinner'
 
@@ -15,13 +17,25 @@ export default function RegisterAssetStrip() {
   const [ticker, setTicker] = useState('')
   const [decimals, setDecimals] = useState('0')
   const { register } = useIssuerMutations()
+  const startedRef = useRef(false)
 
   const handleRegister = () => {
-    if (wallet == null || label.trim() === '') return
+    if (startedRef.current || register.isPending || registerFlight.isHeld()) return
     const dec = Number(decimals)
-    if (!Number.isInteger(dec) || dec < 0) { toast.error('Decimals must be a non-negative integer'); return }
+    const gate = guardRegisterSubmit({
+      label,
+      ticker,
+      decimals: dec,
+      walletReady: wallet != null
+    })
+    if (!gate.ok) {
+      toast.error(gate.reason)
+      return
+    }
+    startedRef.current = true
     register.mutate({ label, ticker, decimals: dec }, {
-      onSuccess: () => { setLabel(''); setTicker(''); setDecimals('0') }
+      onSuccess: () => { setLabel(''); setTicker(''); setDecimals('0') },
+      onSettled: () => { startedRef.current = false }
     })
   }
 
@@ -72,8 +86,9 @@ export default function RegisterAssetStrip() {
             />
           </div>
           <button
+            type="button"
             onClick={handleRegister}
-            disabled={register.isPending || label.trim() === ''}
+            disabled={register.isPending || startedRef.current || label.trim() === ''}
             className="h-[30px] shrink-0 rounded-sm border border-input-border bg-card px-3 text-[12px] font-medium text-primary transition-[opacity,background-color] duration-150 hover:bg-accent disabled:opacity-40 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {register.isPending && <Spinner size="sm" tone="current" />}

@@ -78,4 +78,26 @@ describe('submitAndBroadcast (overlay-gated finalize)', () => {
     await new Promise(r => setTimeout(r, 0)) // background broadcast
     expect(journalList()).toEqual([])
   })
+
+  it('journals accepted BEFORE background broadcast starts (crash window is recoverable)', async () => {
+    let resolveBroadcast!: () => void
+    const broadcastGate = new Promise<void>(r => {
+      resolveBroadcast = r
+    })
+    const facilitator = { send: vi.fn().mockResolvedValue({ tm_mandala: { outputsToAdmit: [0] } }) }
+    const wallet = {
+      createAction: vi.fn().mockImplementation(async () => {
+        await broadcastGate
+        return {}
+      }),
+      abortAction: vi.fn()
+    }
+    const done = submitAndBroadcast(wallet as any, signed, undefined, 'ref-1', facilitator as any)
+    // Commit point resolves with journal already written; broadcast still pending.
+    await expect(done).resolves.toEqual([0])
+    expect(journalList()).toMatchObject([{ txid: 'abc', stage: 'accepted' }])
+    resolveBroadcast()
+    await new Promise(r => setTimeout(r, 0))
+    expect(journalList()).toEqual([])
+  })
 })

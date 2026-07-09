@@ -14,6 +14,7 @@ import { walletMandalaUnlock } from './unlock'
 import { loadFtCandidates } from './ftCandidates'
 import { selectFtInputs } from './ftSelect'
 import { AdminAsset, adminCustomInstructions } from './assets'
+import { withAdminAuthGate, assertSpendablePrior } from './adminAuthGate'
 
 // ---------------------------------------------------------------------------
 // Register: ONE tx, ONE output that both carries the public metadata blob and
@@ -82,91 +83,94 @@ export interface IssueParams {
 
 export async function issueTokens (p: IssueParams): Promise<{ txid: string }> {
   const { wallet, identityKey, asset, amount } = p
-  const keyID = 'mint-' + Date.now()
-  // Self-mint: use our own identity key (hex) as counterparty, not the literal
-  // 'self' — the revealed linkage echoes counterparty verbatim and the overlay
-  // parses it as a public key. Derivation is identical ('self' normalizes to this).
-  const counterparty = identityKey
+  // Serialize same-asset admin-auth so two issue/redeem/regulatory pipelines
+  // cannot both commit on one priorOutpoint.
+  return withAdminAuthGate(asset.assetId, asset.authOutpoint, async () => {
+    const keyID = 'mint-' + Date.now()
+    // Self-mint: use our own identity key (hex) as counterparty, not the literal
+    // 'self' — the revealed linkage echoes counterparty verbatim and the overlay
+    // parses it as a public key. Derivation is identical ('self' normalizes to this).
+    const counterparty = identityKey
 
-  const ftLock = await new MandalaToken(wallet as any).lockBRC29(
-    asset.assetId, amount, FT_PROTOCOL, keyID, counterparty
-  )
+    const ftLock = await new MandalaToken(wallet as any).lockBRC29(
+      asset.assetId, amount, FT_PROTOCOL, keyID, counterparty
+    )
 
-  const priorOutpoint = asset.authOutpoint
-  const issueDetails: MandalaActionDetails = {
-    kind: 'issue',
-    assetId: asset.assetId,
-    amount,
-    priorOutpoint
-  }
-  const nextAuthLock = await MandalaAdmin.lock({ wallet: wallet as any, data: issueDetails })
+    const priorOutpoint = asset.authOutpoint
+    const issueDetails: MandalaActionDetails = {
+      kind: 'issue',
+      assetId: asset.assetId,
+      amount,
+      priorOutpoint
+    }
+    const nextAuthLock = await MandalaAdmin.lock({ wallet: wallet as any, data: issueDetails })
 
-  // Fetch BEEF for the prior auth outpoint.
-  const listResult = await wallet.listOutputs({
-    basket: BASKET,
-    include: 'entire transactions',
-    limit: 1000
+    // Fetch BEEF for the prior auth outpoint.
+    const listResult = await wallet.listOutputs({
+      basket: BASKET,
+      include: 'entire transactions',
+      limit: 1000
+    })
+    if (listResult.BEEF == null) throw new Error('listOutputs returned no BEEF')
+    assertSpendablePrior(priorOutpoint, listResult.outputs.map(o => o.outpoint))
+
+    const created = await wallet.createAction({
+      description: `Issue ${amount} ${asset.label}`,
+      labels: ['mandala', 'issue'],
+      inputBEEF: listResult.BEEF as number[],
+      inputs: [{
+        outpoint: priorOutpoint,
+        unlockingScriptLength: 108,
+        inputDescription: 'spend prior admin auth'
+      }],
+      outputs: [
+        {
+          satoshis: 1,
+          lockingScript: ftLock.toHex(),
+          outputDescription: 'minted FT',
+          basket: BASKET,
+          customInstructions: JSON.stringify({ protocolID: FT_PROTOCOL, keyID, counterparty })
+        },
+        {
+          satoshis: 1,
+          lockingScript: nextAuthLock.toHex(),
+          outputDescription: 'next admin auth',
+          basket: BASKET,
+          customInstructions: adminCustomInstructions(asset.assetId, asset.label, issueDetails, asset.metadata)
+        }
+      ],
+      options: { randomizeOutputs: false }
+    })
+
+    if (created.signableTransaction == null) throw new Error('issue: no signableTransaction returned')
+
+    // Sign the prior auth input with the stored authDetails (symmetric with how it was locked).
+    const txToSign = Transaction.fromBEEF(created.signableTransaction.tx as number[])
+    txToSign.inputs[0].unlockingScriptTemplate = MandalaAdmin.unlock({ wallet: wallet as any, data: asset.authDetails })
+    await txToSign.sign()
+
+    const spends: Record<string, { unlockingScript: string }> = {
+      '0': { unlockingScript: txToSign.inputs[0].unlockingScript!.toHex() }
+    }
+
+    const signed = await wallet.signAction({
+      reference: created.signableTransaction.reference,
+      spends,
+      options: { noSend: true } // hold — broadcast only after the overlay accepts
+    })
+
+    if (signed.tx == null || signed.txid == null) throw new Error('signAction: no tx returned')
+
+    // Reveal linkage for the FT output; submit to the overlay, then broadcast.
+    const linkage = await revealLinkage(wallet as any, keyID, counterparty)
+    const offChainValues = encodeLinkagePayload({
+      inputs: [],
+      outputs: [{ index: 0, linkage }],
+      admin: [{ index: 1, actionDetails: issueDetails }]
+    })
+    await submitAndBroadcast(wallet as any, { tx: signed.tx as number[], txid: signed.txid }, offChainValues, created.signableTransaction.reference)
+    return { txid: signed.txid }
   })
-  const priorOut = listResult.outputs.find(o => o.outpoint === priorOutpoint)
-  if (priorOut == null) throw new Error('prior auth outpoint not found in wallet outputs')
-  if (listResult.BEEF == null) throw new Error('listOutputs returned no BEEF')
-
-  const created = await wallet.createAction({
-    description: `Issue ${amount} ${asset.label}`,
-    labels: ['mandala', 'issue'],
-    inputBEEF: listResult.BEEF as number[],
-    inputs: [{
-      outpoint: priorOutpoint,
-      unlockingScriptLength: 108,
-      inputDescription: 'spend prior admin auth'
-    }],
-    outputs: [
-      {
-        satoshis: 1,
-        lockingScript: ftLock.toHex(),
-        outputDescription: 'minted FT',
-        basket: BASKET,
-        customInstructions: JSON.stringify({ protocolID: FT_PROTOCOL, keyID, counterparty })
-      },
-      {
-        satoshis: 1,
-        lockingScript: nextAuthLock.toHex(),
-        outputDescription: 'next admin auth',
-        basket: BASKET,
-        customInstructions: adminCustomInstructions(asset.assetId, asset.label, issueDetails, asset.metadata)
-      }
-    ],
-    options: { randomizeOutputs: false }
-  })
-
-  if (created.signableTransaction == null) throw new Error('issue: no signableTransaction returned')
-
-  // Sign the prior auth input with the stored authDetails (symmetric with how it was locked).
-  const txToSign = Transaction.fromBEEF(created.signableTransaction.tx as number[])
-  txToSign.inputs[0].unlockingScriptTemplate = MandalaAdmin.unlock({ wallet: wallet as any, data: asset.authDetails })
-  await txToSign.sign()
-
-  const spends: Record<string, { unlockingScript: string }> = {
-    '0': { unlockingScript: txToSign.inputs[0].unlockingScript!.toHex() }
-  }
-
-  const signed = await wallet.signAction({
-    reference: created.signableTransaction.reference,
-    spends,
-    options: { noSend: true } // hold — broadcast only after the overlay accepts
-  })
-
-  if (signed.tx == null || signed.txid == null) throw new Error('signAction: no tx returned')
-
-  // Reveal linkage for the FT output; submit to the overlay, then broadcast.
-  const linkage = await revealLinkage(wallet as any, keyID, counterparty)
-  const offChainValues = encodeLinkagePayload({
-    inputs: [],
-    outputs: [{ index: 0, linkage }],
-    admin: [{ index: 1, actionDetails: issueDetails }]
-  })
-  await submitAndBroadcast(wallet as any, { tx: signed.tx as number[], txid: signed.txid }, offChainValues, created.signableTransaction.reference)
-  return { txid: signed.txid }
 }
 
 // ---------------------------------------------------------------------------
@@ -183,93 +187,95 @@ export interface RedeemParams {
 
 export async function redeemTokens (p: RedeemParams): Promise<{ txid: string }> {
   const { wallet, identityKey, asset, amount } = p
-  // Token-aware coin selection (confirmed-first, fewest UTXOs) — same as transfer.
-  const { candidates, beef: beefBytes } = await loadFtCandidates(wallet as any, asset.assetId)
-  const { selected, total: gathered } = selectFtInputs(candidates, amount) // throws if insufficient
-  const beef = new Beef()
-  beef.mergeBeef(beefBytes)
-  const ftInputs = selected.map(s => ({ outpoint: s.outpoint, unlockingScriptLength: 108, inputDescription: 'burn FT' }))
-  const ftSpend = selected.map(s => ({ keyID: s.keyID, counterparty: s.counterparty }))
-  const change = gathered - amount
+  return withAdminAuthGate(asset.assetId, asset.authOutpoint, async () => {
+    // Token-aware coin selection (confirmed-first, fewest UTXOs) — same as transfer.
+    const { candidates, beef: beefBytes } = await loadFtCandidates(wallet as any, asset.assetId)
+    const { selected, total: gathered } = selectFtInputs(candidates, amount) // throws if insufficient
+    const beef = new Beef()
+    beef.mergeBeef(beefBytes)
+    const ftInputs = selected.map(s => ({ outpoint: s.outpoint, unlockingScriptLength: 108, inputDescription: 'burn FT' }))
+    const ftSpend = selected.map(s => ({ keyID: s.keyID, counterparty: s.counterparty }))
+    const change = gathered - amount
 
-  const redeemDetails: MandalaActionDetails = {
-    kind: 'redeem',
-    assetId: asset.assetId,
-    amount,
-    priorOutpoint: asset.authOutpoint
-  }
-  const nextAuthLock = await MandalaAdmin.lock({ wallet: wallet as any, data: redeemDetails })
-
-  const inputs = [
-    ...ftInputs,
-    { outpoint: asset.authOutpoint, unlockingScriptLength: 108, inputDescription: 'spend prior auth' }
-  ]
-
-  const outputs: any[] = [
-    {
-      satoshis: 1,
-      lockingScript: nextAuthLock.toHex(),
-      outputDescription: 'redeem auth',
-      basket: BASKET,
-      customInstructions: adminCustomInstructions(asset.assetId, asset.label, redeemDetails, asset.metadata)
+    const redeemDetails: MandalaActionDetails = {
+      kind: 'redeem',
+      assetId: asset.assetId,
+      amount,
+      priorOutpoint: asset.authOutpoint
     }
-  ]
+    const nextAuthLock = await MandalaAdmin.lock({ wallet: wallet as any, data: redeemDetails })
 
-  let keyIDChange = ''
-  if (change > 0) {
-    keyIDChange = 'rchg-' + Date.now()
-    const ftChange = await new MandalaToken(wallet as any).lockBRC29(asset.assetId, change, FT_PROTOCOL, keyIDChange, identityKey)
-    outputs.push({
-      satoshis: 1,
-      lockingScript: ftChange.toHex(),
-      outputDescription: 'FT change',
-      basket: BASKET,
-      customInstructions: JSON.stringify({ protocolID: FT_PROTOCOL, keyID: keyIDChange, counterparty: identityKey })
+    const inputs = [
+      ...ftInputs,
+      { outpoint: asset.authOutpoint, unlockingScriptLength: 108, inputDescription: 'spend prior auth' }
+    ]
+
+    const outputs: any[] = [
+      {
+        satoshis: 1,
+        lockingScript: nextAuthLock.toHex(),
+        outputDescription: 'redeem auth',
+        basket: BASKET,
+        customInstructions: adminCustomInstructions(asset.assetId, asset.label, redeemDetails, asset.metadata)
+      }
+    ]
+
+    let keyIDChange = ''
+    if (change > 0) {
+      keyIDChange = 'rchg-' + Date.now()
+      const ftChange = await new MandalaToken(wallet as any).lockBRC29(asset.assetId, change, FT_PROTOCOL, keyIDChange, identityKey)
+      outputs.push({
+        satoshis: 1,
+        lockingScript: ftChange.toHex(),
+        outputDescription: 'FT change',
+        basket: BASKET,
+        customInstructions: JSON.stringify({ protocolID: FT_PROTOCOL, keyID: keyIDChange, counterparty: identityKey })
+      })
+    }
+
+    const created = await wallet.createAction({
+      description: `Redeem ${amount} ${asset.label}`,
+      labels: ['mandala', 'redeem'],
+      inputBEEF: beef.toBinary(),
+      inputs,
+      outputs,
+      options: { randomizeOutputs: false }
     })
-  }
 
-  const created = await wallet.createAction({
-    description: `Redeem ${amount} ${asset.label}`,
-    labels: ['mandala', 'redeem'],
-    inputBEEF: beef.toBinary(),
-    inputs,
-    outputs,
-    options: { randomizeOutputs: false }
+    if (created.signableTransaction == null) throw new Error('redeem: no signableTransaction returned')
+
+    // Sign FT inputs then the prior-auth input.
+    const txToSign = Transaction.fromBEEF(created.signableTransaction.tx as number[])
+    for (let i = 0; i < ftSpend.length; i++) {
+      txToSign.inputs[i].unlockingScriptTemplate = walletMandalaUnlock(wallet as any, ftSpend[i].keyID, ftSpend[i].counterparty)
+    }
+    txToSign.inputs[ftSpend.length].unlockingScriptTemplate = MandalaAdmin.unlock({ wallet: wallet as any, data: asset.authDetails })
+    await txToSign.sign()
+
+    const spends: Record<string, { unlockingScript: string }> = {}
+    for (let i = 0; i < inputs.length; i++) {
+      spends[String(i)] = { unlockingScript: txToSign.inputs[i].unlockingScript!.toHex() }
+    }
+
+    const signed = await wallet.signAction({
+      reference: created.signableTransaction.reference,
+      spends,
+      options: { noSend: true } // hold — broadcast only after the overlay accepts
+    })
+
+    if (signed.tx == null || signed.txid == null) throw new Error('signAction: no tx returned')
+
+    // Admin auth is index 0; FT change (if any) is index 1.
+    const outLinks: Array<{ index: number, linkage: any }> = []
+    if (change > 0) {
+      outLinks.push({ index: 1, linkage: await revealLinkage(wallet as any, keyIDChange, identityKey) })
+    }
+    const offChainValues = encodeLinkagePayload({
+      inputs: [],
+      outputs: outLinks,
+      admin: [{ index: 0, actionDetails: redeemDetails }]
+    })
+    await submitAndBroadcast(wallet as any, { tx: signed.tx as number[], txid: signed.txid }, offChainValues, created.signableTransaction.reference)
+    return { txid: signed.txid }
   })
-
-  if (created.signableTransaction == null) throw new Error('redeem: no signableTransaction returned')
-
-  // Sign FT inputs then the prior-auth input.
-  const txToSign = Transaction.fromBEEF(created.signableTransaction.tx as number[])
-  for (let i = 0; i < ftSpend.length; i++) {
-    txToSign.inputs[i].unlockingScriptTemplate = walletMandalaUnlock(wallet as any, ftSpend[i].keyID, ftSpend[i].counterparty)
-  }
-  txToSign.inputs[ftSpend.length].unlockingScriptTemplate = MandalaAdmin.unlock({ wallet: wallet as any, data: asset.authDetails })
-  await txToSign.sign()
-
-  const spends: Record<string, { unlockingScript: string }> = {}
-  for (let i = 0; i < inputs.length; i++) {
-    spends[String(i)] = { unlockingScript: txToSign.inputs[i].unlockingScript!.toHex() }
-  }
-
-  const signed = await wallet.signAction({
-    reference: created.signableTransaction.reference,
-    spends,
-    options: { noSend: true } // hold — broadcast only after the overlay accepts
-  })
-
-  if (signed.tx == null || signed.txid == null) throw new Error('signAction: no tx returned')
-
-  // Admin auth is index 0; FT change (if any) is index 1.
-  const outLinks: Array<{ index: number, linkage: any }> = []
-  if (change > 0) {
-    outLinks.push({ index: 1, linkage: await revealLinkage(wallet as any, keyIDChange, identityKey) })
-  }
-  const offChainValues = encodeLinkagePayload({
-    inputs: [],
-    outputs: outLinks,
-    admin: [{ index: 0, actionDetails: redeemDetails }]
-  })
-  await submitAndBroadcast(wallet as any, { tx: signed.tx as number[], txid: signed.txid }, offChainValues, created.signableTransaction.reference)
-  return { txid: signed.txid }
 }

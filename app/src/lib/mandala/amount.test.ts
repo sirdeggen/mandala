@@ -33,6 +33,14 @@ describe('amount precision helpers', () => {
     expect(parseAmount('0.5', 0)).toBeNaN()
     expect(parseAmount('abc', 2)).toBeNaN()
   })
+
+  it('rejects empty, signs, and partial garbage (edge incorrect use)', () => {
+    expect(parseAmount('', 2)).toBeNaN()
+    expect(parseAmount('  ', 2)).toBeNaN()
+    expect(parseAmount('-1', 0)).toBeNaN()
+    expect(parseAmount('1e3', 0)).toBeNaN()
+    expect(parseAmount('10.20.30', 2)).toBeNaN()
+  })
 })
 
 describe('currency', () => {

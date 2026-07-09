@@ -4,6 +4,7 @@ import { BASKET, FT_PROTOCOL, MESSAGEBOX } from './constants'
 import { encodeLinkagePayload } from './encoding'
 import { revealLinkage, outpoint } from './tokens'
 import { submitAndBroadcast } from './overlay'
+import { withAdminAuthGate, assertSpendablePrior } from './adminAuthGate'
 
 // Admin auth bookkeeping lives in the admin output's customInstructions, so the
 // wallet basket is the single source of truth — no localStorage, no on-chain
@@ -206,72 +207,73 @@ export async function submitAdminAction (
 ): Promise<{ txid: string, nextAuthOutpoint: string }> {
   const { wallet, asset, details, ftOutput, messageBoxClient, identityKey } = p
 
-  // Derive next auth locking script.
-  const nextAuthLock = await MandalaAdmin.lock({ wallet: wallet as any, data: details })
+  // Same gate as issue/redeem — regulatory and treasury cannot share one prior.
+  return withAdminAuthGate(asset.assetId, asset.authOutpoint, async () => {
+    // Derive next auth locking script.
+    const nextAuthLock = await MandalaAdmin.lock({ wallet: wallet as any, data: details })
 
-  // Fetch BEEF for the prior auth outpoint.
-  const list = await wallet.listOutputs({ basket: BASKET, include: 'entire transactions', limit: 1000 })
-  if (list.BEEF == null) throw new Error('listOutputs returned no BEEF')
-  // Fail fast on a stale auth reference (e.g. spent by a half-failed earlier
-  // action) instead of building a doomed tx that dies with a cryptic wallet error.
-  if (!list.outputs.some(o => o.outpoint === asset.authOutpoint)) {
-    throw new Error('admin authority outpoint is no longer spendable — reload assets and retry')
-  }
+    // Fetch BEEF for the prior auth outpoint.
+    const list = await wallet.listOutputs({ basket: BASKET, include: 'entire transactions', limit: 1000 })
+    if (list.BEEF == null) throw new Error('listOutputs returned no BEEF')
+    // Fail fast on a stale auth reference (e.g. spent by a half-failed earlier
+    // action) instead of building a doomed tx that dies with a cryptic wallet error.
+    assertSpendablePrior(asset.authOutpoint, list.outputs.map(o => o.outpoint))
 
-  // Optionally build FT locking script for reissue.
-  let ftKeyID = ''
-  let ftLockHex: string | undefined
-  if (ftOutput != null) {
-    ftKeyID = 'reissue-' + Date.now()
-    const ftLock = await new MandalaToken(wallet as any).lockBRC29(
-      details.assetId as string, ftOutput.amount, FT_PROTOCOL, ftKeyID, ftOutput.recipient
-    )
-    ftLockHex = ftLock.toHex()
-  }
+    // Optionally build FT locking script for reissue.
+    let ftKeyID = ''
+    let ftLockHex: string | undefined
+    if (ftOutput != null) {
+      ftKeyID = 'reissue-' + Date.now()
+      const ftLock = await new MandalaToken(wallet as any).lockBRC29(
+        details.assetId as string, ftOutput.amount, FT_PROTOCOL, ftKeyID, ftOutput.recipient
+      )
+      ftLockHex = ftLock.toHex()
+    }
 
-  const ftSpec: FtOutputSpec | undefined = ftLockHex != null && ftOutput != null
-    ? { lockingScript: ftLockHex, amount: ftOutput.amount, recipient: ftOutput.recipient }
-    : undefined
+    const ftSpec: FtOutputSpec | undefined = ftLockHex != null && ftOutput != null
+      ? { lockingScript: ftLockHex, amount: ftOutput.amount, recipient: ftOutput.recipient }
+      : undefined
 
-  const actionArgs = buildAdminActionArgs(asset, details, nextAuthLock.toHex(), ftSpec)
-  const created = await wallet.createAction({
-    ...actionArgs,
-    inputBEEF: list.BEEF as number[]
-  })
-  if (created.signableTransaction == null) throw new Error('no signableTransaction')
-
-  // Sign the prior auth input.
-  const txToSign = Transaction.fromBEEF(created.signableTransaction.tx as number[])
-  txToSign.inputs[0].unlockingScriptTemplate = MandalaAdmin.unlock({ wallet: wallet as any, data: asset.authDetails })
-  await txToSign.sign()
-
-  const signed = await wallet.signAction({
-    reference: created.signableTransaction.reference,
-    spends: { '0': { unlockingScript: txToSign.inputs[0].unlockingScript!.toHex() } },
-    options: { noSend: true } // hold — broadcast only after the overlay accepts
-  })
-  if (signed.tx == null || signed.txid == null) throw new Error('signAction returned no tx')
-
-  const adminIndex = ftOutput != null ? 1 : 0
-  const outLinks = ftOutput != null && ftKeyID !== ''
-    ? [{ index: 0, linkage: await revealLinkage(wallet as any, ftKeyID, ftOutput.recipient) }]
-    : []
-  await submitAndBroadcast(
-    wallet,
-    { tx: signed.tx as number[], txid: signed.txid },
-    encodeLinkagePayload({ inputs: [], outputs: outLinks, admin: [{ index: adminIndex, actionDetails: details }] }),
-    created.signableTransaction.reference
-  )
-
-  if (ftOutput != null && messageBoxClient != null) {
-    await messageBoxClient.sendMessage({
-      recipient: ftOutput.recipient,
-      messageBox: MESSAGEBOX,
-      body: { assetId: details.assetId, amount: ftOutput.amount, transaction: signed.tx, keyID: ftKeyID, protocolID: FT_PROTOCOL, sender: identityKey }
+    const actionArgs = buildAdminActionArgs(asset, details, nextAuthLock.toHex(), ftSpec)
+    const created = await wallet.createAction({
+      ...actionArgs,
+      inputBEEF: list.BEEF as number[]
     })
-  }
+    if (created.signableTransaction == null) throw new Error('no signableTransaction')
 
-  return { txid: signed.txid, nextAuthOutpoint: outpoint(signed.txid, adminIndex) }
+    // Sign the prior auth input.
+    const txToSign = Transaction.fromBEEF(created.signableTransaction.tx as number[])
+    txToSign.inputs[0].unlockingScriptTemplate = MandalaAdmin.unlock({ wallet: wallet as any, data: asset.authDetails })
+    await txToSign.sign()
+
+    const signed = await wallet.signAction({
+      reference: created.signableTransaction.reference,
+      spends: { '0': { unlockingScript: txToSign.inputs[0].unlockingScript!.toHex() } },
+      options: { noSend: true } // hold — broadcast only after the overlay accepts
+    })
+    if (signed.tx == null || signed.txid == null) throw new Error('signAction returned no tx')
+
+    const adminIndex = ftOutput != null ? 1 : 0
+    const outLinks = ftOutput != null && ftKeyID !== ''
+      ? [{ index: 0, linkage: await revealLinkage(wallet as any, ftKeyID, ftOutput.recipient) }]
+      : []
+    await submitAndBroadcast(
+      wallet,
+      { tx: signed.tx as number[], txid: signed.txid },
+      encodeLinkagePayload({ inputs: [], outputs: outLinks, admin: [{ index: adminIndex, actionDetails: details }] }),
+      created.signableTransaction.reference
+    )
+
+    if (ftOutput != null && messageBoxClient != null) {
+      await messageBoxClient.sendMessage({
+        recipient: ftOutput.recipient,
+        messageBox: MESSAGEBOX,
+        body: { assetId: details.assetId, amount: ftOutput.amount, transaction: signed.tx, keyID: ftKeyID, protocolID: FT_PROTOCOL, sender: identityKey }
+      })
+    }
+
+    return { txid: signed.txid, nextAuthOutpoint: outpoint(signed.txid, adminIndex) }
+  })
 }
 
 /**

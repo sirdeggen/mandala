@@ -5,6 +5,8 @@ import { AdminAsset } from '../lib/mandala/assets'
 import { registerAsset, issueTokens, redeemTokens } from '../lib/mandala/issuerOps'
 import { reconcileWallet } from '../lib/mandala/reconcile'
 import { formatAmount } from '../lib/mandala/amount'
+import { registerFlight, BusyError } from '../lib/mandala/singleFlight'
+import { guardIssueSubmit, guardRedeemSubmit, guardRegisterSubmit } from '../lib/mandala/submitGuards'
 import { adminAssetsKey } from './useAdminAssets'
 import { holderDataKey, HolderData } from './useHolderData'
 
@@ -13,6 +15,10 @@ import { holderDataKey, HolderData } from './useHolderData'
  * own FT balance in the holder-data cache instantly and roll back if the
  * overlay rejects; every mutation invalidates the shared admin-assets query
  * and runs a background reconcile so half-finished state self-heals.
+ *
+ * Register is single-flight (registerFlight). Issue/redeem serialize per-asset
+ * admin-auth inside issuerOps (withAdminAuthGate) so a double-click cannot
+ * spend the same priorOutpoint twice.
  */
 export function useIssuerMutations() {
   const { wallet, identityKey } = useWallet()
@@ -42,16 +48,30 @@ export function useIssuerMutations() {
   const register = useMutation({
     mutationFn: async (vars: { label: string; ticker: string; decimals: number }) => {
       if (wallet == null || identityKey == null) throw new Error('Wallet not ready')
-      return registerAsset({ wallet: wallet as any, identityKey, ...vars })
+      const gate = guardRegisterSubmit({
+        label: vars.label,
+        ticker: vars.ticker,
+        decimals: vars.decimals,
+        walletReady: true
+      })
+      if (!gate.ok) throw new Error(gate.reason)
+      return registerFlight.run(() =>
+        registerAsset({ wallet: wallet as any, identityKey, ...vars })
+      )
     },
     onSuccess: (res, vars) => toast.success(`Registered ${vars.label.trim()} (${res.assetId})`),
-    onError: e => toast.error(`Register failed: ${String(e)}`),
+    onError: e => {
+      if (e instanceof BusyError) return // silent no-op for double-click
+      toast.error(`Register failed: ${String(e)}`)
+    },
     onSettled: settle
   })
 
   const issue = useMutation<{ txid: string }, Error, { asset: AdminAsset; amount: number }, { prev?: HolderData }>({
     mutationFn: async ({ asset, amount }) => {
       if (wallet == null || identityKey == null) throw new Error('Wallet not ready')
+      const gate = guardIssueSubmit({ assetId: asset.assetId, amount, walletReady: true })
+      if (!gate.ok) throw new Error(gate.reason)
       return issueTokens({ wallet: wallet as any, identityKey, asset, amount })
     },
     onMutate: ({ asset, amount }) => adjustBalance(asset.assetId, amount),
@@ -59,6 +79,7 @@ export function useIssuerMutations() {
       toast.success(`Issued ${formatAmount(amount, Number(asset.metadata?.decimals) || 0)} ${asset.label}`),
     onError: (e, _v, ctx) => {
       if (ctx?.prev != null) qc.setQueryData(holderKey, ctx.prev)
+      if (e instanceof BusyError) return
       toast.error(`Issue failed: ${String(e)}`)
     },
     onSettled: settle
@@ -67,6 +88,8 @@ export function useIssuerMutations() {
   const redeem = useMutation<{ txid: string }, Error, { asset: AdminAsset; amount: number }, { prev?: HolderData }>({
     mutationFn: async ({ asset, amount }) => {
       if (wallet == null || identityKey == null) throw new Error('Wallet not ready')
+      const gate = guardRedeemSubmit({ assetId: asset.assetId, amount, walletReady: true })
+      if (!gate.ok) throw new Error(gate.reason)
       return redeemTokens({ wallet: wallet as any, identityKey, asset, amount })
     },
     onMutate: ({ asset, amount }) => adjustBalance(asset.assetId, -amount),
@@ -74,6 +97,7 @@ export function useIssuerMutations() {
       toast.success(`Redeemed (burned) ${formatAmount(amount, Number(asset.metadata?.decimals) || 0)} ${asset.label}`),
     onError: (e, _v, ctx) => {
       if (ctx?.prev != null) qc.setQueryData(holderKey, ctx.prev)
+      if (e instanceof BusyError) return
       toast.error(`Redeem failed: ${String(e)}`)
     },
     onSettled: settle

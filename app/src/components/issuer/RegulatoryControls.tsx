@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { useIdentitySearch } from '@bsv/identity-react'
@@ -9,6 +9,9 @@ import { useWallet } from '../../context/WalletContext'
 import { AdminAsset, submitAdminAction, withReason } from '../../lib/mandala/assets'
 import { AssetAdminStateView } from '../../lib/mandala/adminState'
 import { formatAmount } from '../../lib/mandala/amount'
+import { guardAdminFields, guardPositiveAmount } from '../../lib/mandala/submitGuards'
+import { BusyError } from '../../lib/mandala/singleFlight'
+import { isAdminAuthInFlight } from '../../lib/mandala/adminAuthGate'
 import { useAssetState, useInvalidateAssetState } from '../../hooks/useAssetState'
 import { useInvalidateAdminHistory } from '../../hooks/useAdminHistory'
 
@@ -30,7 +33,10 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   const [selectedAssetId, setSelectedAssetId] = useState('')
   // Tracks WHICH action is in flight, not just whether one is — so only the
   // pressed button shows its spinner; every other control is merely disabled.
+  // busyRef is the sync half: setState is async, so a double-click before
+  // re-render would both see busyAction === null without it.
   const [busyAction, setBusyAction] = useState<ActionKey | null>(null)
+  const busyRef = useRef(false)
   const busy = busyAction !== null
 
   // Admin Operations form: which action is selected in the dropdown, and the
@@ -108,6 +114,12 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
 
   const run = useCallback(async (action: ActionKey, fn: () => Promise<void>) => {
     if (wallet == null || identityKey == null || asset == null) return
+    if (busyRef.current) return
+    if (isAdminAuthInFlight(asset.assetId)) {
+      toast.error('Admin action already in progress for this asset')
+      return
+    }
+    busyRef.current = true
     setBusyAction(action)
     try {
       await fn()
@@ -117,8 +129,13 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
       void invalidateAdminHistory(activeAssetId)
       onActionComplete?.()
     } catch (e) {
-      toast.error(`Action failed: ${String(e)}`)
+      if (e instanceof BusyError) {
+        toast.error(e.message)
+      } else {
+        toast.error(`Action failed: ${String(e)}`)
+      }
     } finally {
+      busyRef.current = false
       setBusyAction(null)
     }
   }, [wallet, identityKey, asset, activeAssetId, invalidateAssetState, invalidateAdminHistory, onActionComplete])
@@ -147,7 +164,8 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // ---------------------------------------------------------------------------
   const handleFreeze = () => void run('freeze', async () => {
     const op = freezeOutpoint.trim()
-    if (op === '') { toast.error('Enter an outpoint to freeze'); return }
+    const fields = guardAdminFields({ outpoint: op, requireOutpoint: true })
+    if (!fields.ok) { toast.error(fields.reason); return }
     await submitAdminAction({
       wallet: wallet as any,
       asset: asset!,
@@ -164,7 +182,8 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // ---------------------------------------------------------------------------
   const handleUnfreeze = () => void run('unfreeze', async () => {
     const op = selectedFreezeRef || freezeOutpoint.trim()
-    if (op === '') { toast.error('Select or enter an outpoint to unfreeze'); return }
+    const fields = guardAdminFields({ outpoint: op, requireOutpoint: true })
+    if (!fields.ok) { toast.error(fields.reason); return }
     await submitAdminAction({
       wallet: wallet as any,
       asset: asset!,
@@ -182,7 +201,8 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // ---------------------------------------------------------------------------
   const handleIdentityAction = (kind: 'blockIdentity' | 'unblockIdentity' | 'allowIdentity' | 'unallowIdentity') => void run(kind, async () => {
     const key = resolvedIdentityKey || publicKeyInput.trim()
-    if (key === '') { toast.error('Select or enter an identity key'); return }
+    const fields = guardAdminFields({ identityKey: key, requireIdentity: true })
+    if (!fields.ok) { toast.error(fields.reason); return }
     await submitAdminAction({
       wallet: wallet as any,
       asset: asset!,
@@ -216,11 +236,17 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // ---------------------------------------------------------------------------
   const handleReissue = () => void run('reissue', async () => {
     const op = reissueOutpoint
-    if (op === '') { toast.error('Select a frozen outpoint to reissue'); return }
     const recipient = reissueRecipient || reissueRecipientPublicKey.trim()
-    if (recipient === '') { toast.error('Enter a recipient identity key'); return }
+    const fields = guardAdminFields({
+      outpoint: op,
+      recipient,
+      requireOutpoint: true,
+      requireRecipient: true
+    })
+    if (!fields.ok) { toast.error(fields.reason); return }
     const amount = Number(reissueAmount)
-    if (!Number.isInteger(amount) || amount < 1) { toast.error('Enter a valid amount'); return }
+    const amountGate = guardPositiveAmount(amount)
+    if (!amountGate.ok) { toast.error(amountGate.reason); return }
     await submitAdminAction({
       wallet: wallet as any,
       asset: asset!,
@@ -663,10 +689,11 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
           />
         </div>
 
-        {/* Shared submit */}
+        {/* Shared submit — busyRef + adminAuthGate block re-entry before re-render */}
         <button
+          type="button"
           onClick={runSelectedOp}
-          disabled={busy || asset == null || (op === 'reissue' && !hasFrozen) || opDisabled}
+          disabled={busy || busyRef.current || asset == null || (op === 'reissue' && !hasFrozen) || opDisabled}
           className={submitButtonClassName}
           style={submitButtonStyle}
         >

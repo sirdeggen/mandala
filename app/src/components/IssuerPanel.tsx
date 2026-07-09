@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { parseAmount } from '../lib/mandala/amount'
 import { useAdminAssets } from '../hooks/useAdminAssets'
 import { useIssuerMutations } from '../hooks/useIssuerMutations'
+import { useHolderData } from '../hooks/useHolderData'
+import { guardIssueSubmit, guardRedeemSubmit } from '../lib/mandala/submitGuards'
+import { isAdminAuthInFlight } from '../lib/mandala/adminAuthGate'
 import { Sparkles, Flame } from 'lucide-react'
 import { Input } from './ui/input'
 import { Select } from './ui/select'
@@ -26,10 +29,14 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
   // Shared cached admin-asset list; mutations invalidate it on settle.
   const { data } = useAdminAssets()
   const assets = data ?? []
+  const { data: holderData } = useHolderData()
   const { issue, redeem } = useIssuerMutations()
   // Issue/Redeem are independent actions — only the pressed button shows its
-  // spinner, but both stay mutually exclusive.
+  // spinner, but both stay mutually exclusive. Sync refs block double-click
+  // before isPending re-renders; adminAuthGate serializes wallet work.
   const busy = issue.isPending || redeem.isPending
+  const issueStartedRef = useRef(false)
+  const redeemStartedRef = useRef(false)
 
   // When controlled assetId changes, sync it into each section's selection
   useEffect(() => {
@@ -43,17 +50,49 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
   const effectiveRedeemAsset = controlledAssetId ?? redeemAsset
 
   const handleIssue = () => {
+    if (issueStartedRef.current || busy) return
     const asset = assets.find(a => a.assetId === effectiveIssueAsset)
-    const amount = parseAmount(issueAmount, Number(asset?.metadata?.decimals) || 0)
-    if (asset == null || !Number.isInteger(amount) || amount < 1) return
-    issue.mutate({ asset, amount }, { onSuccess: () => setIssueAmount('') })
+    if (asset == null) return
+    if (isAdminAuthInFlight(asset.assetId)) return
+    const amount = parseAmount(issueAmount, Number(asset.metadata?.decimals) || 0)
+    const gate = guardIssueSubmit({
+      assetId: asset.assetId,
+      amount,
+      walletReady: true
+    })
+    if (!gate.ok) return
+    issueStartedRef.current = true
+    issue.mutate(
+      { asset, amount },
+      {
+        onSuccess: () => setIssueAmount(''),
+        onSettled: () => { issueStartedRef.current = false }
+      }
+    )
   }
 
   const handleRedeem = () => {
+    if (redeemStartedRef.current || busy) return
     const asset = assets.find(a => a.assetId === effectiveRedeemAsset)
-    const amount = parseAmount(redeemAmount, Number(asset?.metadata?.decimals) || 0)
-    if (asset == null || !Number.isInteger(amount) || amount < 1) return
-    redeem.mutate({ asset, amount }, { onSuccess: () => setRedeemAmount('') })
+    if (asset == null) return
+    if (isAdminAuthInFlight(asset.assetId)) return
+    const amount = parseAmount(redeemAmount, Number(asset.metadata?.decimals) || 0)
+    const held = holderData?.assets.find(a => a.assetId === asset.assetId)?.balance
+    const gate = guardRedeemSubmit({
+      assetId: asset.assetId,
+      amount,
+      balance: held,
+      walletReady: true
+    })
+    if (!gate.ok) return
+    redeemStartedRef.current = true
+    redeem.mutate(
+      { asset, amount },
+      {
+        onSuccess: () => setRedeemAmount(''),
+        onSettled: () => { redeemStartedRef.current = false }
+      }
+    )
   }
 
   const assetOptions = (
@@ -133,7 +172,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
 
           <Button
             onClick={handleIssue}
-            disabled={busy || effectiveIssueAsset === '' || issueAmount === ''}
+            disabled={busy || issueStartedRef.current || effectiveIssueAsset === '' || issueAmount === ''}
             loading={issue.isPending}
             loadingText="Issuing…"
             className="w-full rounded bg-primary text-primary-foreground mt-auto"
@@ -191,8 +230,9 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
           </div>
 
           <button
+            type="button"
             onClick={handleRedeem}
-            disabled={busy || effectiveRedeemAsset === '' || redeemAmount === ''}
+            disabled={busy || redeemStartedRef.current || effectiveRedeemAsset === '' || redeemAmount === ''}
             className="w-full rounded mt-auto py-[10px] px-4 text-[13.5px] font-medium transition-opacity disabled:opacity-40 bg-background border border-destructive/40 text-destructive flex items-center justify-center gap-2"
           >
             {redeem.isPending && <Spinner size="sm" tone="current" />}

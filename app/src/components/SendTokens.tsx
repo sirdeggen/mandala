@@ -16,6 +16,8 @@ import { useSendMutation } from '../hooks/useSendMutation'
 import { useDevMode } from '../lib/devMode'
 import { reconcileBans } from '../lib/mandala/reconcileBans'
 import { resolveAssetState } from '../lib/mandala/adminState'
+import { guardSendSubmit } from '../lib/mandala/submitGuards'
+import { sendFlight, BusyError } from '../lib/mandala/singleFlight'
 import QrScanModal from './QrScanModal'
 
 // ---------------------------------------------------------------------------
@@ -266,12 +268,30 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
     setAmountStr(formatAmountPlain(selectedBalance.amount, decimals))
   }
 
+  // Sync re-entry latch: setStep('sending') is async, so a second click in the
+  // same tick still sees step === 'review'. This ref + sendFlight close that gap.
+  const sendStartedRef = useRef(false)
+
   const handleConfirmAndSend = () => {
-    if (isPaused && !devMode) return // dev mode: let the overlay do the rejecting
-    if (!assetId || !recipient || !sendAmount || sendAmount <= 0) return
-    if (!selectedBalance || selectedBalance.amount < sendAmount) return
+    if (sendStartedRef.current || sendMutation.isPending || sendFlight.isHeld()) return
+    if (step === 'sending' || step === 'sent') return
+
+    const gate = guardSendSubmit({
+      assetId,
+      recipientKey: recipient,
+      amount: sendAmount,
+      balance: selectedBalance?.amount ?? 0,
+      isPaused,
+      pauseBypass: devMode,
+      walletReady: wallet != null
+    })
+    if (!gate.ok) {
+      setSendError(gate.reason)
+      return
+    }
 
     setSendError('')
+    sendStartedRef.current = true
     // Flip the UI immediately — the pipeline (build → sign → overlay submit)
     // runs behind the Sending screen. Overlay accept → Sent; reject → back to
     // Review with the error (the wallet action was aborted, inputs released).
@@ -282,8 +302,15 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         onSuccess: res => {
           setSentTxid(res.txid)
           setStep('sent')
+          // Keep sendStartedRef true until reset — prevents re-send of same review.
         },
         onError: e => {
+          sendStartedRef.current = false
+          // Double-click that lost the race: stay silent, first pipeline owns the UI.
+          if (e instanceof BusyError) {
+            setStep('sending')
+            return
+          }
           console.error('Send error:', e)
           setSendError(e instanceof Error ? e.message : 'Send failed. Please try again.')
           setStep('review')
@@ -293,6 +320,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   }
 
   const resetFlow = () => {
+    sendStartedRef.current = false
     setStep('recipient')
     setAssetId(lockedAssetId ?? '')
     setAmountStr('')
@@ -758,11 +786,24 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         </div>
       )}
 
-      {/* Confirm CTA */}
+      {/* Confirm CTA — disabled while in-flight (isPending / step) and for
+          known-invalid gates; sync ref + sendFlight still block double-click
+          before the re-render lands. */}
       <div className="mt-auto px-5 pb-6 pt-4">
         <Button
           onClick={handleConfirmAndSend}
-          disabled={(isPaused && !devMode) || wallet == null}
+          disabled={
+            (isPaused && !devMode) ||
+            wallet == null ||
+            sendMutation.isPending ||
+            sendStartedRef.current ||
+            !sendAmount ||
+            sendAmount <= 0 ||
+            !selectedBalance ||
+            selectedBalance.amount < sendAmount
+          }
+          loading={sendMutation.isPending}
+          loadingText="Sending…"
           size="lg"
           className="w-full"
         >
