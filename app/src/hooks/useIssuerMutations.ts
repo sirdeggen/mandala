@@ -88,9 +88,27 @@ export function useIssuerMutations() {
   const redeem = useMutation<{ txid: string }, Error, { asset: AdminAsset; amount: number }, { prev?: HolderData }>({
     mutationFn: async ({ asset, amount }) => {
       if (wallet == null || identityKey == null) throw new Error('Wallet not ready')
-      const gate = guardRedeemSubmit({ assetId: asset.assetId, amount, walletReady: true })
+      // Enforce balance at the mutation boundary even when the UI guard is
+      // bypassed (direct mutate). Prefer live holder-data cache; if that query
+      // has loaded but this asset is absent, treat balance as 0.
+      const holder = qc.getQueryData<HolderData>(holderKey)
+      const balance = holder == null
+        ? undefined
+        : (holder.assets.find(a => a.assetId === asset.assetId)?.balance ?? 0)
+      const gate = guardRedeemSubmit({
+        assetId: asset.assetId,
+        amount,
+        balance,
+        walletReady: true
+      })
       if (!gate.ok) throw new Error(gate.reason)
-      return redeemTokens({ wallet: wallet as any, identityKey, asset, amount })
+      return redeemTokens({
+        wallet: wallet as any,
+        identityKey,
+        asset,
+        amount,
+        balance
+      })
     },
     onMutate: ({ asset, amount }) => adjustBalance(asset.assetId, -amount),
     onSuccess: (_r, { asset, amount }) =>

@@ -34,13 +34,21 @@ describe('robustness wiring (shipped source)', () => {
     expect(s).toContain('sendFlight.release')
   })
 
-  it('issuerOps + submitAdminAction share withAdminAuthGate', () => {
+  it('issuerOps + submitAdminAction share withAdminAuthGate; redeem asserts prior before FT load', () => {
     const issue = src('lib/mandala/issuerOps.ts')
     const assets = src('lib/mandala/assets.ts')
     expect(issue).toContain('withAdminAuthGate')
     expect(issue).toContain('assertSpendablePrior')
     expect(assets).toContain('withAdminAuthGate')
     expect(assets).toContain('assertSpendablePrior')
+    // redeemTokens must assert prior before the loadFtCandidates *call* (skeptic gap)
+    const redeemFn = issue.slice(issue.indexOf('export async function redeemTokens'))
+    const priorIdx = redeemFn.indexOf('assertSpendablePrior(')
+    const ftCallIdx = redeemFn.indexOf('loadFtCandidates(')
+    expect(priorIdx).toBeGreaterThan(-1)
+    expect(ftCallIdx).toBeGreaterThan(-1)
+    expect(priorIdx).toBeLessThan(ftCallIdx)
+    expect(redeemFn).toContain('guardRedeemSubmit')
   })
 
   it('IssuerPanel and RegisterAssetStrip use sync re-entry refs + guards', () => {
@@ -71,6 +79,14 @@ describe('robustness wiring (shipped source)', () => {
     expect(s).toContain('guardIssueSubmit')
     expect(s).toContain('guardRedeemSubmit')
     expect(s).toContain('guardRegisterSubmit')
+  })
+
+  it('useIssuerMutations redeem passes holder-cache balance into guard + redeemTokens', () => {
+    const s = src('hooks/useIssuerMutations.ts')
+    // Mutation boundary must not omit balance (skeptic gap)
+    expect(s).toMatch(/guardRedeemSubmit\(\{[\s\S]*balance/)
+    expect(s).toMatch(/redeemTokens\(\{[\s\S]*balance/)
+    expect(s).toContain('qc.getQueryData<HolderData>(holderKey)')
   })
 
   it('reconcile still prioritizes accepted rebroadcast and skips sweep while accepted', () => {

@@ -15,6 +15,7 @@ import { loadFtCandidates } from './ftCandidates'
 import { selectFtInputs } from './ftSelect'
 import { AdminAsset, adminCustomInstructions } from './assets'
 import { withAdminAuthGate, assertSpendablePrior } from './adminAuthGate'
+import { guardRedeemSubmit } from './submitGuards'
 
 // ---------------------------------------------------------------------------
 // Register: ONE tx, ONE output that both carries the public metadata blob and
@@ -183,11 +184,37 @@ export interface RedeemParams {
   identityKey: string
   asset: AdminAsset
   amount: number
+  /**
+   * Optional known spendable balance (e.g. from holder-data cache). When set,
+   * amount-above-balance is refused before any wallet coin-selection work.
+   */
+  balance?: number
 }
 
 export async function redeemTokens (p: RedeemParams): Promise<{ txid: string }> {
-  const { wallet, identityKey, asset, amount } = p
+  const { wallet, identityKey, asset, amount, balance } = p
+  // Client-side amount gate first — no gate acquire / wallet I/O on bad amount.
+  const amountGate = guardRedeemSubmit({
+    assetId: asset.assetId,
+    amount,
+    balance,
+    walletReady: true
+  })
+  if (!amountGate.ok) throw new Error(amountGate.reason)
+
   return withAdminAuthGate(asset.assetId, asset.authOutpoint, async () => {
+    // Fail fast on stale admin auth BEFORE FT coin selection (loadFtCandidates).
+    // Matches issueTokens / submitAdminAction so a double-spent prior never
+    // starts heavy wallet work or leaves a half-built redeem.
+    const authList = await wallet.listOutputs({
+      basket: BASKET,
+      limit: 1000
+    })
+    assertSpendablePrior(
+      asset.authOutpoint,
+      authList.outputs.map(o => o.outpoint)
+    )
+
     // Token-aware coin selection (confirmed-first, fewest UTXOs) — same as transfer.
     const { candidates, beef: beefBytes } = await loadFtCandidates(wallet as any, asset.assetId)
     const { selected, total: gathered } = selectFtInputs(candidates, amount) // throws if insufficient
