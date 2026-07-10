@@ -94,6 +94,13 @@ func (m *TopicManager) IdentifyAdmissibleOutputs(ctx context.Context, beef *tran
 			continue
 		}
 		if d, err := DecodeToken(out.LockingScript); err == nil {
+			// Token value lives in the script payload, never in the output's
+			// satoshis: every token output must carry exactly 1 satoshi, so
+			// sats cannot be stranded inside token outputs (TS parity:
+			// MandalaTopicManager.classifyOutputs throws, rejecting the tx).
+			if out.Satoshis != 1 {
+				return none, m.reject(fmt.Errorf("token output %d must carry exactly 1 satoshi", idx))
+			}
 			fts = append(fts, ftOut{index: idx, assetID: d.AssetID, amount: d.Amount, pubKeyHash: d.PubKeyHash})
 			continue
 		}
@@ -107,6 +114,12 @@ func (m *TopicManager) IdentifyAdmissibleOutputs(ctx context.Context, beef *tran
 		}
 		if !admin {
 			continue
+		}
+		// Same 1-satoshi rule for admin-auth outputs — enforced only AFTER
+		// verifyAdminOutput admits: an admin output is a bare P2PKH, so
+		// checking earlier would reject ordinary wallet change.
+		if out.Satoshis != 1 {
+			return none, m.reject(fmt.Errorf("admin output %d must carry exactly 1 satoshi", idx))
 		}
 		adminIdx = append(adminIdx, idx)
 		if assetID, ok := details.Str("assetId"); ok {
