@@ -5,10 +5,10 @@
  */
 import { LockingScript, WalletInterface } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
-import { BASKET } from './constants'
-import { FtCandidate } from './ftSelect'
-import { resolveAssetState } from './adminState'
-import { assertSpendablePrior } from './adminAuthGate'
+import { BASKET } from './constants.js'
+import { FtCandidate } from './ftSelect.js'
+import { resolveAssetState } from './adminState.js'
+import { assertSpendablePrior } from './adminAuthGate.js'
 
 // Wallet action statuses we treat as confirmed for coin-selection purposes.
 // Everything else (nosend/unproven/sending/unprocessed/…) is "unconfirmed" and

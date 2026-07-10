@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { reconcileWallet, SPEC_OP_NOSEND_ACTIONS } from './reconcile'
-import { journalPut, journalList, journalClear } from './txJournal'
+import { reconcileWallet, SPEC_OP_NOSEND_ACTIONS } from './reconcile.js'
+import { journalPut, journalList, journalClear } from './txJournal.js'
 
 const mkWallet = (over: Partial<Record<'createAction' | 'abortAction' | 'listActions', any>> = {}) => ({
   createAction: vi.fn().mockResolvedValue({}),

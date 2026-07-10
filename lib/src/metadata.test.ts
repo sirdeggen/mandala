@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { ProtoWallet, PrivateKey, Transaction } from '@bsv/sdk'
 import { MandalaAdmin } from '@bsv/templates'
-import { parseMetadataFromBeef } from './metadata'
+import { parseMetadataFromBeef } from './metadata.js'
 
 describe('parseMetadataFromBeef', () => {
   it('decodes publicData from output 0 of a genesis tx', async () => {

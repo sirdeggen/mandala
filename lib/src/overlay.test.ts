@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { submitToOverlay, submitAndBroadcast } from './overlay'
-import { journalList, journalClear } from './txJournal'
-import { OVERLAY_URL } from './constants'
+import { submitToOverlay, submitAndBroadcast } from './overlay.js'
+import { journalList, journalClear } from './txJournal.js'
+import { OVERLAY_URL } from './constants.js'
 
 beforeEach(() => journalClear())
 

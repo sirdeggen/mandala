@@ -11,17 +11,17 @@
  */
 import { WalletClient, WalletInterface } from '@bsv/sdk'
 import { MessageBoxClient } from '@bsv/message-box-client'
-import { configureMandala, MandalaEndpoints, MESSAGEBOX_URL } from './constants'
-import { transferTokens, TransferResult } from './transfer'
-import { receiveTokens, ReceiveResult } from './receive'
+import { configureMandala, MandalaEndpoints, MESSAGEBOX_URL } from './constants.js'
+import { transferTokens, TransferResult } from './transfer.js'
+import { receiveTokens, ReceiveResult } from './receive.js'
 import {
   AdminAsset,
   listAdminAssets,
   submitAdminAction,
   SubmitAdminActionParams
-} from './assets'
-import { registerAsset, issueTokens, redeemTokens } from './issuerOps'
-import { reconcileWallet, ReconcileResult } from './reconcile'
+} from './assets.js'
+import { registerAsset, issueTokens, redeemTokens } from './issuerOps.js'
+import { reconcileWallet, ReconcileResult } from './reconcile.js'
 
 export interface MandalaClientOptions extends MandalaEndpoints {
   /** BRC-100 wallet; defaults to a new WalletClient (browser substrate). */
@@ -121,15 +121,15 @@ export function createMandalaClient (opts: MandalaClientOptions = {}): MandalaCl
 }
 
 // Re-export the core surface for direct use.
-export { configureMandala } from './constants'
-export * from './transfer'
-export * from './receive'
-export * from './assets'
-export * from './issuerOps'
-export * from './reconcile'
-export * from './submitGuards'
-export * from './singleFlight'
-export * from './adminAuthGate'
-export * from './amount'
-export * from './notifyJournal'
-export * from './webLocks'
+export { configureMandala } from './constants.js'
+export * from './transfer.js'
+export * from './receive.js'
+export * from './assets.js'
+export * from './issuerOps.js'
+export * from './reconcile.js'
+export * from './submitGuards.js'
+export * from './singleFlight.js'
+export * from './adminAuthGate.js'
+export * from './amount.js'
+export * from './notifyJournal.js'
+export * from './webLocks.js'

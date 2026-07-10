@@ -7,7 +7,7 @@ vi.mock('./constants', () => ({
   OVERLAY_URL: 'http://test-overlay'
 }))
 
-import { fetchOverlayActivity, flattenActivityPages, describeActivity, ActivityEntry } from './overlayActivity'
+import { fetchOverlayActivity, flattenActivityPages, describeActivity, ActivityEntry } from './overlayActivity.js'
 
 const entry = (over: Partial<ActivityEntry>): ActivityEntry => ({
   txid: 't1',

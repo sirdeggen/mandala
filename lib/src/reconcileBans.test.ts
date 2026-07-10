@@ -4,7 +4,7 @@ vi.mock('./constants', () => ({ BASKET: 'mandala-tokens' }))
 const resolveAssetState = vi.fn()
 vi.mock('./adminState', () => ({ resolveAssetState: (...a: any[]) => resolveAssetState(...a) }))
 
-import { reconcileBans } from './reconcileBans'
+import { reconcileBans } from './reconcileBans.js'
 
 const wallet = () => {
   const relinquishOutput = vi.fn().mockResolvedValue({})

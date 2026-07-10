@@ -1,6 +1,6 @@
 import { LockingScript, WalletInterface } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
-import { BASKET } from './constants'
+import { BASKET } from './constants.js'
 
 // ---------------------------------------------------------------------------
 // Public interface

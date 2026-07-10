@@ -6,17 +6,17 @@
  */
 import { Transaction, Beef, WalletInterface } from '@bsv/sdk'
 import { MandalaToken, MandalaAdmin } from '@bsv/templates'
-import { BASKET, FT_PROTOCOL } from './constants'
-import { encodeLinkagePayload, MandalaActionDetails } from './encoding'
-import { submitAndBroadcast } from './overlay'
-import { outpoint, revealLinkage } from './tokens'
-import { walletMandalaUnlock } from './unlock'
-import { loadFtCandidates } from './ftCandidates'
-import { selectFtInputs } from './ftSelect'
-import { AdminAsset, adminCustomInstructions } from './assets'
-import { withAdminAuthGate, assertSpendablePrior } from './adminAuthGate'
-import { guardRedeemSubmit } from './submitGuards'
-import { withIntent } from './txJournal'
+import { BASKET, FT_PROTOCOL } from './constants.js'
+import { encodeLinkagePayload, MandalaActionDetails } from './encoding.js'
+import { submitAndBroadcast } from './overlay.js'
+import { outpoint, revealLinkage } from './tokens.js'
+import { walletMandalaUnlock } from './unlock.js'
+import { loadFtCandidates } from './ftCandidates.js'
+import { selectFtInputs } from './ftSelect.js'
+import { AdminAsset, adminCustomInstructions } from './assets.js'
+import { withAdminAuthGate, assertSpendablePrior } from './adminAuthGate.js'
+import { guardRedeemSubmit } from './submitGuards.js'
+import { withIntent } from './txJournal.js'
 
 // ---------------------------------------------------------------------------
 // Register: ONE tx, ONE output that both carries the public metadata blob and

@@ -11,8 +11,8 @@
  * the gate still journal via submitAndBroadcast for reconcileWallet recovery.
  */
 
-import { BusyError } from './singleFlight'
-import { tryWithLock } from './webLocks'
+import { BusyError } from './singleFlight.js'
+import { tryWithLock } from './webLocks.js'
 
 /** assetId → priorOutpoint currently being spent. */
 const inflight = new Map<string, string>()

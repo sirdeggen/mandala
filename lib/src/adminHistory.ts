@@ -1,6 +1,6 @@
 import { MandalaAdmin } from '@bsv/templates'
 import type { MandalaActionDetails } from '@bsv/templates'
-import { OVERLAY_URL } from './constants'
+import { OVERLAY_URL } from './constants.js'
 
 export interface AdminHistoryRow {
   assetId: string

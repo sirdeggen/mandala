@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { Utils } from '@bsv/sdk'
-import { encodeLinkagePayload, MandalaLinkagePayload } from './encoding'
-import type { MandalaActionDetails } from './encoding'
+import { encodeLinkagePayload, MandalaLinkagePayload } from './encoding.js'
+import type { MandalaActionDetails } from './encoding.js'
 
 it('accepts the new stablecoin action kinds (type + runtime)', () => {
   const d: MandalaActionDetails = { kind: 'reissue', assetId: 'x.0', outpoint: 'y.1', amount: 5, recipient: '02ab' }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatAmount, formatAmountPlain, parseAmount, currencySymbol, formatCurrency } from './amount'
+import { formatAmount, formatAmountPlain, parseAmount, currencySymbol, formatCurrency } from './amount.js'
 
 describe('amount precision helpers', () => {
   it('formats base units at a given precision (grouped)', () => {

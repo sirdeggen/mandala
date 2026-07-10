@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { Hash, PrivateKey, ProtoWallet } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
-import { outpoint, decodeBalances, revealLinkage, matchOutputIndices } from './tokens'
-import { encodeLinkagePayload, MandalaLinkagePayload } from './encoding'
-import { configureMandala } from './constants'
+import { outpoint, decodeBalances, revealLinkage, matchOutputIndices } from './tokens.js'
+import { encodeLinkagePayload, MandalaLinkagePayload } from './encoding.js'
+import { configureMandala } from './constants.js'
 
 describe('tokens helpers', () => {
   it('formats outpoints', () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { excludeFrozen } from './ftCandidates'
-import type { FtCandidate } from './ftSelect'
+import { excludeFrozen } from './ftCandidates.js'
+import type { FtCandidate } from './ftSelect.js'
 
 const c = (outpoint: string): FtCandidate => ({
   outpoint, amount: 1, keyID: 'k', counterparty: '', confirmed: true, order: 0

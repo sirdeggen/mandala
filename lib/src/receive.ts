@@ -8,8 +8,8 @@
  */
 import { AtomicBEEF, Transaction, WalletInterface } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
-import { MESSAGEBOX, BASKET } from './constants'
-import { resolveAssetMetadata } from './metadata'
+import { MESSAGEBOX, BASKET } from './constants.js'
+import { resolveAssetMetadata } from './metadata.js'
 
 /**
  * The message body contradicts the transaction it carries (or isn't a valid

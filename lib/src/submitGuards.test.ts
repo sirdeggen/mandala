@@ -6,7 +6,7 @@ import {
   guardRedeemSubmit,
   guardRegisterSubmit,
   guardAdminFields
-} from './submitGuards'
+} from './submitGuards.js'
 
 describe('guardPositiveAmount', () => {
   it('accepts positive integers', () => {

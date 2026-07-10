@@ -5,7 +5,7 @@
  * records (identities proven via revealSpecificKeyLinkage at submission) and
  * the engine's raw-tx store. See overlay/src/activity.ts.
  */
-import { OVERLAY_URL } from './constants'
+import { OVERLAY_URL } from './constants.js'
 
 export type ActivityKind = 'issue' | 'transfer' | 'self' | 'redeem'
 

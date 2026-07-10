@@ -1,6 +1,6 @@
 // app/src/lib/mandala/banking.test.ts
 import { it, expect } from 'vitest'
-import { reconcile, bankBalance, makeTransfer, randomLetter } from './banking'
+import { reconcile, bankBalance, makeTransfer, randomLetter } from './banking.js'
 
 it('bank balance nets deposits minus withdrawals', () => {
   expect(bankBalance([100, 50], [30])).toBe(120)

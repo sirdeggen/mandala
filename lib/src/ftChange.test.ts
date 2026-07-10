@@ -1,5 +1,5 @@
 import { it, expect, describe } from 'vitest'
-import { generateFtChange, DESIRED_FT_UTXOS, MAX_FT_CHANGE_OUTPUTS } from './ftChange'
+import { generateFtChange, DESIRED_FT_UTXOS, MAX_FT_CHANGE_OUTPUTS } from './ftChange.js'
 
 // Constant-rand injector: fraction randInt(2500,5000) → 3750 (37.5% slices),
 // index randInt(0,n-1) → floor(0.5*n) (always the same output).

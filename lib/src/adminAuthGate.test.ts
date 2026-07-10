@@ -8,8 +8,8 @@ import {
   adminAuthInFlightPrior,
   assertSpendablePrior,
   StaleAdminAuthError
-} from './adminAuthGate'
-import { BusyError } from './singleFlight'
+} from './adminAuthGate.js'
+import { BusyError } from './singleFlight.js'
 
 beforeEach(() => clearAdminAuthGates())
 

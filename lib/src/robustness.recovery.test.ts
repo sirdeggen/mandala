@@ -16,17 +16,17 @@ import {
   withIntent,
   hasFreshIntent,
   INTENT_TTL_MS
-} from './txJournal'
-import { reconcileWallet, ABORT_RETRY_CAP } from './reconcile'
+} from './txJournal.js'
+import { reconcileWallet, ABORT_RETRY_CAP } from './reconcile.js'
 import {
   notifyPut,
   notifyList,
   notifyClear,
   reconcileNotifications
-} from './notifyJournal'
-import { receiveTokens, InvalidTransferError } from './receive'
-import { tryWithLock } from './webLocks'
-import { isAlreadyBroadcast } from './overlay'
+} from './notifyJournal.js'
+import { receiveTokens, InvalidTransferError } from './receive.js'
+import { tryWithLock } from './webLocks.js'
+import { isAlreadyBroadcast } from './overlay.js'
 
 const mkWallet = (over: Partial<Record<'createAction' | 'abortAction' | 'listActions' | 'internalizeAction', any>> = {}) => ({
   createAction: vi.fn().mockResolvedValue({}),

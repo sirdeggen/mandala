@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { MandalaToken } from '@bsv/templates'
-import { parseActionsToHistory, exportTransactionsCsv } from './history'
+import { parseActionsToHistory, exportTransactionsCsv } from './history.js'
 
 // Real MandalaToken locking script (decodable), arbitrary pkh.
 // assetId must be outpoint-shaped: 64-hex txid + '.' + vout.

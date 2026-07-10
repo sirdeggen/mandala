@@ -29,9 +29,9 @@
  * Aborting a stuck action releases the old auth output → the asset reappears.
  */
 import { WalletInterface } from '@bsv/sdk'
-import { broadcastAcceptedTx, isAlreadyBroadcast } from './overlay'
-import { journalList, journalPut, journalRemove, INTENT_TTL_MS } from './txJournal'
-import { tryWithLock } from './webLocks'
+import { broadcastAcceptedTx, isAlreadyBroadcast } from './overlay.js'
+import { journalList, journalPut, journalRemove, INTENT_TTL_MS } from './txJournal.js'
+import { tryWithLock } from './webLocks.js'
 
 /**
  * wallet-toolbox listActions spec-op: intercepts this "label" to list actions

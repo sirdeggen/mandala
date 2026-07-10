@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { buildAdminActionArgs, buildGlobalAdminActionArgs, withReason } from './assets'
-import type { AdminAsset } from './assets'
-import type { MandalaActionDetails } from './encoding'
-import { BASKET } from './constants'
+import { buildAdminActionArgs, buildGlobalAdminActionArgs, withReason } from './assets.js'
+import type { AdminAsset } from './assets.js'
+import type { MandalaActionDetails } from './encoding.js'
+import { BASKET } from './constants.js'
 
 const fakeAsset: AdminAsset = {
   assetId: 'x'.repeat(64) + '.0',

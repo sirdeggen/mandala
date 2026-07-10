@@ -1,6 +1,6 @@
 import { HTTPSOverlayBroadcastFacilitator, WalletInterface } from '@bsv/sdk'
-import { TOPIC, OVERLAY_URL } from './constants'
-import { journalPut, journalRemove } from './txJournal'
+import { TOPIC, OVERLAY_URL } from './constants.js'
+import { journalPut, journalRemove } from './txJournal.js'
 
 interface OverlayBroadcastFacilitator {
   send(url: string, taggedBEEF: { beef: number[]; topics: string[]; offChainValues?: number[] }): Promise<Record<string, { outputsToAdmit: number[] }>>

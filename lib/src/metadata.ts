@@ -1,7 +1,7 @@
 import { LookupResolver, Transaction, WhatsOnChain } from '@bsv/sdk'
 import { MandalaAdmin } from '@bsv/templates'
 import type { AssetMetadata } from '@bsv/templates'
-import { OVERLAY_URL, LOOKUP } from './constants'
+import { OVERLAY_URL, LOOKUP } from './constants.js'
 
 const cache = new Map<string, AssetMetadata | null>()
 

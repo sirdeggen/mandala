@@ -3,8 +3,8 @@ import {
   ProtoWallet, PrivateKey, Transaction, Spend
 } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
-import { walletMandalaUnlock } from './unlock'
-import { FT_PROTOCOL } from './constants'
+import { walletMandalaUnlock } from './unlock.js'
+import { FT_PROTOCOL } from './constants.js'
 
 describe('walletMandalaUnlock', () => {
   it('produces an unlocking script that satisfies a MandalaToken output locked to a wallet-derived key', async () => {

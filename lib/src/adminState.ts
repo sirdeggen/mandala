@@ -1,4 +1,4 @@
-import { OVERLAY_URL } from './constants'
+import { OVERLAY_URL } from './constants.js'
 
 export interface AssetAdminStateView {
   assetId: string

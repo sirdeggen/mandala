@@ -23,7 +23,7 @@ import {
   listContacts,
   saveContact,
   removeContact
-} from './contactsStore'
+} from './contactsStore.js'
 
 // ---------------------------------------------------------------------------
 // Fixtures

@@ -1,7 +1,7 @@
 import { LockingScript, WalletInterface, WalletCounterparty } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
-import { FT_PROTOCOL, OVERLAY_IDENTITY_KEY } from './constants'
-import { SpecificLinkage } from './encoding'
+import { FT_PROTOCOL, OVERLAY_IDENTITY_KEY } from './constants.js'
+import { SpecificLinkage } from './encoding.js'
 
 export interface TokenBalance { assetId: string, amount: number }
 

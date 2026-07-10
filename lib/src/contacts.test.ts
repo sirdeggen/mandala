@@ -1,6 +1,6 @@
 // app/src/lib/mandala/contacts.test.ts
 import { it, expect } from 'vitest'
-import { deriveContacts } from './contacts'
+import { deriveContacts } from './contacts.js'
 
 const h = (counterparty: string, when: number) => ({ txid: 't', assetId: 'x.0', direction: 'sent' as const, amount: 1, counterparty, when, kind: 'transfer' })
 

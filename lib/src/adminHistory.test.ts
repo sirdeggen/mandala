@@ -9,8 +9,8 @@ vi.mock('./constants', () => ({
   OVERLAY_URL: 'http://test-overlay'
 }))
 
-import { describeAction, exportAdminHistoryCsv, resolveAdminHistory } from './adminHistory'
-import type { AdminHistoryRow } from './adminHistory'
+import { describeAction, exportAdminHistoryCsv, resolveAdminHistory } from './adminHistory.js'
+import type { AdminHistoryRow } from './adminHistory.js'
 import { MandalaAdmin } from '@bsv/templates'
 
 describe('describeAction', () => {

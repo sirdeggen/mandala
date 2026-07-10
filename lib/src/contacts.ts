@@ -1,4 +1,4 @@
-import { HistoryRow } from './history'
+import { HistoryRow } from './history.js'
 
 export interface Contact {
   identityKey: string

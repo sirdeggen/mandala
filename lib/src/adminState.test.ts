@@ -9,7 +9,7 @@ vi.mock('./constants', () => ({
   OVERLAY_URL: 'http://test-overlay'
 }))
 
-import { resolveAssetState } from './adminState'
+import { resolveAssetState } from './adminState.js'
 
 const SAMPLE_STATE = {
   assetId: 'abc123.0',

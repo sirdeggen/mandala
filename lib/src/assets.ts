@@ -1,11 +1,11 @@
 import { Transaction, WalletInterface } from '@bsv/sdk'
 import { MandalaAdmin, MandalaToken, MandalaActionDetails } from '@bsv/templates'
-import { BASKET, FT_PROTOCOL, MESSAGEBOX } from './constants'
-import { encodeLinkagePayload } from './encoding'
-import { revealLinkage, outpoint } from './tokens'
-import { submitAndBroadcast } from './overlay'
-import { withAdminAuthGate, assertSpendablePrior } from './adminAuthGate'
-import { withIntent } from './txJournal'
+import { BASKET, FT_PROTOCOL, MESSAGEBOX } from './constants.js'
+import { encodeLinkagePayload } from './encoding.js'
+import { revealLinkage, outpoint } from './tokens.js'
+import { submitAndBroadcast } from './overlay.js'
+import { withAdminAuthGate, assertSpendablePrior } from './adminAuthGate.js'
+import { withIntent } from './txJournal.js'
 
 // Admin auth bookkeeping lives in the admin output's customInstructions, so the
 // wallet basket is the single source of truth — no localStorage, no on-chain

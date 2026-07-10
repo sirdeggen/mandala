@@ -2,7 +2,7 @@ import {
   Transaction, TransactionSignature, Signature, UnlockingScript,
   ScriptTemplateUnlock, WalletInterface, WalletCounterparty, Hash, Utils
 } from '@bsv/sdk'
-import { FT_PROTOCOL } from './constants'
+import { FT_PROTOCOL } from './constants.js'
 
 type SignOutputs = 'all' | 'none' | 'single'
 

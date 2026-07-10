@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { createSingleFlight, BusyError, sendFlight, registerFlight } from './singleFlight'
+import { createSingleFlight, BusyError, sendFlight, registerFlight } from './singleFlight.js'
 
 describe('createSingleFlight', () => {
   it('allows only one acquire at a time', () => {

@@ -3,10 +3,10 @@
  * refuse before loadFtCandidates / createAction (no fuzzy partial work).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { redeemTokens } from './issuerOps'
-import { clearAdminAuthGates } from './adminAuthGate'
-import { StaleAdminAuthError } from './adminAuthGate'
-import type { AdminAsset } from './assets'
+import { redeemTokens } from './issuerOps.js'
+import { clearAdminAuthGates } from './adminAuthGate.js'
+import { StaleAdminAuthError } from './adminAuthGate.js'
+import type { AdminAsset } from './assets.js'
 
 const asset: AdminAsset = {
   assetId: 'asset.0',

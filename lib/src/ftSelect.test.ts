@@ -1,5 +1,5 @@
 import { it, expect, describe } from 'vitest'
-import { selectFtInputs, FtCandidate } from './ftSelect'
+import { selectFtInputs, FtCandidate } from './ftSelect.js'
 
 // Terse builder: amount, confirmed (default true), order (default = amount rank).
 let seq = 0

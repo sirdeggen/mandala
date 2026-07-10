@@ -9,8 +9,8 @@
  * (state === null) relinquishes nothing.
  */
 import { WalletInterface } from '@bsv/sdk'
-import { BASKET } from './constants'
-import { resolveAssetState } from './adminState'
+import { BASKET } from './constants.js'
+import { resolveAssetState } from './adminState.js'
 
 export async function reconcileBans (
   wallet: WalletInterface,
