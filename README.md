@@ -1,9 +1,13 @@
-# Mandala Token Demo
+# Mandala
 
-A complete BSV blockchain **regulated stablecoin** demonstration: a self-hosted
-overlay service that polices token registration, issuance, transfer, redemption
-and regulatory controls, paired with a React/Vite frontend offering an **issuer
-console** (admin) and a **holder wallet** (neobank-style) UI.
+A **regulated stablecoin platform** on BSV: a self-hosted overlay that polices
+token registration, issuance, transfer, redemption, and regulatory controls,
+paired with a React frontend for the **issuer console** (admin) and a
+**holder wallet** (neobank-style) UI.
+
+Every state change is a real on-chain BSV transaction. The overlay indexes and
+enforces admissible transactions; MessageBox handles peer-to-peer handoff so
+recipients can claim what was sent.
 
 **Built on:** @bsv/sdk v2.1.6, @bsv/templates v1.9.0, @bsv/overlay-topics
 v1.5.0, @bsv/overlay v2.2.0, BRC-100 identity protocol.
@@ -18,6 +22,7 @@ v1.5.0, @bsv/overlay v2.2.0, BRC-100 identity protocol.
   SQLite caches engine transactions/outputs. Exposes custom admin read
   endpoints (asset state, admin history, aggregated supply summary, and an
   overlay-wide activity feed with linkage-proven counterparties).
+  A Go port lives in `overlay-go/` (see that package’s README).
 - **App Frontend** (`app/`): React/Vite SPA, role-gated by wallet identity.
   - **Issuer console** (`/issuer/:section`) — sidebar sections: **Overview**
     (KPIs, admin history, register-asset strip), **Treasury** (issuer's own
@@ -26,6 +31,8 @@ v1.5.0, @bsv/overlay v2.2.0, BRC-100 identity protocol.
     (simulated bank transfers + reserve reconciliation).
   - **Holder wallet** — accounts overview, per-asset account with send/receive/
     history, contacts, QR receive.
+- **Token client** (`lib/`): `@bsv/mandala` — send, receive, and administer
+  assets with overlay-first commit and journaled recovery.
 - **Token Flows**: Register asset (genesis outpoint = assetId) → Issue →
   Transfer (per-output `revealSpecificKeyLinkage` proves counterparties to the
   overlay) → Receive (MessageBox internalize) → Redeem (burn) →
@@ -135,16 +142,16 @@ The **overlay-wide transaction feed** — every transaction admitted by the
 overlay for the asset, with sender and recipient identities proven by the key
 linkage revealed at submission. Each row is a semantic summary (issued /
 transfer A→B / self / redeemed, with net units moved) plus a linkage-proof
-badge. This page demonstrates what the overlay operator has oversight of: not
-just its own transfers, but every party to every movement of the asset.
-Cursor-paginated and virtualized — it stays snappy at thousands of
-transactions.
+badge. This is the operator’s oversight surface: not just the issuer’s own
+transfers, but every party to every movement of the asset. Cursor-paginated
+and virtualized — it stays snappy at thousands of transactions.
 
 ### Banking
 
-A simulated bank feed: add incoming/outgoing transfers per asset (persisted
-locally, deletable), and a reconciliation view comparing the bank balance to
-net on-chain supply, flagging drift with guidance to issue or redeem.
+A bank feed for reserve reconciliation: add incoming/outgoing transfers per
+asset (persisted locally, deletable), and a reconciliation view comparing the
+bank balance to net on-chain supply, flagging drift with guidance to issue or
+redeem.
 
 ---
 
@@ -177,7 +184,7 @@ network knows them.
 ## Overlay Admin Endpoints
 
 Custom read endpoints registered by `overlay/src/index.ts` (all CORS-open for
-local dev):
+local development):
 
 | Endpoint | Purpose |
 |---|---|
@@ -262,7 +269,7 @@ SQLITE_FILE=/data/overlay.sqlite
 ```
 
 Without `ARCADE_URL` the overlay validates scripts only and the wallet is the
-sole broadcaster (local demo mode).
+sole broadcaster (local development mode).
 
 ### App (`app/.env`)
 
@@ -357,6 +364,6 @@ and updates the balance.
 
 ## License
 
-This demo is part of the BSV Mandala Token specification. Refer to `docs/` for
-detailed architecture (`docs/PROJECT-STATE.md`) and operator documentation
+Mandala is part of the BSV Mandala Token stack. Refer to `docs/` for detailed
+architecture (`docs/PROJECT-STATE.md`) and operator documentation
 (`docs/STABLECOIN-ADMIN.md`).
