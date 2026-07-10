@@ -6,11 +6,14 @@ import {
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useAdminAssets, useInvalidateAdminAssets } from '../../hooks/useAdminAssets'
-import { BrandMark } from '../ui/BrandMark'
-import { cn } from '@/lib/utils'
+import {
+  SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
+  SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuItem, SidebarMenuButton,
+  SidebarRail, SidebarInset, SidebarTrigger
+} from '@/components/ui/sidebar'
+import { Separator } from '@/components/ui/separator'
 import IssuerPanel from '../IssuerPanel'
-import OverviewSection from './OverviewSection'
-import RegisterAssetStrip from './RegisterAssetStrip'
+import InstrumentsHome from './InstrumentsHome'
 import RegulatoryControls from './RegulatoryControls'
 import BankingMock from './BankingMock'
 import OverlayActivity from './OverlayActivity'
@@ -23,7 +26,7 @@ const NAV_ITEMS: Array<{
   label: string
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
 }> = [
-  { id: 'overview',    label: 'Overview',    icon: LayoutDashboard },
+  { id: 'overview',    label: 'Instruments', icon: LayoutDashboard },
   { id: 'treasury',    label: 'Treasury',    icon: Wallet },
   { id: 'operations',  label: 'Operations',  icon: ShieldCheck },
   { id: 'activity',    label: 'Activity',    icon: Activity },
@@ -43,7 +46,7 @@ function AssetBadge({ asset }: { asset: AdminAsset }) {
   const symbol = { USD: '$', EUR: '€', GBP: '£', CHF: 'Fr' }[ticker] ?? ticker.slice(0, 2)
   return (
     <div className="flex items-center gap-[9px]">
-      <div className="flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-sm bg-accent font-bold text-[12px] text-accent-foreground">
+      <div className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md bg-muted font-semibold text-[12px] text-foreground">
         {symbol}
       </div>
       <div className="leading-tight">
@@ -62,11 +65,11 @@ function AssetSwitcher({ assets, currentAssetId, onChange }: AssetSwitcherProps)
   // Single asset: static chip
   if (assets.length <= 1) {
     return current != null ? (
-      <div className="inline-flex items-center rounded border border-border bg-card px-[12px] py-[7px]">
+      <div className="inline-flex items-center rounded-lg border border-border bg-card px-[10px] py-[6px]">
         <AssetBadge asset={current} />
       </div>
     ) : (
-      <div className="inline-flex items-center rounded border border-border bg-card px-[12px] py-[7px] text-[13px] text-muted-foreground">
+      <div className="inline-flex items-center rounded-lg border border-border bg-card px-[12px] py-[8px] text-[13px] text-muted-foreground">
         No assets
       </div>
     )
@@ -78,7 +81,7 @@ function AssetSwitcher({ assets, currentAssetId, onChange }: AssetSwitcherProps)
       <select
         value={currentAssetId}
         onChange={e => onChange(e.target.value)}
-        className="appearance-none cursor-pointer inline-flex items-center rounded border border-border bg-card px-[12px] py-[7px] pr-[32px] text-[13px] font-semibold focus:outline-none focus:ring-2 focus:ring-ring"
+        className="appearance-none cursor-pointer inline-flex items-center rounded-lg border border-border bg-card px-[12px] py-[8px] pr-[32px] text-[13px] font-semibold focus:outline-none focus:ring-2 focus:ring-ring"
         aria-label="Switch asset"
       >
         {assets.map(a => (
@@ -148,139 +151,130 @@ export default function IssuerDashboard() {
   }, [assets, currentAssetId, setSearchParams])
 
   const currentAsset = assets.find(a => a.assetId === currentAssetId) ?? null
+  const sectionLabel = NAV_ITEMS.find(n => n.id === section)?.label ?? 'Overview'
 
-  // Derive issuer initials for the footer chip from identityKey (first 2 hex chars → uppercase)
+  // Derive issuer initials for the footer chip from identityKey.
   const initials = identityKey != null && identityKey.length >= 4
     ? identityKey.slice(2, 4).toUpperCase()
     : 'IS'
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background">
-      {/* ── LEFT SIDEBAR NAV ── */}
-      <aside className="flex w-[230px] shrink-0 flex-col border-r border-separator bg-muted px-3.5 py-5">
-        {/* Brand */}
-        <div className="px-2 pb-5">
-          <BrandMark size="md" wordmark sublabel="ISSUER CONSOLE" />
-        </div>
-
-        {/* Nav items */}
-        <nav className="flex flex-col gap-0.5">
-          {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
-            const active = section === id
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => goSection(id)}
-                className={cn(
-                  'relative flex items-center gap-[11px] rounded px-3 py-[10px] text-left text-[13px] font-medium',
-                  'transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  active
-                    ? 'bg-card text-foreground font-semibold'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-                style={active ? { boxShadow: '0 1px 2px var(--separator)' } : undefined}
-              >
-                {/* Brass left accent bar for active item */}
-                {active && (
-                  <span
-                    className="absolute left-0 top-[9px] bottom-[9px] w-[3px] rounded-r-[3px]"
-                    style={{ background: 'var(--brass)' }}
-                  />
-                )}
-                <Icon
-                  className={cn('h-[17px] w-[17px] shrink-0', active ? 'text-primary' : 'text-current')}
-                  strokeWidth={1.9}
-                />
-                {label}
-              </button>
-            )
-          })}
-        </nav>
-
-        {/* Footer issuer chip */}
-        <div
-          className="mt-auto flex items-center gap-[10px] rounded border border-separator bg-background px-[10px] py-3"
-        >
-          <div
-            className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-sm bg-primary font-semibold text-[11px] text-primary-foreground"
-          >
-            {initials}
-          </div>
-          <div className="min-w-0">
-            <div className="truncate text-[12px] font-semibold leading-[1.1]">
-              {identityKey != null ? `${identityKey.slice(0, 12)}…` : 'Issuer'}
-            </div>
-            <div className="mt-[2px] text-[10px] leading-[1.1] text-subtle-foreground">
-              Verified issuer
+    <SidebarProvider className="h-screen overflow-hidden bg-sidebar">
+      <Sidebar collapsible="icon">
+        <SidebarHeader>
+          <div className="flex items-center gap-2 px-1 py-1.5">
+            <img src="/icon-192.png" alt="" aria-hidden="true" className="size-8 shrink-0 rounded-md object-contain" />
+            <div className="grid group-data-[collapsible=icon]:hidden">
+              <span className="font-heading text-[15px] font-semibold leading-none tracking-[-0.2px]">Underwrite</span>
+              <span className="mt-[3px] text-[9px] font-medium leading-none tracking-[1px] text-sidebar-foreground/60">
+                ISSUER CONSOLE
+              </span>
             </div>
           </div>
-        </div>
-      </aside>
+        </SidebarHeader>
 
-      {/* ── MAIN AREA ── */}
-      <main className="flex-1 overflow-y-auto bg-background">
-        {/* Top bar with asset switcher — Register a new asset lives here too,
-            in line with the switcher, only on the Overview page. */}
-        <div className="flex items-center justify-between gap-4 border-b border-separator bg-background px-[30px] py-[14px]">
-          <AssetSwitcher
-            assets={assets}
-            currentAssetId={currentAssetId}
-            onChange={selectAsset}
-          />
-          {section === 'overview' && (
-            <div className="flex-1">
-              <RegisterAssetStrip />
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>Console</SidebarGroupLabel>
+            <SidebarMenu>
+              {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
+                <SidebarMenuItem key={id}>
+                  <SidebarMenuButton
+                    isActive={section === id}
+                    tooltip={label}
+                    onClick={() => goSection(id)}
+                  >
+                    <Icon strokeWidth={1.9} />
+                    <span>{label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        </SidebarContent>
+
+        <SidebarFooter>
+          <div className="flex items-center gap-2.5 rounded-md border border-sidebar-border bg-card px-2.5 py-2 group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-sidebar-primary text-[11px] font-semibold text-sidebar-primary-foreground">
+              {initials}
             </div>
-          )}
-        </div>
+            <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+              <div className="truncate text-[12px] font-semibold leading-tight">
+                {identityKey != null ? `${identityKey.slice(0, 12)}…` : 'Issuer'}
+              </div>
+              <div className="mt-[2px] text-[10px] leading-none text-sidebar-foreground/60">
+                Verified issuer
+              </div>
+            </div>
+          </div>
+        </SidebarFooter>
 
-        <div className="p-[26px_30px]">
-          {section === 'overview' && (
-            <OverviewSection
-              assetId={currentAssetId}
-              asset={currentAsset}
-              onReload={() => void invalidateAdminAssets()}
+        <SidebarRail />
+      </Sidebar>
+
+      <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
+        {/* Top bar */}
+        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card px-4 lg:px-6">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="h-5" />
+          <h1 className="text-[15px] font-semibold tracking-[-0.01em]">{sectionLabel}</h1>
+          <div className="ml-auto flex items-center gap-3">
+            <AssetSwitcher
+              assets={assets}
+              currentAssetId={currentAssetId}
+              onChange={selectAsset}
             />
-          )}
-          {section === 'treasury' && (
-            <TreasurySection assetId={currentAssetId} asset={currentAsset} />
-          )}
-          {section === 'operations' && (
-            assets.length === 0 ? (
-              // Nothing on this page is actionable without an asset — show only
-              // the pointer to Overview (where registration lives), no dead controls.
-              assetsData != null && (
-                <div className="bg-card border border-border rounded-md p-[24px_20px] text-center">
-                  <p className="text-[13px] text-subtle-foreground">
-                    Register an asset first — you can do that from the Overview page.
-                  </p>
+          </div>
+        </header>
+
+        {/* Scrollable content */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="p-5 lg:p-8">
+            {section === 'overview' && (
+              <InstrumentsHome
+                assets={assets}
+                onReload={() => void invalidateAdminAssets()}
+                onSelectAsset={selectAsset}
+                goSection={goSection}
+              />
+            )}
+            {section === 'treasury' && (
+              <TreasurySection assetId={currentAssetId} asset={currentAsset} />
+            )}
+            {section === 'operations' && (
+              assets.length === 0 ? (
+                assetsData != null && (
+                  <div className="rounded-lg border border-border bg-card p-[24px_20px] text-center">
+                    <p className="text-[13px] text-subtle-foreground">
+                      Register an asset first — you can do that from the Overview page.
+                    </p>
+                  </div>
+                )
+              ) : (
+                <div className="space-y-[26px]">
+                  <IssuerPanel assetId={currentAssetId} />
+                  <RegulatoryControls
+                    embedded
+                    assets={assets}
+                    assetId={currentAssetId}
+                    onActionComplete={() => void invalidateAdminAssets()}
+                  />
                 </div>
               )
-            ) : (
-              <div className="space-y-[26px]">
-                <IssuerPanel assetId={currentAssetId} />
-                <RegulatoryControls
-                  embedded
-                  assets={assets}
-                  assetId={currentAssetId}
-                  onActionComplete={() => void invalidateAdminAssets()}
-                />
-              </div>
-            )
-          )}
-          {section === 'activity' && (
-            <OverlayActivity
-              assetId={currentAssetId}
-              decimals={Number(currentAsset?.metadata?.decimals) || 0}
-              standalone
-            />
-          )}
-          {section === 'banking' && (
-            <BankingMock assetId={currentAssetId} />
-          )}
+            )}
+            {section === 'activity' && (
+              <OverlayActivity
+                assetId={currentAssetId}
+                decimals={Number(currentAsset?.metadata?.decimals) || 0}
+                standalone
+              />
+            )}
+            {section === 'banking' && (
+              <BankingMock assetId={currentAssetId} />
+            )}
+          </div>
         </div>
-      </main>
-    </div>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }

@@ -852,9 +852,9 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
       <div className="flex flex-1 flex-col items-center justify-center px-[34px] pb-[210px] text-center">
         {/* Glow + check mark */}
         <div className="relative mb-7 flex justify-center">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[190px] w-[190px] rounded-full bg-[radial-gradient(circle,rgba(35,64,94,.16),rgba(35,64,94,0)_68%)]" />
-          <div className="relative flex h-[90px] w-[90px] items-center justify-center rounded-full bg-primary shadow-[0_16px_34px_-10px_rgba(35,64,94,.55)]">
-            <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--brass)" strokeWidth="2.4">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[190px] w-[190px] rounded-full bg-[radial-gradient(circle,rgba(0,0,0,.06),rgba(0,0,0,0)_68%)]" />
+          <div className="relative flex h-[90px] w-[90px] items-center justify-center rounded-full bg-primary shadow-[0_16px_34px_-10px_rgba(0,0,0,.28)]">
+            <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--primary-foreground)" strokeWidth="2.4">
               <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>

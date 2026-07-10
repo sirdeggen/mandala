@@ -1,0 +1,220 @@
+import { useState } from 'react'
+import { Building2, ClipboardCheck, ArrowRight, ShieldCheck } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { BrandMark } from '@/components/ui/BrandMark'
+import { cn } from '@/lib/utils'
+import { completeOnboarding, type OnboardingRole } from '@/lib/onboarding'
+
+/**
+ * First-run onboarding — role → name → (issuer) entity details. Modelled on the
+ * Acctual onboarding pattern (single card, progressive disclosure, live preview)
+ * but rebuilt in Underwrite's neutral theme and framed around issuing a
+ * regulated stablecoin. Persists via completeOnboarding(); the entry gate in
+ * TokenDemo unmounts it once done.
+ */
+
+type Step = 'role' | 'details'
+
+const COUNTRIES = [
+  'Switzerland', 'Germany', 'France', 'Netherlands', 'Ireland', 'Luxembourg',
+  'Spain', 'Italy', 'Belgium', 'Austria', 'United Kingdom', 'United States', 'Other'
+]
+
+const ROLES: { id: OnboardingRole, title: string, blurb: string, Icon: typeof Building2 }[] = [
+  { id: 'issuer', title: 'Issuer', blurb: 'Licensed company or entity', Icon: Building2 },
+  { id: 'auditor', title: 'Auditor', blurb: 'Licensed auditing professional', Icon: ClipboardCheck }
+]
+
+export default function OnboardingWizard() {
+  const [step, setStep] = useState<Step>('role')
+  const [role, setRole] = useState<OnboardingRole | null>(null)
+  const [name, setName] = useState('')
+  const [legalName, setLegalName] = useState('')
+  const [country, setCountry] = useState('')
+  const [address, setAddress] = useState('')
+
+  const canContinueRole = role != null && name.trim().length > 0
+
+  function submitRole(e: React.FormEvent) {
+    e.preventDefault()
+    if (!canContinueRole) return
+    setStep('details')
+  }
+
+  function finish(e: React.FormEvent) {
+    e.preventDefault()
+    completeOnboarding({
+      role,
+      name: name.trim(),
+      entity: role === 'issuer'
+        ? { legalName: legalName.trim() || name.trim(), country, address: address.trim() }
+        : null
+    })
+  }
+
+  const previewName = (legalName.trim() || name.trim()) || 'Your entity'
+
+  return (
+    <div className="min-h-screen w-full bg-background">
+      {/* top bar */}
+      <header className="flex items-center px-6 py-6 lg:px-10 lg:py-8">
+        <BrandMark size="md" wordmark />
+      </header>
+
+      <main className="mx-auto flex w-full max-w-5xl flex-col-reverse items-start gap-10 px-6 pb-16 pt-4 xl:flex-row xl:gap-16 xl:pt-[12vh]">
+        {/* form */}
+        <div className="w-full max-w-[440px]">
+          {step === 'role' && (
+            <form onSubmit={submitRole} className="animate-in">
+              <div className="mb-6 space-y-1.5">
+                <h1 className="display text-3xl font-medium leading-none">What is your role?</h1>
+                <p className="text-[15px] text-muted-foreground">So we set up your workspace the right way.</p>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row">
+                {ROLES.map(({ id, title, blurb, Icon }) => {
+                  const active = role === id
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setRole(id)}
+                      className={cn(
+                        'group grid flex-1 grid-cols-[24px_minmax(0,1fr)] items-start gap-3 rounded-lg border bg-card p-4 text-left transition-colors duration-200',
+                        active ? 'border-foreground shadow-[var(--shadow-card)]' : 'border-border hover:border-muted-foreground'
+                      )}
+                    >
+                      <Icon className={cn('h-6 w-6 transition-colors', active ? 'text-foreground' : 'text-faint-foreground group-hover:text-muted-foreground')} />
+                      <span className="flex flex-col gap-0.5">
+                        <span className="text-[15px] font-medium text-foreground">{title}</span>
+                        <span className="text-[13px] leading-snug text-muted-foreground">{blurb}</span>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {role != null && (
+                <div className="animate-in mt-3 space-y-2">
+                  <Label htmlFor="ob-name">Your name</Label>
+                  <Input
+                    id="ob-name"
+                    autoFocus
+                    autoComplete="off"
+                    placeholder="Your name"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <Button type="submit" className="mt-6 w-full" disabled={!canContinueRole}>
+                Continue <ArrowRight />
+              </Button>
+            </form>
+          )}
+
+          {step === 'details' && (
+            <form onSubmit={finish} className="animate-in">
+              <div className="mb-6 space-y-1.5">
+                <h1 className="display text-3xl font-medium leading-none">
+                  {role === 'issuer' ? 'Make it yours' : 'Your firm'}
+                </h1>
+                <p className="text-[15px] text-muted-foreground">
+                  {role === 'issuer'
+                    ? 'Add your issuing entity details. This is what holders and auditors will see.'
+                    : 'Tell us who you audit for. This appears on your reconciliation reports.'}
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="ob-legal">{role === 'issuer' ? 'Legal entity name' : 'Auditing firm'}</Label>
+                  <Input
+                    id="ob-legal"
+                    autoComplete="off"
+                    placeholder={role === 'issuer' ? 'Acme Digital Money Ltd' : 'Acme Assurance LLP'}
+                    value={legalName}
+                    onChange={e => setLegalName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="ob-country">Country</Label>
+                  <select
+                    id="ob-country"
+                    value={country}
+                    onChange={e => setCountry(e.target.value)}
+                    className="h-11 w-full rounded border border-input-border bg-input px-3 text-[15px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                  >
+                    <option value="" disabled>Select country…</option>
+                    {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+
+                {role === 'issuer' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="ob-address">Registered address</Label>
+                    <Input
+                      id="ob-address"
+                      autoComplete="off"
+                      placeholder="Street, city, postal code"
+                      value={address}
+                      onChange={e => setAddress(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <Button type="submit" className="mt-6 w-full">Enter Underwrite</Button>
+              <Button type="button" variant="ghost" className="mt-2 w-full" onClick={() => setStep('role')}>Back</Button>
+            </form>
+          )}
+        </div>
+
+        {/* live preview */}
+        <div className="w-full max-w-[380px] xl:pt-2">
+          <PreviewCard entityName={previewName} country={country} role={role} />
+        </div>
+      </main>
+    </div>
+  )
+}
+
+/** A stand-in asset/reserve card that fills in as the user types — the
+ *  Underwrite analogue of Acctual's live invoice preview. */
+function PreviewCard({ entityName, country, role }: { entityName: string, country: string, role: OnboardingRole | null }) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-[1px] text-faint-foreground">
+          {role === 'auditor' ? 'Reserve attestation' : 'Stablecoin'}
+        </span>
+        <ShieldCheck className="h-4 w-4 text-success" />
+      </div>
+
+      <div className="mt-4 flex items-center gap-3">
+        <div className="grid h-10 w-10 place-items-center rounded-full bg-muted text-[15px] font-semibold text-muted-foreground">
+          {entityName.trim().charAt(0).toUpperCase() || 'U'}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-[15px] font-medium text-foreground">{entityName}</p>
+          {country && <p className="truncate text-[13px] text-muted-foreground">{country}</p>}
+        </div>
+      </div>
+
+      <div className="mt-5 flex items-center gap-2 rounded-lg border border-border px-3 py-2.5">
+        <ShieldCheck className="h-4 w-4 shrink-0 text-success" />
+        <p className="text-[12px] leading-snug text-balance text-muted-foreground">
+          {role === 'auditor'
+            ? 'Verify every issued unit against on-chain reserves, in real time.'
+            : role === 'issuer'
+              ? 'Every unit you issue is reconciled on-chain against reserves, auditor-ready from day one.'
+              : 'On-chain settlement reconciled against reserves, auditor-ready from day one.'}
+        </p>
+      </div>
+    </div>
+  )
+}

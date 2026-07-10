@@ -8,6 +8,8 @@ import SendTokens from './SendTokens'
 import ReceiveTokens from './ReceiveTokens'
 import ContactsPage from './holder/ContactsPage'
 import type { HolderAction } from './holder/HolderHome'
+import OnboardingWizard from './onboarding/OnboardingWizard'
+import { useOnboarding } from '../lib/onboarding'
 
 // ─── Routing model ──────────────────────────────────────────────────────────
 // The full app state lives in the URL so a browser reload restores it:
@@ -104,6 +106,7 @@ function ContactsView() {
 
 export default function TokenDemo() {
   const { isInitialized, error, isIssuer } = useWallet()
+  const onboarding = useOnboarding()
 
   // ── Loading state ──
   if (!isInitialized) {
@@ -130,6 +133,11 @@ export default function TokenDemo() {
         </div>
       </div>
     )
+  }
+
+  // ── First run: one-time onboarding (localStorage-gated) ──
+  if (!onboarding.completed) {
+    return <OnboardingWizard />
   }
 
   // ── Issuer: full-viewport console, section in the path ──

@@ -28,28 +28,16 @@ import { BrandMark } from '../ui/BrandMark'
 import { cn } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
-// Currency badge colour map (matches comp: USD=brass, EUR=navy-tint, GBP=lavender,
-// CHF=sage; all others use a neutral brass chip)
+// Currency badge — a neutral grey chip; the currency symbol is the only
+// distinguisher (the neutral theme reserves colour for semantic states).
 // ---------------------------------------------------------------------------
 
-const CURRENCY_BADGE: Record<string, { bg: string; text: string; symbol: string }> = {
-  USD:  { bg: 'bg-accent',      text: 'text-accent-foreground', symbol: '$'   },
-  EUR:  { bg: 'bg-navy-tint',   text: 'text-primary',           symbol: '€'   },
-  GBP:  { bg: 'bg-[#E3DCEA]',   text: 'text-[#5B4B7A]',         symbol: '£'   },
-  CHF:  { bg: 'bg-[#E1E7DE]',   text: 'text-[#4B6B4E]',         symbol: 'Fr'  },
-}
+const CURRENCY_SYMBOL: Record<string, string> = { USD: '$', EUR: '€', GBP: '£', CHF: 'Fr' }
 
 function badgeFor(ticker?: string): { bg: string; text: string; symbol: string } {
-  if (ticker) {
-    const upper = ticker.toUpperCase()
-    if (CURRENCY_BADGE[upper]) return CURRENCY_BADGE[upper]
-  }
-  // Fallback: neutral brass chip with first letter of ticker or '?'
-  return {
-    bg: 'bg-accent',
-    text: 'text-accent-foreground',
-    symbol: ticker ? ticker.slice(0, 2).toUpperCase() : '?',
-  }
+  const upper = ticker?.toUpperCase()
+  const symbol = (upper && CURRENCY_SYMBOL[upper]) || (ticker ? ticker.slice(0, 2).toUpperCase() : '?')
+  return { bg: 'bg-muted', text: 'text-foreground', symbol }
 }
 
 // ---------------------------------------------------------------------------

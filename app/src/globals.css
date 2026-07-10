@@ -1,17 +1,19 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   Mandala — "Meridian" direction (Stablecoin UX Directions.dc.html · 1a)
-   Private-bank calm: warm ivory + ink, navy ledger, brass micro-accents.
-   Refined all-sans (IBM Plex Sans / Mono), tabular numerals, hairline ink
-   borders over warm shadows, one warm hue shifting lightness across surfaces.
-   Reads trustworthy & regulator-friendly. Motion < 300ms ease-out.
+   Underwrite — neutral grayscale system (modelled on Acctual's app UI).
+   White cards on a near-white canvas, near-black ink and near-black primary
+   buttons, hairline #ededed borders with the signature rgb(235,235,235) inset
+   ring on inputs. No brand hue — colour is reserved for semantic states only
+   (success = backed/verified, destructive, warning). Inter for text, Geist for
+   headings, Geist Mono for figures. Motion < 300ms ease-out.
    --------------------------------------------------------------------------- */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-dark-foreground: var(--dark-foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--foreground);
   --color-popover: var(--popover);
@@ -44,62 +46,86 @@
   --color-input-border: var(--input-border);
   --color-ring: var(--ring);
 
-  --radius-sm: 8px;
-  --radius: 10px;
-  --radius-md: 13px;
-  --radius-lg: 16px;
-  --radius-xl: 22px;
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 
-  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto,
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-heading: "Geist", "Inter", system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* ---- Meridian: warm ivory canvas, white cards, navy + brass accents ---- */
+/* ---- Underwrite: near-white canvas, white cards, neutral ink + near-black
+   primary. Colour only for semantic states. ---- */
 :root {
-  --background: #f4efe6;         /* warm ivory canvas */
-  --foreground: #1b1e24;         /* ink */
+  --background: #fafafa;         /* near-white canvas */
+  --foreground: #171717;         /* near-black ink (headings / primary text) */
+  --dark-foreground: #0a0a0a;    /* strongest ink for emphasis */
   --card: #ffffff;               /* white cards / tiles / tables */
   --popover: #ffffff;
 
-  --primary: #23405e;            /* navy ledger */
-  --primary-foreground: #f4efe6; /* ivory on navy */
+  --primary: #171717;            /* near-black buttons */
+  --primary-foreground: #fafafa; /* near-white on black */
   --secondary: #ffffff;          /* bordered light buttons */
-  --secondary-foreground: #1b1e24;
+  --secondary-foreground: #171717;
 
-  --muted: #ede6da;              /* warm panel (nav, wells) */
-  --muted-foreground: #6e685b;   /* secondary ink */
-  --subtle-foreground: #8a8375;  /* tertiary */
-  --faint-foreground: #a79f8d;   /* faint labels / inactive */
+  --muted: #f5f5f5;              /* light grey panels (nav, wells) */
+  --muted-foreground: #737373;   /* secondary text */
+  --subtle-foreground: #8c8c8c;  /* tertiary */
+  --faint-foreground: #a3a3a3;   /* faint labels / inactive */
 
-  --accent: #e7dec9;             /* warm brass-tinted chip wash */
-  --accent-foreground: #8a6d3b;  /* dark brass */
-  --brass: #c9a96a;              /* signature brass line/mark */
-  --navy-tint: #d7e0ea;          /* cool tint chip (e.g. EUR) */
+  --accent: #f5f5f5;             /* neutral chip / hover wash */
+  --accent-foreground: #525252;  /* neutral chip text */
+  --brass: #171717;              /* legacy accent token → neutral ink */
+  --navy-tint: #eaeaea;          /* legacy tint token → neutral grey */
 
-  --success: #3e7d5a;            /* ledger green */
+  --success: #2f9e5c;            /* backed / verified green */
   --success-foreground: #ffffff;
-  --warning: #b4703a;            /* amber / attention */
+  --warning: #b45309;            /* amber / attention */
   --warning-foreground: #ffffff;
-  --destructive: #b4534a;        /* muted red */
+  --destructive: #e5484d;        /* red */
   --destructive-foreground: #ffffff;
 
-  --border: rgba(27, 30, 36, 0.1);
-  --separator: rgba(27, 30, 36, 0.07);
+  --border: #ededed;             /* hairline border */
+  --separator: #f0f0f0;
   --input-bg: #ffffff;
-  --input-border: rgba(27, 30, 36, 0.16);
-  --ring: #23405e;
+  --input-border: rgb(235, 235, 235); /* signature inset ring */
+  --ring: #171717;               /* near-black focus ring */
 
-  --segment-track: rgba(27, 30, 36, 0.06);
+  --segment-track: #f0f0f0;
   --segment-thumb: #ffffff;
 
-  --shadow-card: 0 0 0 0.5px rgba(27, 30, 36, 0.05),
-    0 1px 2px rgba(40, 34, 20, 0.05), 0 4px 12px rgba(40, 34, 20, 0.06);
-  --shadow-thumb: 0 0 0 0.5px rgba(27, 30, 36, 0.05), 0 2px 6px rgba(40, 34, 20, 0.14);
-  --shadow-pop: 0 0 0 0.5px rgba(27, 30, 36, 0.06), 0 12px 34px rgba(40, 34, 20, 0.16);
+  /* Sidebar surface — a touch off the white content card so the two read as
+     distinct planes (canvas rail vs. white inset). */
+  --sidebar: #f7f7f8;
+  --sidebar-foreground: #3f3f46;
+  --sidebar-primary: #171717;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #ececed;         /* hover / active row */
+  --sidebar-accent-foreground: #171717;
+  --sidebar-border: #e6e6e8;
+  --sidebar-ring: #171717;
+
+  --shadow-card: 0 0 0 1px rgba(0, 0, 0, 0.02),
+    0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-thumb: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.12);
+  --shadow-pop: 0 0 0 1px rgba(0, 0, 0, 0.04), 0 8px 28px rgba(0, 0, 0, 0.12);
 }
 
-/* Meridian is a single warm light direction — hold it under dark-mode too,
+/* Underwrite is a single neutral light direction — hold it under dark-mode too,
    so the app never flips to a foreign palette. */
 @media (prefers-color-scheme: dark) {
   :root {
@@ -137,6 +163,7 @@ body {
 
 /* Headings: balanced wrap + optical tracking. Applied opt-in via .display. */
 .display {
+  font-family: var(--font-heading);
   letter-spacing: -0.02em;
   text-wrap: balance;
 }
@@ -170,11 +197,11 @@ body {
   }
 }
 
-/* Native select chevron — warm taupe stroke to match Meridian */
+/* Native select chevron — neutral grey stroke */
 select {
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%238A8375' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M3 4.5L6 7.5L9 4.5' stroke='%23737373' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 34px;

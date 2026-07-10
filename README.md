@@ -1,13 +1,72 @@
-# Mandala
+# Underwrite
 
-A **regulated stablecoin platform** on BSV: a self-hosted overlay that polices
-token registration, issuance, transfer, redemption, and regulatory controls,
-paired with a React frontend for the **issuer console** (admin) and a
-**holder wallet** (neobank-style) UI.
+A stablecoin is a promise: every token in circulation is backed, one-for-one, by
+real money in a real account. Yet most of the market runs on that promise alone —
+holders, auditors and regulators take the backing on faith, reconciling reserves
+in spreadsheets weeks after the fact, if at all. When a peg slips, everyone finds
+out too late.
 
-Every state change is a real on-chain BSV transaction. The overlay indexes and
-enforces admissible transactions; MessageBox handles peer-to-peer handoff so
-recipients can claim what was sent.
+So you're a regulated firm that wants to issue a stablecoin your holders, your
+auditors and your regulator can actually *verify* — every unit, in real time,
+against the cash that backs it? Then this is for you. In this guide you'll spin up
+your own regulated-stablecoin issuance platform — running on your laptop in two
+minutes, then live for your own institution — where every token issued, redeemed
+and transferred is provable on-chain, and every unit is continuously reconciled
+against your reserve account. No black box. No "trust us." Let's go. 🏦
+
+A source-available platform for issuing and administering **regulated,
+fully-reserved stablecoins** on the BSV blockchain, with BRC-100 wallet identity,
+per-transaction key-linkage proofs, and a built-in reserve-reconciliation and
+audit layer. Issue any asset (an EUR- or USD-pegged token, a tokenised deposit),
+move it under full regulatory control, and give auditors a continuously
+reconciled view of on-chain supply against bank balances and reserves.
+
+An **operator** is whoever runs an instance — a licensed e-money institution, a
+bank, a payments firm, a fund administrator, or a fintech — hosting the platform
+to issue and govern its own stablecoin. Every operator runs this one shared
+codebase against a shared on-chain data standard, so tokens, identities, linkage
+proofs and audit trails stay interoperable across instances and across
+jurisdictions.
+
+**Why? (the problem)** Stablecoin issuers carry a compliance burden that
+off-the-shelf token tooling ignores: they must prove reserves, screen
+counterparties, freeze and recover funds under legal order, and hand auditors a
+clean, verifiable trail from every issued token back to the cash that backs it.
+Today that means bespoke back-office systems and manual reconciliation — slow,
+error-prone, and impossible for an outsider to independently verify.
+
+**Why? (the solution)** Settling issuance, transfer and redemption on-chain makes
+every unit of supply publicly verifiable, while a self-hosted overlay enforces the
+rules an issuer is legally accountable for — supply conservation, sanctions
+screening, pause, allow/deny lists, freeze, and supply-conserving reissue. A
+banking layer reconciles on-chain supply against reserve and bank balances
+continuously, so *"is every token backed?"* has a live, provable answer — and
+auditors get everything they need without taking the issuer's word for it.
+
+**What?** A complete, rebrandable issuance platform — an **issuer console**
+(register, issue, redeem, treasury, regulatory controls, activity feed), a
+**holder wallet**, and a **banking / reserve reconciliation and audit** view —
+that any regulated firm can deploy for its own stablecoin. Role-gated by wallet
+identity: the token authority gets the issuer console, auditors get a read-only
+reconciliation and audit view, and everyone else gets the holder wallet.
+
+**How?** Built with **React 19, Vite 6, TypeScript and Tailwind CSS v4** on the
+frontend; a self-hosted **overlay service** (TypeScript, with a Go port) running
+the `tm_mandala` topic manager over **MongoDB + SQLite**; and the **`@bsv/mandala`**
+token client on **@bsv/sdk, @bsv/templates and @bsv/overlay**, with **BRC-100
+(MetaNet)** wallet identity and **MessageBox** peer handoff. It runs entirely on
+your laptop via Docker Compose for local issuance and demos (scripts-only
+validation, wallet as sole broadcaster); point it at an Arcade node to become a
+full network participant with on-chain broadcast and SPV. A local instance costs
+nothing beyond your machine; a hosted single-VPS deployment runs roughly
+€10–25/month, scaling with traffic and storage.
+
+Operating this platform is your responsibility. The software is provided "as is"
+with no warranty, and the author's liability is excluded to the fullest extent
+permitted by law; **you alone are responsible for your deployment's legal and
+regulatory compliance** — e-money and stablecoin regulation (e.g. MiCA),
+securities law, AML/KYC, sanctions screening, and GDPR. Prospective issuers should
+take their own legal advice before issuing a regulated instrument to the public.
 
 **Built on:** @bsv/sdk v2.1.6, @bsv/templates v1.9.0, @bsv/overlay-topics
 v1.5.0, @bsv/overlay v2.2.0, BRC-100 identity protocol.

@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
+import { Agentation } from 'agentation'
 import App from './App'
 import DevModeToggle from './components/DevModeToggle'
 import { WalletProvider } from './context/WalletContext'
@@ -17,6 +18,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <App />
           <DevModeToggle />
           <Toaster richColors theme="system" position="top-right" />
+          {import.meta.env.DEV && <Agentation />}
         </WalletProvider>
       </QueryClientProvider>
     </BrowserRouter>
