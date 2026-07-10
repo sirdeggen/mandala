@@ -22,7 +22,7 @@ function DirectionIcon({ direction }: { direction: HistoryRow['direction'] }) {
 
 export default function TransactionHistory({ assetId, decimals, ticker }: Props) {
   const { wallet } = useWallet()
-  // Shared cached query — renders instantly on navigation, refetches behind.
+  // Shared cached query - renders instantly on navigation, refetches behind.
   const { data } = useHolderData()
   const rows = (data?.history ?? []).filter(r => r.assetId === assetId)
   const loading = data == null

@@ -1,14 +1,14 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  Home, LayoutDashboard, ShieldCheck, Banknote, Landmark, BookText, ChevronsUpDown, Check, BadgeCheck,
-  Settings, Plus, LogOut
+  Home, LayoutDashboard, Users, ShieldCheck, ChevronsUpDown, BadgeCheck,
+  Settings, Plus, LogOut, BookOpen
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useAdminAssets, useInvalidateAdminAssets } from '../../hooks/useAdminAssets'
-import { useOnboarding, resetOnboarding } from '../../lib/onboarding'
+import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import {
   SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
@@ -16,16 +16,20 @@ import {
   SidebarRail, SidebarInset, SidebarTrigger
 } from '@/components/ui/sidebar'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
-import { IdentitySigil } from '@/components/ui/identity-sigil'
+import { InstrumentIcon } from '@/components/ui/instrument-icon'
+import { iconColor } from '@/lib/instrumentIcons'
+import { assetImage } from '@/lib/instrumentCategory'
 import { cn } from '@/lib/utils'
-import IssuerPanel from '../IssuerPanel'
 import InstrumentsHome from './InstrumentsHome'
-import RegulatoryControls from './RegulatoryControls'
-import BankingMock from './BankingMock'
-import OverlayActivity from './OverlayActivity'
-import TreasurySection from './TreasurySection'
+import InstrumentDetail from './InstrumentDetail'
+import IssuerHome from './IssuerHome'
+import AuditorHome from './AuditorHome'
+import IssueInstrumentDrawer from './IssueInstrumentDrawer'
+import ComplianceOverview from './ComplianceOverview'
+import AccountSettings from '../settings/AccountSettings'
+import ContactsPage from '../holder/ContactsPage'
 
-type Section = 'overview' | 'treasury' | 'operations' | 'activity' | 'banking'
+type Section = 'home' | 'overview' | 'relationships' | 'compliance' | 'instrument' | 'settings'
 
 type NavItem = {
   key: string
@@ -34,21 +38,14 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
 }
 
-// Top-level navigation.
+// Top-level navigation. The per-instrument sections (Reserves / Operations /
+// Ledger) now live as tabs inside the instrument view, not the sidebar.
 const TOP_NAV: NavItem[] = [
-  { key: 'home',        section: 'overview', label: 'Home',        icon: Home },
-  { key: 'instruments', section: 'overview', label: 'Instruments', icon: LayoutDashboard },
+  { key: 'home',          section: 'home',          label: 'Home',          icon: Home },
+  { key: 'instruments',   section: 'overview',      label: 'Instruments',   icon: LayoutDashboard },
+  { key: 'relationships', section: 'relationships', label: 'Relationships', icon: Users },
+  { key: 'compliance',    section: 'compliance',    label: 'Compliance',    icon: ShieldCheck },
 ]
-
-// Sections scoped to the instrument selected in the switcher below.
-const INSTRUMENT_NAV: NavItem[] = [
-  { key: 'treasury',    section: 'treasury',   label: 'Reserves',    icon: Landmark },
-  { key: 'operations',  section: 'operations', label: 'Operations',  icon: ShieldCheck },
-  { key: 'activity',    section: 'activity',   label: 'Ledger',      icon: BookText },
-  { key: 'banking',     section: 'banking',    label: 'Banking',     icon: Banknote },
-]
-
-const ALL_NAV = [...TOP_NAV, ...INSTRUMENT_NAV]
 
 // ── Instrument switcher (sidebar popover) ─────────────────────────────────────
 
@@ -56,67 +53,86 @@ function tickerOf(asset: AdminAsset): string {
   return String(asset.metadata?.ticker ?? asset.label.slice(0, 3)).toUpperCase()
 }
 
-/** Instruments are identified by a deterministic sigil derived from their assetId. */
-function InstrumentSigil({ assetId, size = 28 }: { assetId?: string; size?: number }) {
-  if (assetId == null || assetId === '') {
-    return <div className="shrink-0 rounded-md bg-muted" style={{ width: size, height: size }} />
-  }
-  return <IdentitySigil value={assetId} size={size} className="rounded-md" />
-}
-
-/** Active-instrument switcher — a full-width sidebar button that opens a popover
- *  listing every registered instrument. Collapses to just the badge in icon mode. */
-function InstrumentSwitcher({ assets, currentAssetId, onChange }: {
+/** Vertical, scrollable list of every registered instrument - the sidebar's
+ *  primary instrument navigation. A header row carries a "＋" that opens the
+ *  Issue drawer; each row opens that instrument's detail view. Collapses to
+ *  icon-only rows (with tooltips) in the rail's icon mode. */
+function InstrumentList({ assets, currentAssetId, activeSection, onOpen, onNew }: {
   assets: AdminAsset[]
   currentAssetId: string
-  onChange: (assetId: string) => void
+  activeSection: string
+  onOpen: (assetId: string) => void
+  onNew: () => void
 }) {
-  const current = assets.find(a => a.assetId === currentAssetId) ?? null
-
   return (
-    <Popover>
-      <PopoverTrigger
-        className="flex w-full items-center gap-2.5 rounded-md border border-sidebar-border bg-card px-2.5 py-2 text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring disabled:opacity-50 group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0"
-        disabled={assets.length === 0}
-      >
-        <InstrumentSigil assetId={current?.assetId} />
-        <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-          <div className="truncate text-[12.5px] font-semibold leading-tight text-foreground">
-            {current ? current.label : 'No instruments'}
-          </div>
-          <div className="truncate text-[10.5px] leading-tight text-subtle-foreground">
-            {current ? tickerOf(current) : 'Issue one to begin'}
-          </div>
-        </div>
-        <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
-      </PopoverTrigger>
-      <PopoverContent side="right" align="start" className="w-56">
-        <div className="px-2 pb-1 pt-1.5 text-[10px] font-medium uppercase tracking-[0.6px] text-faint-foreground">
-          Active instrument
-        </div>
-        {assets.map(a => {
-          const active = a.assetId === currentAssetId
-          return (
-            <button
-              key={a.assetId}
-              type="button"
-              onClick={() => onChange(a.assetId)}
-              className={cn(
-                'flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent',
-                active && 'bg-accent'
-              )}
-            >
-              <InstrumentSigil assetId={a.assetId} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-medium text-foreground">{a.label}</div>
-                <div className="truncate text-[11px] text-subtle-foreground">{tickerOf(a)}</div>
-              </div>
-              {active && <Check className="size-4 shrink-0 text-foreground" />}
-            </button>
-          )
-        })}
-      </PopoverContent>
-    </Popover>
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* Header: label + new-instrument button */}
+      <div className="flex items-center justify-between px-2 pb-1 group-data-[collapsible=icon]:justify-center">
+        <span className="text-[10px] font-medium uppercase tracking-[0.6px] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
+          Instruments
+        </span>
+        <button
+          type="button"
+          onClick={onNew}
+          title="New instrument"
+          aria-label="New instrument"
+          className="grid size-6 place-items-center rounded-md text-sidebar-foreground/70 outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+        >
+          <Plus className="size-4" strokeWidth={2} />
+        </button>
+      </div>
+
+      {/* Scroll area - a slim, rounded scrollbar appears only on overflow */}
+      <div className="scrollbar-slim min-h-0 flex-1 overflow-y-auto px-2 group-data-[collapsible=icon]:px-0">
+        {assets.length === 0 ? (
+          <p className="px-2 py-3 text-[12px] leading-snug text-sidebar-foreground/50 group-data-[collapsible=icon]:hidden">
+            No instruments yet - add one with ＋.
+          </p>
+        ) : (
+          <SidebarMenu className="gap-1.5">
+            {assets.map(a => {
+              const active = activeSection === 'instrument' && a.assetId === currentAssetId
+              const img = assetImage(a)
+              return (
+                <SidebarMenuItem key={a.assetId}>
+                  {/* Expanded: full photo row */}
+                  <button
+                    type="button"
+                    onClick={() => onOpen(a.assetId)}
+                    className={cn(
+                      'relative block h-12 w-full overflow-hidden rounded-lg text-left outline-none transition focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:hidden',
+                      active && 'ring-2 ring-white/70'
+                    )}
+                  >
+                    <img src={img} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                    <div className="absolute inset-0" style={{ backgroundColor: iconColor(a.assetId), opacity: 0.5 }} />
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/15" />
+                    <div className="relative flex h-full items-center px-2.5">
+                      <div className="min-w-0">
+                        <div className="truncate text-[12.5px] font-semibold leading-tight text-white">{a.label}</div>
+                        <div className="truncate text-[10.5px] font-medium leading-tight text-white/75">{tickerOf(a)}</div>
+                      </div>
+                    </div>
+                  </button>
+                  {/* Collapsed: premium icon */}
+                  <button
+                    type="button"
+                    onClick={() => onOpen(a.assetId)}
+                    title={a.label}
+                    className={cn(
+                      'hidden w-full place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:grid',
+                      active && 'ring-2 ring-sidebar-ring'
+                    )}
+                  >
+                    <InstrumentIcon assetId={a.assetId} size={28} image={img} className="rounded-md" />
+                  </button>
+                </SidebarMenuItem>
+              )
+            })}
+          </SidebarMenu>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -143,11 +159,12 @@ function AccountMenuItem({ icon: Icon, label, onClick, danger }: {
   )
 }
 
-/** Issuer identity + account actions — the footer button opens a popover menu. */
-function AccountMenu({ seed, displayName, verified }: {
+/** Issuer identity + account actions - the footer button opens a popover menu. */
+function AccountMenu({ seed, displayName, verified, onSettings }: {
   seed: string
   displayName: string
   verified: boolean
+  onSettings: () => void
 }) {
   return (
     <Popover>
@@ -176,7 +193,7 @@ function AccountMenu({ seed, displayName, verified }: {
         </div>
         {/* Actions */}
         <div className="border-t border-border p-1.5">
-          <AccountMenuItem icon={Settings} label="Account settings" onClick={() => resetOnboarding()} />
+          <AccountMenuItem icon={Settings} label="Account settings" onClick={onSettings} />
           <AccountMenuItem icon={Plus} label="Add account" onClick={() => toast.info('Multiple issuer accounts are coming soon.')} />
           <AccountMenuItem icon={LogOut} label="Sign out" danger onClick={() => toast.info('Disconnect in your wallet to sign out.')} />
         </div>
@@ -187,21 +204,24 @@ function AccountMenu({ seed, displayName, verified }: {
 
 // ── IssuerDashboard ───────────────────────────────────────────────────────────
 
-const SECTION_IDS = Array.from(new Set(ALL_NAV.map(n => n.section))) as string[]
+// `home` / `overview` are nav-backed; `instrument` is reached by selecting an
+// instrument; `settings` is reached from the account menu.
+const VALID_SECTIONS = ['home', 'overview', 'relationships', 'compliance', 'instrument', 'settings']
 
 export default function IssuerDashboard() {
   const { identityKey } = useWallet()
-  const { name: onboardingName } = useOnboarding()
+  const { name: onboardingName, role: onboardingRole } = useOnboarding()
   const navigate = useNavigate()
   const params = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: assetsData } = useAdminAssets()
   const invalidateAdminAssets = useInvalidateAdminAssets()
   const assets: AdminAsset[] = assetsData ?? []
+  const [issueOpen, setIssueOpen] = useState(false)
 
-  // Section lives in the path (/issuer/:section); asset lives in ?asset — both
+  // Section lives in the path (/issuer/:section); asset lives in ?asset - both
   // in the URL so a reload restores exactly where the operator was.
-  const section: Section = SECTION_IDS.includes(params.section ?? '')
+  const section: Section = VALID_SECTIONS.includes(params.section ?? '')
     ? (params.section as Section)
     : 'overview'
   const currentAssetId = searchParams.get('asset') ?? ''
@@ -209,6 +229,21 @@ export default function IssuerDashboard() {
   const goSection = (id: Section) => {
     const qs = searchParams.toString()
     navigate(`/issuer/${id}${qs ? `?${qs}` : ''}`)
+  }
+  // Select an instrument and open its detail view (Reserves tab by default) in
+  // one navigation, so the ?asset lands with the section.
+  const openInstrument = (assetId: string, tab?: string) => {
+    const next = new URLSearchParams(searchParams)
+    next.set('asset', assetId)
+    if (tab != null && tab !== '') next.set('tab', tab)
+    else next.delete('tab')
+    navigate(`/issuer/instrument?${next.toString()}`)
+  }
+  // Banking is a per-instrument tab; open it for the selected (or first) instrument.
+  const goBanking = () => {
+    const target = currentAssetId || (assets[0]?.assetId ?? '')
+    if (target === '') { toast.info('Issue an instrument first to connect banking.'); return }
+    openInstrument(target, 'banking')
   }
   const selectAsset = (assetId: string) => {
     setSearchParams(prev => {
@@ -218,12 +253,30 @@ export default function IssuerDashboard() {
     })
   }
 
+  // "Send" from a contact → open the chosen instrument's Reserves tab in Send
+  // state, with the contact pre-selected as recipient (?send=<key>).
+  const [sendContact, setSendContact] = useState<{ identityKey: string; name: string } | null>(null)
+  const sendTo = (assetId: string, contact: { identityKey: string; name: string }) => {
+    const next = new URLSearchParams(searchParams)
+    next.set('asset', assetId)
+    next.set('tab', 'reserves')
+    next.set('send', contact.identityKey)
+    if (contact.name) next.set('sendName', contact.name)
+    setSendContact(null)
+    navigate(`/issuer/instrument?${next.toString()}`)
+  }
+  const handleContactSend = (contact: { identityKey: string; name: string }) => {
+    if (assets.length === 0) { toast.info('Issue an instrument first, then you can send it.'); return }
+    if (assets.length === 1) { sendTo(assets[0].assetId, contact); return }
+    setSendContact({ identityKey: contact.identityKey, name: contact.name })
+  }
+
   // Normalise an unknown /issuer/:section, keeping ?asset. The old standalone
   // /issuer/regulatory page now lives inside Operations.
   useEffect(() => {
-    if (params.section != null && !SECTION_IDS.includes(params.section)) {
+    if (params.section != null && !VALID_SECTIONS.includes(params.section)) {
       const qs = searchParams.toString()
-      const target = params.section === 'regulatory' ? 'operations' : 'overview'
+      const target = params.section === 'regulatory' ? 'instrument' : 'home'
       navigate(`/issuer/${target}${qs ? `?${qs}` : ''}`, { replace: true })
     }
   }, [params.section, searchParams, navigate])
@@ -269,7 +322,7 @@ export default function IssuerDashboard() {
           </div>
         </SidebarHeader>
 
-        <SidebarContent>
+        <SidebarContent className="overflow-hidden">
           {/* Top-level */}
           <SidebarGroup className="pb-1">
             <SidebarMenu>
@@ -286,32 +339,30 @@ export default function IssuerDashboard() {
 
           <SidebarSeparator className="my-0.5" />
 
-          {/* Selected instrument + its contextual sections */}
-          <SidebarGroup className="pt-1">
-            <InstrumentSwitcher
-              assets={assets}
-              currentAssetId={currentAssetId}
-              onChange={selectAsset}
-            />
-            {/* Indented: scoped to the instrument selected above */}
-            <div className="mt-1 ml-3.5 border-l border-sidebar-border pl-1 group-data-[collapsible=icon]:ml-0 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:pl-0">
-              <SidebarMenu>
-                {INSTRUMENT_NAV.map(({ key, section: sec, label, icon: Icon }) => (
-                  <SidebarMenuItem key={key}>
-                    <SidebarMenuButton isActive={section === sec} tooltip={label} onClick={() => goSection(sec)}>
-                      <Icon strokeWidth={1.9} />
-                      <span>{label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </div>
-          </SidebarGroup>
+          {/* Scrollable list of instruments - selecting one opens its detail view,
+              where Reserves / Operations / Ledger live as tabs. */}
+          <InstrumentList
+            assets={assets}
+            currentAssetId={currentAssetId}
+            activeSection={section}
+            onOpen={openInstrument}
+            onNew={() => setIssueOpen(true)}
+          />
         </SidebarContent>
 
         <SidebarFooter>
+          {/* Guides - the help centre lives at /help - sits above the account button */}
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Guides" onClick={() => navigate('/help/getting-started')}>
+                <BookOpen strokeWidth={1.9} />
+                <span>Guides</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+
           {/* Issuer identity + account menu */}
-          <AccountMenu seed={identityKey ?? 'issuer'} displayName={displayName} verified={verified} />
+          <AccountMenu seed={identityKey ?? 'issuer'} displayName={displayName} verified={verified} onSettings={() => goSection('settings')} />
         </SidebarFooter>
 
         <SidebarRail />
@@ -326,51 +377,85 @@ export default function IssuerDashboard() {
         {/* Scrollable content */}
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="p-5 lg:p-8">
+            {section === 'home' && (
+              isReviewerRole(onboardingRole) ? (
+                <AuditorHome assets={assets} onOpenInstrument={openInstrument} />
+              ) : (
+                <IssuerHome assets={assets} onReload={() => void invalidateAdminAssets()} onOpenInstrument={openInstrument} />
+              )
+            )}
             {section === 'overview' && (
               <InstrumentsHome
                 assets={assets}
                 onReload={() => void invalidateAdminAssets()}
                 onSelectAsset={selectAsset}
-                goSection={goSection}
+                onOpenInstrument={openInstrument}
+                onManageBanking={goBanking}
               />
             )}
-            {section === 'treasury' && (
-              <TreasurySection assetId={currentAssetId} asset={currentAsset} />
+            {section === 'relationships' && (
+              <ContactsPage onSend={handleContactSend} />
             )}
-            {section === 'operations' && (
-              assets.length === 0 ? (
-                assetsData != null && (
-                  <div className="rounded-lg border border-border bg-card p-[24px_20px] text-center">
-                    <p className="text-[13px] text-subtle-foreground">
-                      Register an asset first — you can do that from the Overview page.
-                    </p>
-                  </div>
-                )
-              ) : (
-                <div className="space-y-[26px]">
-                  <IssuerPanel assetId={currentAssetId} />
-                  <RegulatoryControls
-                    embedded
-                    assets={assets}
-                    assetId={currentAssetId}
-                    onActionComplete={() => void invalidateAdminAssets()}
-                  />
-                </div>
-              )
+            {section === 'compliance' && (
+              <ComplianceOverview onOpenInstrument={openInstrument} />
             )}
-            {section === 'activity' && (
-              <OverlayActivity
+            {section === 'instrument' && (
+              <InstrumentDetail
                 assetId={currentAssetId}
-                decimals={Number(currentAsset?.metadata?.decimals) || 0}
-                standalone
+                asset={currentAsset}
+                assets={assets}
+                onReload={() => void invalidateAdminAssets()}
               />
             )}
-            {section === 'banking' && (
-              <BankingMock assetId={currentAssetId} />
+            {section === 'settings' && (
+              <AccountSettings />
             )}
           </div>
         </div>
       </SidebarInset>
+
+      {/* Issue drawer - opened by the sidebar's "＋ New instrument" */}
+      <IssueInstrumentDrawer
+        open={issueOpen}
+        onOpenChange={setIssueOpen}
+        onIssued={(id) => { void invalidateAdminAssets(); if (id) openInstrument(id) }}
+      />
+
+      {/* Instrument picker - shown when "Send" is used with more than one instrument */}
+      {sendContact != null && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-foreground/40 p-4 animate-in"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setSendContact(null)}
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-pop)]" onClick={e => e.stopPropagation()}>
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-[15px] font-semibold text-foreground">Send to {sendContact.name || 'contact'}</h2>
+              <button type="button" onClick={() => setSendContact(null)} aria-label="Close" className="rounded-md px-1.5 text-[15px] text-muted-foreground hover:bg-muted hover:text-foreground">
+                ✕
+              </button>
+            </div>
+            <p className="mb-3 text-[13px] text-muted-foreground">Choose which instrument to send.</p>
+            <div className="max-h-80 space-y-1 overflow-y-auto">
+              {assets.map(a => (
+                <button
+                  key={a.assetId}
+                  type="button"
+                  onClick={() => sendTo(a.assetId, sendContact)}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-accent"
+                >
+                  <InstrumentIcon assetId={a.assetId} size={30} className="rounded-md" image={assetImage(a)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14px] font-medium text-foreground">{a.label}</div>
+                    <div className="truncate text-[11.5px] text-subtle-foreground">{tickerOf(a)}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </SidebarProvider>
   )
 }

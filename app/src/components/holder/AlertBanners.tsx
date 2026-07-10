@@ -14,7 +14,7 @@ interface Props {
 
 export default function AlertBanners({ assetId }: Props) {
   const { wallet } = useWallet()
-  // Cached queries — admin state (pause/freezes) + shared metadata.
+  // Cached queries - admin state (pause/freezes) + shared metadata.
   const { data: state } = useAssetState(assetId)
   const { data: holderData } = useHolderData()
   const [frozenAmount, setFrozenAmount] = useState(0)

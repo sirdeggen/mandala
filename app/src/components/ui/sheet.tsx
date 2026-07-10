@@ -19,17 +19,23 @@ const SheetOverlay = React.forwardRef<
 ))
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName
 
+const SHEET_SIDE = {
+  left: 'inset-y-0 left-0 h-full w-3/4',
+  right: 'inset-y-0 right-0 h-full w-3/4',
+  bottom: 'inset-x-0 bottom-0 h-auto max-h-[85vh] w-full rounded-t-2xl',
+} as const
+
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content> & { side?: 'left' | 'right' }
+  React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content> & { side?: keyof typeof SHEET_SIDE }
 >(({ side = 'left', className, children, ...props }, ref) => (
   <SheetPortal>
     <SheetOverlay />
     <SheetPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed z-50 flex h-full w-3/4 flex-col bg-card shadow-[var(--shadow-pop)] transition ease-in-out',
-        side === 'left' ? 'inset-y-0 left-0' : 'inset-y-0 right-0',
+        'fixed z-50 flex flex-col bg-card shadow-[var(--shadow-pop)] transition ease-in-out',
+        SHEET_SIDE[side],
         className
       )}
       {...props}

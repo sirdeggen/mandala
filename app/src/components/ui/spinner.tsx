@@ -9,8 +9,8 @@ const SIZES = {
 export interface SpinnerProps {
   size?: keyof typeof SIZES
   /**
-   * 'brand' — brass arc on a faint navy ring; for light/neutral surfaces
-   * (cards, page loading states). 'current' — arc + ring in currentColor, so
+   * 'brand' - brass arc on a faint navy ring; for light/neutral surfaces
+   * (cards, page loading states). 'current' - arc + ring in currentColor, so
    * it reads correctly inside colored buttons (primary/destructive/etc).
    */
   tone?: 'brand' | 'current'
@@ -19,7 +19,7 @@ export interface SpinnerProps {
 
 /**
  * The app's one spinner: a static ring plus a spinning arc, rather than a
- * generic single-stroke wheel — this is the motif from the wallet-connecting
+ * generic single-stroke wheel - this is the motif from the wallet-connecting
  * screen, reused everywhere something is in flight so the whole app feels
  * like one thing thinking, not a dozen ad hoc loaders.
  */

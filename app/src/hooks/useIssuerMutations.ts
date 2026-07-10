@@ -77,7 +77,7 @@ export function useIssuerMutations() {
     },
     onMutate: ({ asset, amount }) => adjustBalance(asset.assetId, amount),
     onSuccess: (r, { asset, amount }) => {
-      // Advance the cached auth chain immediately — a second action before the
+      // Advance the cached auth chain immediately - a second action before the
       // background refetch lands must not read the spent prior.
       advanceAdminAuth(asset.assetId, r.nextAuthOutpoint, r.nextAuthDetails)
       toast.success(`Issued ${formatAmount(amount, Number(asset.metadata?.decimals) || 0)} ${asset.label}`)
@@ -95,7 +95,7 @@ export function useIssuerMutations() {
       if (wallet == null || identityKey == null) throw new Error('Wallet not ready')
       // Enforce balance at the mutation boundary even when the UI guard is
       // bypassed (direct mutate). Read the cache BEFORE the optimistic
-      // decrement — onMutate would run first and make the gate compare
+      // decrement - onMutate would run first and make the gate compare
       // against balance-minus-amount, refusing any redeem above half.
       // A missing asset row means "balance unknown" (e.g. just-issued,
       // refetch pending): skip the cap and let coin selection be the

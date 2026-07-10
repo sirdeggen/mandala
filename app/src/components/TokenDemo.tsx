@@ -1,5 +1,5 @@
 import { AlertTriangle } from 'lucide-react'
-import { Routes, Route, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useWallet } from '../context/WalletContext'
 import { Spinner } from './ui/spinner'
 import IssuerDashboard from './issuer/IssuerDashboard'
@@ -9,6 +9,7 @@ import ReceiveTokens from './ReceiveTokens'
 import ContactsPage from './holder/ContactsPage'
 import type { HolderAction } from './holder/HolderHome'
 import OnboardingWizard from './onboarding/OnboardingWizard'
+import { HelpHome, HelpCollectionView, HelpArticleView } from './help/HelpCenter'
 import { useOnboarding } from '../lib/onboarding'
 
 // ─── Routing model ──────────────────────────────────────────────────────────
@@ -18,7 +19,7 @@ import { useOnboarding } from '../lib/onboarding'
 //            /receive       receive
 //            /contacts      contacts manager
 //   Issuer:  /issuer/:section   (?asset=<id> selects the asset)
-// Switching the token dropdown updates ?asset via the History API — no reload.
+// Switching the token dropdown updates ?asset via the History API - no reload.
 
 // ─── Shared bits ──────────────────────────────────────────────────────────────
 
@@ -57,7 +58,7 @@ function DrillHeader({ title, onBack }: { title: string; onBack: () => void }) {
 function HolderShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative mx-auto flex min-h-screen max-w-[430px] flex-col bg-background">
-      {/* No bottom bar — nav lives in the home quick actions; drill-ins carry a back arrow */}
+      {/* No bottom bar - nav lives in the home quick actions; drill-ins carry a back arrow */}
       <div className="flex-1 overflow-y-auto">{children}</div>
     </div>
   )
@@ -107,6 +108,20 @@ function ContactsView() {
 export default function TokenDemo() {
   const { isInitialized, error, isIssuer } = useWallet()
   const onboarding = useOnboarding()
+  const location = useLocation()
+
+  // ── Help centre - static content, reachable from anywhere (even mid-onboarding
+  //    or before the wallet connects), so it short-circuits the gates below. ──
+  if (location.pathname.startsWith('/help')) {
+    return (
+      <Routes>
+        <Route path="/help" element={<HelpHome />} />
+        <Route path="/help/:collectionSlug" element={<HelpCollectionView />} />
+        <Route path="/help/:collectionSlug/:articleSlug" element={<HelpArticleView />} />
+        <Route path="*" element={<Navigate to="/help" replace />} />
+      </Routes>
+    )
+  }
 
   // ── Loading state ──
   if (!isInitialized) {
@@ -145,7 +160,7 @@ export default function TokenDemo() {
     return (
       <Routes>
         <Route path="/issuer/:section" element={<IssuerDashboard />} />
-        <Route path="*" element={<Navigate to="/issuer/overview" replace />} />
+        <Route path="*" element={<Navigate to="/issuer/home" replace />} />
       </Routes>
     )
   }

@@ -20,7 +20,7 @@ interface BankingMockProps {
 /**
  * Demo bank feed + reserve reconciliation. Transfers here are fake (persisted
  * in localStorage, deletable/clearable); issuance happens on the Operations
- * page — this page only shows how the bank balance reconciles against
+ * page - this page only shows how the bank balance reconciles against
  * on-chain supply.
  */
 export default function BankingMock({ assetId: controlledAssetId }: BankingMockProps = {}) {
@@ -35,14 +35,14 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
   const activeAssetId = controlledAssetId ?? selectedAssetId
 
   // Shared with the Overview reserve-ratio KPI (mockBankStore) so both reflect
-  // the same per-asset feed; starts blank — nothing to reconcile until a
+  // the same per-asset feed; starts blank - nothing to reconcile until a
   // transfer is added, and switching assets switches the whole feed.
   const transfers = useMockTransfers(activeAssetId)
 
   const asset = assets.find(a => a.assetId === activeAssetId) ?? null
   const decimals = Number(asset?.metadata?.decimals) || 0
 
-  // Issue/redeem totals pre-aggregated on the overlay — reconciliation never
+  // Issue/redeem totals pre-aggregated on the overlay - reconciliation never
   // downloads the full admin history.
   const summaryQuery = useAdminSummary(wallet != null ? activeAssetId : '')
   const summary = summaryQuery.data
@@ -57,7 +57,7 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
     })
   }, [summary, transfers])
 
-  // Add a demo transfer — the counterparty is always a synthetic
+  // Add a demo transfer - the counterparty is always a synthetic
   // "Company {letter}" (see makeTransfer); only amount + direction are admin-supplied.
   const handleAddTransfer = useCallback(() => {
     const amount = parseAmount(transferAmount, decimals)
@@ -86,7 +86,7 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-[27px] font-semibold tracking-[-0.5px] leading-tight">Banking</h1>
-          <p className="text-[13px] text-muted-foreground mt-[3px]">Demo deposit feed &amp; reserve reconciliation — issuance lives on Operations</p>
+          <p className="text-[13px] text-muted-foreground mt-[3px]">Demo deposit feed &amp; reserve reconciliation - issuance lives on Operations</p>
         </div>
         {controlledAssetId == null && (
           <Select
@@ -103,53 +103,58 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
         )}
       </div>
 
-      {/* SIMULATE A TRANSFER — the counterparty is always a synthetic "Company
+      {/* SIMULATE A TRANSFER - the counterparty is always a synthetic "Company
           {letter}"; only amount + direction are admin-supplied. This is a
           sandbox feed standing in for a real bank connection, so it starts
           empty rather than pre-seeded with fake history. */}
       <p className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase mb-[10px] mt-[22px]">
         Simulate a Bank Transfer
       </p>
-      <div className="bg-card border border-border rounded-md px-[18px] py-[15px] flex items-center gap-3">
-        {/* Direction tab bar */}
-        <div className="inline-flex rounded border border-separator bg-muted p-[3px] gap-[3px] flex-none">
-          {(['in', 'out'] as const).map(d => (
-            <button
-              key={d}
-              type="button"
-              onClick={() => setDirection(d)}
-              className={cn(
-                'flex items-center gap-[6px] rounded px-3 py-[9px] text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                direction === d
-                  ? 'bg-card text-foreground font-semibold shadow-[0_1px_2px_var(--separator)]'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {d === 'in'
-                ? <ArrowDownLeft className="h-[15px] w-[15px] shrink-0" strokeWidth={2} />
-                : <ArrowUpRight className="h-[15px] w-[15px] shrink-0" strokeWidth={2} />}
-              {d === 'in' ? 'Incoming' : 'Outgoing'}
-            </button>
-          ))}
+      <div>
+        {/* Direction - manila folder tabs */}
+        <div className="flex gap-1">
+          {(['in', 'out'] as const).map(d => {
+            const active = direction === d
+            const Icon = d === 'in' ? ArrowDownLeft : ArrowUpRight
+            return (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setDirection(d)}
+                className={cn(
+                  'relative -mb-px flex items-center gap-2 rounded-t-lg border border-b-0 px-4 py-2.5 text-[13px] font-medium transition-colors',
+                  active
+                    ? 'z-10 border-border bg-card text-foreground'
+                    : 'border-transparent bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+              >
+                <Icon className="size-4 shrink-0" strokeWidth={2} />
+                {d === 'in' ? 'Incoming' : 'Outgoing'}
+              </button>
+            )
+          })}
         </div>
-        <Input
-          type="number"
-          min="0"
-          step="any"
-          value={transferAmount}
-          onChange={e => setTransferAmount(e.target.value)}
-          placeholder="Amount"
-          className="flex-1"
-          aria-label="Transfer amount"
-        />
-        <button
-          onClick={handleAddTransfer}
-          disabled={transferAmount.trim() === '' || activeAssetId === ''}
-          className="flex items-center gap-2 whitespace-nowrap rounded bg-primary text-primary-foreground px-4 py-[11px] text-[13px] font-semibold disabled:opacity-50"
-        >
-          <PlusCircle size={16} />
-          Add transfer
-        </button>
+        {/* Folder body */}
+        <div className="flex items-center gap-3 rounded-lg rounded-tl-none border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+          <Input
+            type="number"
+            min="0"
+            step="any"
+            value={transferAmount}
+            onChange={e => setTransferAmount(e.target.value)}
+            placeholder="Amount"
+            className="flex-1"
+            aria-label="Transfer amount"
+          />
+          <button
+            onClick={handleAddTransfer}
+            disabled={transferAmount.trim() === '' || activeAssetId === ''}
+            className="flex items-center gap-2 whitespace-nowrap rounded bg-primary text-primary-foreground px-4 py-[11px] text-[13px] font-semibold disabled:opacity-50"
+          >
+            <PlusCircle size={16} />
+            Add transfer
+          </button>
+        </div>
       </div>
 
       {/* TRANSFERS */}
@@ -169,7 +174,7 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
       </div>
       {transfers.length === 0 ? (
         <div className="bg-card border border-border rounded-md px-[18px] py-[26px] text-center text-[13px] text-muted-foreground">
-          No transfers yet — add one above to see it flow through reconciliation.
+          No transfers yet - add one above to see it flow through reconciliation.
         </div>
       ) : (
       <div className="bg-card border border-border rounded-md overflow-hidden">
@@ -239,20 +244,20 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
                   {recon.drift > 0 ? '+' : ''}{formatAmount(recon.drift, decimals)}
                 </span>
               </div>
-              {/* Amber callout — how to close the gap */}
+              {/* Amber callout - how to close the gap */}
               {hasDrift && (
                 <div className="bg-warning/[0.08] rounded px-[13px] py-[10px] text-[11.5px] text-warning leading-[1.4]">
                   <span className="font-semibold">
                     {recon.drift > 0
-                      ? 'Bank reserves exceed on-chain supply — issue tokens from the Operations page to match.'
-                      : 'On-chain supply exceeds bank reserves — redeem tokens from the Operations page (or add deposits) to match.'}
+                      ? 'Bank reserves exceed on-chain supply - issue tokens from the Operations page to match.'
+                      : 'On-chain supply exceeds bank reserves - redeem tokens from the Operations page (or add deposits) to match.'}
                   </span>
                 </div>
               )}
               {/* Reconciled callout */}
               {!hasDrift && (
                 <div className="text-success text-[11.5px] font-medium pt-1 pb-1">
-                  Reconciled — 100%
+                  Reconciled - 100%
                 </div>
               )}
             </div>

@@ -4,3 +4,5 @@ dist
 vite.config.d.ts
 vite.config.js
 .env
+.env.local
+.env*.local

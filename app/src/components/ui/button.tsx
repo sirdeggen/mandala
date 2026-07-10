@@ -40,7 +40,7 @@ export interface ButtonProps
   asChild?: boolean
   /** Shows the brand spinner in place of the leading icon/label and disables the button. */
   loading?: boolean
-  /** Text shown while loading, e.g. "Sending…" — falls back to children if omitted. */
+  /** Text shown while loading, e.g. "Sending…" - falls back to children if omitted. */
   loadingText?: React.ReactNode
 }
 
@@ -48,7 +48,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, loading = false, loadingText, disabled, children, ...props }, ref) => {
     const Comp = asChild ? Slot : "button"
     // asChild hands its single child off to Slot for prop-cloning, so a second
-    // spinner child would break it — the loading treatment only applies to
+    // spinner child would break it - the loading treatment only applies to
     // real buttons, which covers every current use of `loading`.
     if (asChild) {
       return (

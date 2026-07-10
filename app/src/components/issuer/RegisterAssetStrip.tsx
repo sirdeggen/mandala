@@ -8,7 +8,7 @@ import { Input } from '../ui/input'
 import { Spinner } from '../ui/spinner'
 
 /**
- * "Register a new asset" — the rare genesis action, kept as a slim dashed
+ * "Register a new asset" - the rare genesis action, kept as a slim dashed
  * strip on the Overview page (most issuers run a single stablecoin).
  */
 export default function RegisterAssetStrip() {
@@ -47,7 +47,7 @@ export default function RegisterAssetStrip() {
         <div className="shrink-0">
           <p className="text-[12.5px] font-semibold leading-tight">Register a new asset</p>
           <p className="text-[10.5px] text-subtle-foreground mt-0.5 leading-tight">
-            Rare — most issuers run a single stablecoin
+            Rare - most issuers run a single stablecoin
           </p>
         </div>
 

@@ -1,29 +1,25 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { toast } from 'sonner'
-import { Wallet, ScanFace, FileText, Plus, Check, ArrowRight, X, ShieldCheck } from 'lucide-react'
+import { Wallet, ScanFace, FileText, Plus, Check, ArrowRight } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
-import { guardRegisterSubmit } from '@bsv/mandala/submitGuards'
-import { registerFlight } from '@bsv/mandala/singleFlight'
 import { useWallet } from '../../context/WalletContext'
-import { useIssuerMutations } from '../../hooks/useIssuerMutations'
 import { useOnboarding } from '../../lib/onboarding'
 import { Button } from '../ui/button'
-import { Input } from '../ui/input'
-import { Label } from '../ui/label'
-import { Spinner } from '../ui/spinner'
-import { Sheet, SheetContent, SheetClose } from '../ui/sheet'
-import { IdentitySigil } from '@/components/ui/identity-sigil'
+import { InstrumentIcon } from '@/components/ui/instrument-icon'
+import { categoryOf, assetImage, CATEGORY_ORDER } from '@/lib/instrumentCategory'
+import IssueInstrumentDrawer from './IssueInstrumentDrawer'
 import { cn } from '@/lib/utils'
 
-type Tab = 'draft' | 'issued' | 'circulating' | 'expired'
-type Section = 'overview' | 'treasury' | 'operations' | 'activity' | 'banking'
+type Tab = 'issued' | 'circulating' | 'expired'
 
 interface Props {
   assets: AdminAsset[]
   onReload: () => void
   onSelectAsset: (assetId: string) => void
-  goSection: (section: Section) => void
+  /** Open an instrument's detail view (Reserves / Operations / Ledger tabs). */
+  onOpenInstrument: (assetId: string) => void
+  /** Open Account settings → Banking (reserves live there now). */
+  onManageBanking: () => void
 }
 
 // ── Getting-started setup strip ───────────────────────────────────────────────
@@ -103,103 +99,22 @@ function SetupStrip({
   )
 }
 
-// ── Issue-instrument drawer (right slide-over) ────────────────────────────────
-
-function IssueInstrumentDrawer({
-  open, onOpenChange, onIssued,
-}: {
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  onIssued: (assetId: string) => void
-}) {
-  const { wallet } = useWallet()
-  const { register } = useIssuerMutations()
-  const [label, setLabel] = useState('')
-  const [ticker, setTicker] = useState('')
-  const [decimals, setDecimals] = useState('2')
-  const startedRef = useRef(false)
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (startedRef.current || register.isPending || registerFlight.isHeld()) return
-    const dec = Number(decimals)
-    const gate = guardRegisterSubmit({ label, ticker, decimals: dec, walletReady: wallet != null })
-    if (!gate.ok) { toast.error(gate.reason); return }
-    startedRef.current = true
-    register.mutate({ label, ticker, decimals: dec }, {
-      onSuccess: (res: any) => {
-        toast.success(`${label} issued`)
-        setLabel(''); setTicker(''); setDecimals('2')
-        onOpenChange(false)
-        const newId = typeof res?.assetId === 'string' ? res.assetId : ''
-        if (newId) onIssued(newId)
-      },
-      onError: (err) => toast.error(err instanceof Error ? err.message : 'Could not issue instrument'),
-      onSettled: () => { startedRef.current = false },
-    })
-  }
-
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-full max-w-[440px] gap-0 rounded-none border-l border-border md:m-3 md:mb-3 md:h-[calc(100%-24px)] md:rounded-2xl"
-      >
-        <div className="flex items-center justify-between border-b border-border px-6 py-5">
-          <div>
-            <h2 className="font-heading text-[18px] font-medium tracking-[-0.3px]">Issue an instrument</h2>
-            <p className="mt-0.5 text-[13px] text-muted-foreground">Prepare an instrument for circulation.</p>
-          </div>
-          <SheetClose className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-            <X className="size-4" />
-            <span className="sr-only">Close</span>
-          </SheetClose>
-        </div>
-
-        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-          <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
-            <div className="space-y-2">
-              <Label htmlFor="ins-label">Instrument name</Label>
-              <Input id="ins-label" autoFocus placeholder="e.g. Euro Deposit Token" value={label} onChange={e => setLabel(e.target.value)} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="ins-ticker">Ticker</Label>
-                <Input id="ins-ticker" placeholder="EUR" value={ticker} onChange={e => setTicker(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ins-decimals">Decimals</Label>
-                <Input id="ins-decimals" type="number" min="0" step="1" className="tabular" value={decimals} onChange={e => setDecimals(e.target.value)} />
-              </div>
-            </div>
-
-            <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/60 px-3 py-2.5">
-              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" />
-              <p className="text-[12px] leading-snug text-muted-foreground">
-                Registering mints a genesis transaction on-chain — its outpoint becomes the instrument's permanent asset ID. You can issue units into circulation right after.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 border-t border-border px-6 py-4">
-            <Button type="submit" disabled={register.isPending || label.trim() === ''} className="gap-2">
-              {register.isPending ? <Spinner size="sm" tone="current" /> : <Plus className="size-4" />}
-              {register.isPending ? 'Issuing…' : 'Issue instrument'}
-            </Button>
-            <SheetClose asChild>
-              <Button type="button" variant="ghost">Cancel</Button>
-            </SheetClose>
-          </div>
-        </form>
-      </SheetContent>
-    </Sheet>
-  )
-}
-
 // ── Instrument card + empty state ─────────────────────────────────────────────
 
 function tickerOf(a: AdminAsset): string {
   return String(a.metadata?.ticker ?? a.label.slice(0, 3)).toUpperCase()
+}
+
+function groupByCategory(assets: AdminAsset[]): { category: string; items: AdminAsset[] }[] {
+  const map = new Map<string, AdminAsset[]>()
+  for (const a of assets) {
+    const c = categoryOf(a)
+    if (!map.has(c)) map.set(c, [])
+    map.get(c)!.push(a)
+  }
+  return CATEGORY_ORDER
+    .filter(c => map.has(c))
+    .map(c => ({ category: c, items: map.get(c)! }))
 }
 
 function InstrumentCard({ asset, onOpen }: { asset: AdminAsset; onOpen: () => void }) {
@@ -211,21 +126,23 @@ function InstrumentCard({ asset, onOpen }: { asset: AdminAsset; onOpen: () => vo
       className="group flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-[var(--shadow-card)] transition-colors hover:border-muted-foreground"
     >
       <div className="flex items-center gap-3">
-        <IdentitySigil value={asset.assetId} size={40} className="rounded-lg" />
+        <InstrumentIcon assetId={asset.assetId} size={40} className="rounded-lg" image={assetImage(asset)} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-medium text-foreground">{asset.label}</p>
           <p className="truncate text-[12px] text-muted-foreground">{ticker}</p>
         </div>
         <ArrowRight className="size-4 shrink-0 text-faint-foreground transition-colors group-hover:text-foreground" />
       </div>
-      <p className="truncate font-mono text-[11px] text-faint-foreground">{asset.assetId}</p>
+      <p className="truncate font-mono text-[11px] text-faint-foreground" title={asset.assetId}>
+        {asset.assetId.length > 12 ? `${asset.assetId.slice(0, 5)}…${asset.assetId.slice(-5)}` : asset.assetId}
+      </p>
     </button>
   )
 }
 
 function EmptyState({ onIssue }: { onIssue: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-5 py-14 text-center">
+    <div className="mx-auto flex max-w-md flex-col items-center gap-5 py-14 text-center">
       {/* Ghost instrument preview */}
       <div className="relative w-[300px] rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
         <div className="flex items-center justify-between text-[8px] font-bold text-faint-foreground">
@@ -260,7 +177,7 @@ function EmptyState({ onIssue }: { onIssue: () => void }) {
 
 // ── InstrumentsHome ───────────────────────────────────────────────────────────
 
-export default function InstrumentsHome({ assets, onReload, onSelectAsset, goSection }: Props) {
+export default function InstrumentsHome({ assets, onReload, onSelectAsset, onOpenInstrument, onManageBanking }: Props) {
   const { identityKey } = useWallet()
   const { name } = useOnboarding()
   const navigate = useNavigate()
@@ -273,23 +190,18 @@ export default function InstrumentsHome({ assets, onReload, onSelectAsset, goSec
   const setupComplete = verified && hasInstrument && hasBacking
 
   const counts: Record<Tab, number> = useMemo(() => ({
-    draft: 0,
     issued: assets.length,
     circulating: assets.length, // circulation tracked per-instrument on its page
     expired: 0,
   }), [assets.length])
 
   const TABS: { id: Tab; label: string }[] = [
-    { id: 'draft', label: 'Draft' },
     { id: 'issued', label: 'Issued' },
     { id: 'circulating', label: 'Circulating' },
     { id: 'expired', label: 'Expired' },
   ]
 
-  const openInstrument = (assetId: string) => {
-    onSelectAsset(assetId)
-    goSection('treasury')
-  }
+  const openInstrument = (assetId: string) => onOpenInstrument(assetId)
 
   const listForTab = tab === 'issued' || tab === 'circulating' ? assets : []
 
@@ -308,7 +220,7 @@ export default function InstrumentsHome({ assets, onReload, onSelectAsset, goSec
           verified={verified}
           hasBacking={hasBacking}
           hasInstrument={hasInstrument}
-          onBacking={() => goSection('banking')}
+          onBacking={onManageBanking}
           onVerify={() => { if (!verified) navigate('/') }}
           onIssue={() => setDrawerOpen(true)}
         />
@@ -345,9 +257,19 @@ export default function InstrumentsHome({ assets, onReload, onSelectAsset, goSec
         {listForTab.length === 0 ? (
           <EmptyState onIssue={() => setDrawerOpen(true)} />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {listForTab.map(a => (
-              <InstrumentCard key={a.assetId} asset={a} onOpen={() => openInstrument(a.assetId)} />
+          <div className="space-y-7">
+            {groupByCategory(listForTab).map(({ category, items }) => (
+              <div key={category}>
+                <div className="mb-2.5 flex items-baseline gap-2">
+                  <h3 className="text-[13px] font-semibold text-foreground">{category}</h3>
+                  <span className="text-[12px] text-faint-foreground">{items.length}</span>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {items.map(a => (
+                    <InstrumentCard key={a.assetId} asset={a} onOpen={() => openInstrument(a.assetId)} />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}

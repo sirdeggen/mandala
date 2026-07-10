@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 /**
  * Deterministic identity sigil built from the real @urbit/sigil-js symbols
  * (base shape + detail linework). Four full-cell urbit glyphs are chosen from
- * a hash of the key and laid out in a 2×2 grid — bright shapes on a soft
+ * a hash of the key and laid out in a 2×2 grid - bright shapes on a soft
  * tinted ground. Pure + SSR-safe (no @p needed; hashes the full key).
  */
 
@@ -16,7 +16,7 @@ const PALETTE = [
   "#0d9488", "#0891b2", "#0ea5e9", "#2563eb",
 ];
 
-/** FNV-1a 32-bit hash — deterministic, no impurity. */
+/** FNV-1a 32-bit hash - deterministic, no impurity. */
 function fnv1a(value: string): number {
   let hash = 0x811c9dc5;
   for (let i = 0; i < value.length; i += 1) {

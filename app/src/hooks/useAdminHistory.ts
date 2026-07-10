@@ -16,7 +16,7 @@ export const adminSummaryKey = (assetId: string) =>
 
 const HISTORY_PAGE_SIZE = 100
 
-/** Overlay-resolved admin action history for one asset (full — for exports). */
+/** Overlay-resolved admin action history for one asset (full - for exports). */
 export function useAdminHistory(assetId: string) {
   return useQuery({
     queryKey: adminHistoryKey(assetId),
@@ -25,7 +25,7 @@ export function useAdminHistory(assetId: string) {
   })
 }
 
-/** Infinite newest-first pages of admin history — the audit log's feed. */
+/** Infinite newest-first pages of admin history - the audit log's feed. */
 export function useAdminHistoryPages(assetId: string) {
   const query = useInfiniteQuery({
     queryKey: adminHistoryPagesKey(assetId),

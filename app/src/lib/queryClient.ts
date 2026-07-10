@@ -3,7 +3,7 @@ import { QueryClient } from '@tanstack/react-query'
 /**
  * One client for the whole app. Cached data renders instantly on navigation;
  * refetches happen in the background (stale-while-revalidate). Chain/overlay
- * reads are expensive, so no refetch-on-focus — refresh is explicit or
+ * reads are expensive, so no refetch-on-focus - refresh is explicit or
  * mutation-driven (invalidation).
  */
 export const queryClient = new QueryClient({

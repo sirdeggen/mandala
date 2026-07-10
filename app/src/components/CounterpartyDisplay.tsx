@@ -12,7 +12,7 @@ interface Props {
   wallet: import('@bsv/sdk').WalletInterface | null
 }
 
-// Abbreviate a key (or any long string) to first 12 + "…" — enough hex to
+// Abbreviate a key (or any long string) to first 12 + "…" - enough hex to
 // visually distinguish counterparties when no resolved name is available.
 export function abbreviate (key: string): string {
   if (key.length <= 14) return key
@@ -49,7 +49,7 @@ export function CounterpartyDisplay ({ identityKey, wallet }: Props) {
     return () => { cancelled = true }
   }, [identityKey, wallet])
 
-  if (!identityKey) return <span className="text-subtle-foreground">—</span>
+  if (!identityKey) return <span className="text-subtle-foreground">-</span>
   if (loading) return <span className="animate-pulse text-subtle-foreground">{abbreviate(identityKey)}</span>
 
   if (resolved?.name) {

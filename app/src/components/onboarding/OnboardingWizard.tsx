@@ -1,18 +1,22 @@
 import { useState } from 'react'
-import { Building2, ClipboardCheck, ArrowRight, ShieldCheck } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Building2, ClipboardCheck, UserRound, ArrowRight, ShieldCheck, ChevronsUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { BrandMark } from '@/components/ui/BrandMark'
+import { UserAvatar } from '@/components/ui/user-avatar'
 import { cn } from '@/lib/utils'
 import { completeOnboarding, type OnboardingRole } from '@/lib/onboarding'
+import { useWallet } from '@/context/WalletContext'
 
 /**
- * First-run onboarding — role → name → (issuer) entity details. Modelled on the
- * Acctual onboarding pattern (single card, progressive disclosure, live preview)
- * but rebuilt in Underwrite's neutral theme and framed around issuing a
- * regulated stablecoin. Persists via completeOnboarding(); the entry gate in
- * TokenDemo unmounts it once done.
+ * First-run onboarding - role → name → (issuer) entity details. Modelled on the
+ * Acctual onboarding pattern (grey canvas, a white inset panel with rounded top
+ * corners, a left rail carrying the brand up top and the signed-in account down
+ * in the bottom-left) but rebuilt in Underwrite's neutral theme and framed
+ * around issuing a regulated stablecoin. Persists via completeOnboarding(); the
+ * entry gate in TokenDemo unmounts it once done.
  */
 
 type Step = 'role' | 'details'
@@ -24,10 +28,12 @@ const COUNTRIES = [
 
 const ROLES: { id: OnboardingRole, title: string, blurb: string, Icon: typeof Building2 }[] = [
   { id: 'issuer', title: 'Issuer', blurb: 'Licensed company or entity', Icon: Building2 },
-  { id: 'auditor', title: 'Auditor', blurb: 'Licensed auditing professional', Icon: ClipboardCheck }
+  { id: 'auditor', title: 'Auditor', blurb: 'Licensed auditing professional', Icon: ClipboardCheck },
+  { id: 'individual', title: 'Individual', blurb: 'Checking an instrument for yourself', Icon: UserRound }
 ]
 
 export default function OnboardingWizard() {
+  const { identityKey } = useWallet()
   const [step, setStep] = useState<Step>('role')
   const [role, setRole] = useState<OnboardingRole | null>(null)
   const [name, setName] = useState('')
@@ -37,33 +43,54 @@ export default function OnboardingWizard() {
 
   const canContinueRole = role != null && name.trim().length > 0
 
-  function submitRole(e: React.FormEvent) {
-    e.preventDefault()
-    if (!canContinueRole) return
-    setStep('details')
-  }
-
-  function finish(e: React.FormEvent) {
-    e.preventDefault()
+  function complete() {
     completeOnboarding({
       role,
       name: name.trim(),
+      email: '',
       entity: role === 'issuer'
         ? { legalName: legalName.trim() || name.trim(), country, address: address.trim() }
         : null
     })
   }
 
+  function submitRole(e: React.FormEvent) {
+    e.preventDefault()
+    if (!canContinueRole) return
+    // Individuals have no entity details to collect - go straight in.
+    if (role === 'individual') { complete(); return }
+    setStep('details')
+  }
+
+  function finish(e: React.FormEvent) {
+    e.preventDefault()
+    complete()
+  }
+
   const previewName = (legalName.trim() || name.trim()) || 'Your entity'
 
   return (
-    <div className="min-h-screen w-full bg-background">
-      {/* top bar */}
-      <header className="flex items-center px-6 py-6 lg:px-10 lg:py-8">
+    <div className="flex min-h-screen w-full bg-muted text-foreground">
+      {/* Left rail - brand up top, signed-in account down in the bottom-left */}
+      <aside className="sticky top-0 hidden h-screen w-[268px] shrink-0 flex-col justify-between px-7 py-7 lg:flex">
         <BrandMark size="md" wordmark />
-      </header>
+        <div className="space-y-5">
+          <nav className="flex flex-col items-start gap-1.5 text-[14px] text-muted-foreground">
+            <Link to="/help/getting-started" className="rounded px-1 py-0.5 transition-colors hover:text-foreground">Guides</Link>
+          </nav>
+          <AccountChip name={name} identityKey={identityKey} role={role} />
+        </div>
+      </aside>
 
-      <main className="mx-auto flex w-full max-w-5xl flex-col-reverse items-start gap-10 px-6 pb-16 pt-4 xl:flex-row xl:gap-16 xl:pt-[12vh]">
+      {/* Content column - white inset panel with rounded top corners */}
+      <div className="flex min-h-screen w-full flex-col">
+        {/* mobile brand header (rail is hidden below lg) */}
+        <header className="flex items-center px-5 pt-5 lg:hidden">
+          <BrandMark size="md" wordmark />
+        </header>
+
+        <main className="mt-3 flex flex-1 flex-col rounded-t-2xl border border-b-0 border-border bg-card px-6 py-10 shadow-[var(--shadow-card)] sm:px-10 lg:mt-4 lg:px-16 xl:px-20">
+          <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col-reverse items-start gap-10 pt-2 xl:flex-row xl:items-center xl:gap-16">
         {/* form */}
         <div className="w-full max-w-[440px]">
           {step === 'role' && (
@@ -73,7 +100,7 @@ export default function OnboardingWizard() {
                 <p className="text-[15px] text-muted-foreground">So we set up your workspace the right way.</p>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex flex-col gap-3">
                 {ROLES.map(({ id, title, blurb, Icon }) => {
                   const active = role === id
                   return (
@@ -178,12 +205,41 @@ export default function OnboardingWizard() {
         <div className="w-full max-w-[380px] xl:pt-2">
           <PreviewCard entityName={previewName} country={country} role={role} />
         </div>
-      </main>
+          </div>
+        </main>
+      </div>
     </div>
   )
 }
 
-/** A stand-in asset/reserve card that fills in as the user types — the
+/** Signed-in account chip pinned to the rail's bottom-left - the wallet
+ *  identity plus whatever name/role the user has entered so far, mirroring
+ *  Acctual's bottom-left account switcher. */
+function AccountChip({ name, identityKey, role }: {
+  name: string
+  identityKey: string | null
+  role: OnboardingRole | null
+}) {
+  const seed = identityKey ?? name ?? 'account'
+  const primary = name.trim() || (identityKey ? `${identityKey.slice(0, 8)}…${identityKey.slice(-4)}` : 'Your account')
+  const secondary = role ? (role === 'issuer' ? 'Issuer' : 'Auditor') : 'Not signed in'
+
+  return (
+    <button
+      type="button"
+      className="flex w-full items-center gap-2.5 rounded-lg border border-border bg-card px-2.5 py-2 text-left shadow-[var(--shadow-card)] outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/60"
+    >
+      <UserAvatar seed={seed} size={30} />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[12.5px] font-semibold leading-tight text-foreground">{primary}</div>
+        <div className="mt-[2px] truncate text-[10.5px] leading-none text-muted-foreground">{secondary}</div>
+      </div>
+      <ChevronsUpDown className="size-4 shrink-0 text-faint-foreground" />
+    </button>
+  )
+}
+
+/** A stand-in asset/reserve card that fills in as the user types - the
  *  Underwrite analogue of Acctual's live invoice preview. */
 function PreviewCard({ entityName, country, role }: { entityName: string, country: string, role: OnboardingRole | null }) {
   return (

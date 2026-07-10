@@ -11,7 +11,7 @@ interface BrandMarkProps {
 }
 
 /**
- * Underwrite brand mark — a 4-fold quaternary knot rendered in the tile's
+ * Underwrite brand mark - a 4-fold quaternary knot rendered in the tile's
  * foreground on a near-black tile, plus the optional "Underwrite" wordmark and
  * sub-label.
  *

@@ -36,7 +36,15 @@ const CONTACT_LIMIT = 12
 // Component
 // ---------------------------------------------------------------------------
 
-export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string } = {}) {
+export default function SendTokens({ lockedAssetId, initialRecipient, bare = false }: {
+  lockedAssetId?: string
+  /** Pre-select a recipient and jump straight to the amount step (e.g. "Send"
+   *  from a contact). Consumed once on mount. */
+  initialRecipient?: { identityKey: string; name?: string; avatarURL?: string }
+  /** Render without the outer card chrome (border/bg/rounding) - for embedding
+   *  inside another card, e.g. the Reserves tab's folder body. */
+  bare?: boolean
+} = {}) {
   const locked = lockedAssetId != null && lockedAssetId !== ''
   const { wallet, identityKey } = useWallet()
   // Dev mode bypasses the frontend pause guard so a paused transfer actually
@@ -60,7 +68,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   const [receiptCopied, setReceiptCopied] = useState(false)
   const [frozenNote, setFrozenNote] = useState<Array<{ amount: number, reason: string }>>([])
 
-  // Shared cached data — instant render, background refetch.
+  // Shared cached data - instant render, background refetch.
   const holder = useHolderData()
   const balances = (holder.data?.assets ?? []).filter(a => a.balance > 0)
     .map(a => ({ assetId: a.assetId, amount: a.balance }))
@@ -83,9 +91,24 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
     if (locked) setAssetId(lockedAssetId as string)
   }, [lockedAssetId, locked])
 
+  // Pre-select a recipient (e.g. "Send" from a contact) and jump to the amount
+  // step. Runs once; fills name/avatar from the saved contact if not supplied.
+  const initRecipientRef = useRef(false)
+  useEffect(() => {
+    if (initRecipientRef.current) return
+    const ir = initialRecipient
+    if (ir == null || ir.identityKey === '') return
+    initRecipientRef.current = true
+    const c = saved.find(s => s.identityKey === ir.identityKey)
+    setRecipient(ir.identityKey)
+    setRecipientName(ir.name || c?.name || '')
+    setRecipientAvatarURL(ir.avatarURL || c?.avatarURL || '')
+    setStep('amount')
+  }, [initialRecipient, saved])
+
   // Relinquish any evicted-and-held outputs for the selected asset on mount /
   // asset change, so stale basket entries clear before the user tries to send.
-  // Fail-open — a reconcile failure shouldn't block the flow.
+  // Fail-open - a reconcile failure shouldn't block the flow.
   useEffect(() => {
     if (wallet == null || assetId === '') return
     void reconcileBans(wallet as any, [assetId]).catch(() => {})
@@ -109,7 +132,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   }, [assetId, identityKey])
 
   // ---------------------------------------------------------------------------
-  // Identity search — local state replacing useIdentitySearch hook
+  // Identity search - local state replacing useIdentitySearch hook
   // ---------------------------------------------------------------------------
 
   const [searchInput, setSearchInput] = useState('')
@@ -140,7 +163,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         const results = isIdentityKey(query)
           ? await client.resolveByIdentityKey({ identityKey: query }, true)
           : await client.resolveByAttributes({ attributes: { any: query } }, true)
-        if (requestId !== searchRequestIdRef.current) return // stale — discard
+        if (requestId !== searchRequestIdRef.current) return // stale - discard
         setIdentities(results as DisplayableIdentity[])
       } catch (err) {
         if (requestId !== searchRequestIdRef.current) return
@@ -171,7 +194,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   const decimals = decimalsFor(assetId)
   const sendAmount = parseAmount(amountStr, decimals)
 
-  // Recipient shortlist shown under the search field — tap to pick, no search
+  // Recipient shortlist shown under the search field - tap to pick, no search
   // needed. History counterparties come first (most recently sent-to/received-from,
   // per deriveContacts), enriched with saved-contact names/avatars; saved contacts
   // never transacted with follow, alphabetically. Truncated to CONTACT_LIMIT, so
@@ -206,14 +229,14 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
     setStep('amount')
   }
 
-  // Tapping a search result is an explicit choice — advance immediately, same
+  // Tapping a search result is an explicit choice - advance immediately, same
   // as the contacts shortlist. The Amount step's "To: <name>" header is the
   // selection feedback; lingering on the search view reads as a dead click.
   const handleIdentitySelect = (identity: DisplayableIdentity) => {
     pickRecipient(identity.identityKey, identity.name ?? '', identity.avatarURL ?? '')
   }
 
-  // One handler for typed, pasted, and clipboard-button input — a full valid
+  // One handler for typed, pasted, and clipboard-button input - a full valid
   // identity key selects the recipient; anything else feeds the fuzzy search.
   const applyRecipientText = (raw: string) => {
     setSearchInput(raw)
@@ -292,7 +315,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
 
     setSendError('')
     sendStartedRef.current = true
-    // Flip the UI immediately — the pipeline (build → sign → overlay submit)
+    // Flip the UI immediately - the pipeline (build → sign → overlay submit)
     // runs behind the Sending screen. Overlay accept → Sent; reject → back to
     // Review with the error (the wallet action was aborted, inputs released).
     setStep('sending')
@@ -302,12 +325,12 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         onSuccess: res => {
           setSentTxid(res.txid)
           setStep('sent')
-          // Keep sendStartedRef true until reset — prevents re-send of same review.
+          // Keep sendStartedRef true until reset - prevents re-send of same review.
         },
         onError: e => {
           sendStartedRef.current = false
           // Lost the race to another in-flight send (e.g. a second mounted
-          // send flow). This instance never started a pipeline — return it to
+          // send flow). This instance never started a pipeline - return it to
           // review; advancing to 'sending' would strand a screen with no
           // pipeline and no exit.
           if (e instanceof BusyError) {
@@ -353,14 +376,14 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
 
   const recipientInitials = getInitials(recipientName, recipient || 'XX')
 
-  // Meridian neutral pill — small label
+  // Meridian neutral pill - small label
   const SectionLabel = ({ children }: { children: React.ReactNode }) => (
     <div className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground mb-[14px]">
       {children}
     </div>
   )
 
-  // Spendable-balance context bar — pinned to the top of the card on the
+  // Spendable-balance context bar - pinned to the top of the card on the
   // recipient and review steps so the available amount stays on screen through
   // the whole flow. The amount step already shows it inline beside Max, where
   // it sits closest to the number being typed.
@@ -376,7 +399,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
       </div>
     ) : null
 
-  // Back button — white circle with left chevron (faithful to 3a/3b/3c)
+  // Back button - white circle with left chevron (faithful to 3a/3b/3c)
   const BackButton = ({ onClick }: { onClick: () => void }) => (
     <button
       type="button"
@@ -405,10 +428,10 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   // ---------------------------------------------------------------------------
 
   const renderRecipient = () => (
-    // No in-card heading — the page/tab context already says "Send"; the
+    // No in-card heading - the page/tab context already says "Send"; the
     // search field is the action (mirrors the header-less Receive card).
     <div className="flex flex-col min-h-0 flex-1">
-      {/* Search bar — one field for both name/@handle/email search and a
+      {/* Search bar - one field for both name/@handle/email search and a
           pasted identity key, so there's no second input further down. */}
       <div className="px-5 pt-5">
         <div className="flex items-center gap-2">
@@ -422,7 +445,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
               value={searchInput}
               onChange={e => applyRecipientText(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && recipient) confirmRecipient() }}
-              placeholder="Name, @handle, email or identity key"
+              placeholder="Name, @handle, email or Badge ID"
               className="min-w-0 flex-1 bg-transparent text-[13.5px] text-foreground placeholder:text-subtle-foreground outline-none"
             />
             {isSearching && <Spinner size="sm" tone="brand" />}
@@ -430,8 +453,8 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
           <button
             type="button"
             onClick={() => setScanOpen(true)}
-            aria-label="Scan an identity key QR code"
-            title="Scan an identity key QR code"
+            aria-label="Scan a Badge ID QR code"
+            title="Scan a Badge ID QR code"
             className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <QrCode className="h-[17px] w-[17px]" strokeWidth={1.9} />
@@ -443,7 +466,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
           const trimmed = searchInput.trim()
           const pastedKey = isIdentityKey(trimmed)
 
-          // Pasted-key path: skip the fuzzy dropdown — show an explicit
+          // Pasted-key path: skip the fuzzy dropdown - show an explicit
           // "recipient selected" card (or flag the bad key) so the paste
           // visibly landed before the user commits.
           if (pastedKey) {
@@ -456,7 +479,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 text-[13px] font-semibold text-success">
                       <CheckCircle2 className="h-[14px] w-[14px] flex-none" />
-                      Valid identity key
+                      Valid Badge ID
                     </div>
                     <div className="tabular truncate text-[12px] text-subtle-foreground mt-0.5">
                       {recipient.slice(0, 20)}…{recipient.slice(-6)}
@@ -469,7 +492,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
               </div>
             ) : (
               <p className="mt-1.5 text-[12px] text-destructive">
-                Not a valid identity key — check it was copied completely.
+                Not a valid Badge ID - check it was copied completely.
               </p>
             )
           }
@@ -515,7 +538,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         })()}
       </div>
 
-      {/* Contacts shortlist — recency-first, tap to select (no search needed).
+      {/* Contacts shortlist - recency-first, tap to select (no search needed).
           Truncated to CONTACT_LIMIT so the most recent stay on screen. */}
       {pickList.length > 0 && (
         <div className="px-5 pt-6">
@@ -550,7 +573,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         </div>
       )}
 
-      {/* Return to issuer shortcut — shown when token is locked and the
+      {/* Return to issuer shortcut - shown when token is locked and the
           current user isn't the issuer themselves (they'd be sending to
           their own identity key). */}
       {assetId && metas[assetId]?.issuer && metas[assetId].issuer !== identityKey && (
@@ -614,7 +637,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
               ))}
             </Select>
           ) : (
-            <div className="text-[13px] text-subtle-foreground">No tokens — receive some first.</div>
+            <div className="text-[13px] text-subtle-foreground">No tokens - receive some first.</div>
           )}
         </div>
       )}
@@ -644,13 +667,13 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         )}
       </div>
 
-      {/* Frozen holdings note — only the current identity's frozen outputs for
+      {/* Frozen holdings note - only the current identity's frozen outputs for
           this asset, so a send that needs one can be understood up front. */}
       {frozenNote.length > 0 && (
         <div className="mx-5 mt-[18px] rounded-md border border-warning/40 bg-warning/10 p-3 text-[12px] text-warning">
           {frozenNote.map((f, i) => (
             <div key={i}>
-              {formatAmount(f.amount, decimals)} {labelFor(assetId)} frozen{f.reason ? ` — ${f.reason}` : ''} (unspendable)
+              {formatAmount(f.amount, decimals)} {labelFor(assetId)} frozen{f.reason ? ` - ${f.reason}` : ''} (unspendable)
             </div>
           ))}
         </div>
@@ -779,7 +802,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
       {isPaused && devMode && (
         <div className="mx-5 mt-4 rounded-md bg-warning/10 px-4 py-3 text-[13px] text-warning">
           <span className="font-semibold">Developer mode:</span> frontend pause guard bypassed. This
-          asset is paused, so the overlay should reject the transfer server-side — send to verify.
+          asset is paused, so the overlay should reject the transfer server-side - send to verify.
         </div>
       )}
 
@@ -790,7 +813,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         </div>
       )}
 
-      {/* Confirm CTA — disabled while in-flight (isPending) and for
+      {/* Confirm CTA - disabled while in-flight (isPending) and for
           known-invalid gates; sync ref + sendFlight (handler-side, refs don't
           re-render) still block double-click before the re-render lands. */}
       <div className="mt-auto px-5 pb-6 pt-4">
@@ -818,7 +841,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   )
 
   // ---------------------------------------------------------------------------
-  // Step: Sending — shown the instant the button is pressed; the overlay accept
+  // Step: Sending - shown the instant the button is pressed; the overlay accept
   // (commit point) flips it to Sent, a reject returns to Review with the error.
   // ---------------------------------------------------------------------------
 
@@ -898,7 +921,7 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="flex flex-col rounded-lg bg-card shadow-[var(--shadow-card)] border border-border overflow-hidden min-h-[520px]">
+    <div className={cn('flex flex-col overflow-hidden', !bare && 'rounded-lg border border-border bg-card shadow-[var(--shadow-card)]')}>
       {(step === 'recipient' || step === 'review') && <AvailableStrip />}
       {step === 'recipient' && renderRecipient()}
       {step === 'amount' && renderAmount()}
