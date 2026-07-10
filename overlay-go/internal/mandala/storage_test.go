@@ -94,6 +94,30 @@ func TestAdminHistoryOrderingAndSummary(t *testing.T) {
 	}
 }
 
+// TestAdminSummaryDedupsReAdmits mirrors overlay/src/index.ts: GASP re-sync /
+// reorg replay appends a duplicate history row for the same on-chain action
+// with a fresh admitSeq — the summary must collapse to one row per
+// (txid, outputIndex) before summing, or totals double-count.
+func TestAdminSummaryDedupsReAdmits(t *testing.T) {
+	ctx := context.Background()
+	s := NewStore(testDB(t))
+	seq1, _ := s.NextAdmitSeq(ctx)
+	seq2, _ := s.NextAdmitSeq(ctx)
+	seq3, _ := s.NextAdmitSeq(ctx)
+	issue := AdminHistoryEntry{AssetID: "a.0", Txid: "t1", OutputIndex: 0, Height: 10, AdmitSeq: seq1,
+		ActionDetails: ActionDetails{"kind": "issue", "amount": float64(100)}, CreatedAt: time.Now()}
+	_ = s.AppendAdminHistory(ctx, issue)
+	readmit := issue
+	readmit.AdmitSeq = seq2
+	_ = s.AppendAdminHistory(ctx, readmit)
+	_ = s.AppendAdminHistory(ctx, AdminHistoryEntry{AssetID: "a.0", Txid: "t2", OutputIndex: 0, Height: 11, AdmitSeq: seq3,
+		ActionDetails: ActionDetails{"kind": "redeem", "amount": float64(30)}, CreatedAt: time.Now()})
+	iss, red, count, err := s.AdminSummary(ctx, "a.0")
+	if err != nil || iss != 100 || red != 30 || count != 2 {
+		t.Fatalf("re-admit dedup: got iss=%d red=%d count=%d err=%v, want 100 30 2", iss, red, count, err)
+	}
+}
+
 // TestNextAdmitSeqPropagatesRealErrors asserts that a genuine driver error
 // (here: an already-canceled context) surfaces to the caller as an error
 // with seq=0, rather than being swallowed into the TS-parity (1, nil)

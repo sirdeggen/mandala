@@ -447,14 +447,25 @@ func (s *Store) PageAdminHistory(ctx context.Context, assetID string, limit, off
 // AdminSummary aggregates mandalaAdminHistory by actionDetails.kind:
 // totalIssued/totalRedeemed sum actionDetails.amount for kind "issue" and
 // "redeem" respectively ("reissue" conserves supply and is excluded from
-// both totals — overlay/src/index.ts:182-193). actionCount is the total
-// number of admin-history documents for the asset, across all kinds.
+// both totals — overlay/src/index.ts admin-summary route). actionCount is
+// the number of distinct on-chain actions for the asset, across all kinds.
+// Re-admits (GASP re-sync / reorg replay) append duplicate rows for the
+// same on-chain action with a fresh admitSeq — collapse to one per
+// (txid, outputIndex) BEFORE summing, or totals double-count.
 func (s *Store) AdminSummary(ctx context.Context, assetID string) (totalIssued, totalRedeemed, actionCount int64, err error) {
 	cur, err := s.history.Aggregate(ctx, bson.A{
 		bson.D{{Key: "$match", Value: bson.D{{Key: "assetId", Value: assetID}}}},
 		bson.D{{Key: "$group", Value: bson.D{
-			{Key: "_id", Value: "$actionDetails.kind"},
-			{Key: "total", Value: bson.D{{Key: "$sum", Value: "$actionDetails.amount"}}},
+			{Key: "_id", Value: bson.D{
+				{Key: "txid", Value: "$txid"},
+				{Key: "outputIndex", Value: "$outputIndex"},
+			}},
+			{Key: "kind", Value: bson.D{{Key: "$first", Value: "$actionDetails.kind"}}},
+			{Key: "amount", Value: bson.D{{Key: "$first", Value: "$actionDetails.amount"}}},
+		}}},
+		bson.D{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$kind"},
+			{Key: "total", Value: bson.D{{Key: "$sum", Value: "$amount"}}},
 			{Key: "count", Value: bson.D{{Key: "$sum", Value: 1}}},
 		}}},
 	})
