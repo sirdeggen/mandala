@@ -5,7 +5,7 @@ import {
   resolveAdminSummary,
   AdminHistoryRow,
   AdminSummary
-} from '../lib/mandala/adminHistory'
+} from '@bsv/mandala/adminHistory'
 
 export const adminHistoryKey = (assetId: string) =>
   ['admin-history', assetId] as const

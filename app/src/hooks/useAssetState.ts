@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { resolveAssetState, AssetAdminStateView } from '../lib/mandala/adminState'
+import { resolveAssetState, AssetAdminStateView } from '@bsv/mandala/adminState'
 
 export const assetStateKey = (assetId: string) => ['asset-state', assetId] as const
 

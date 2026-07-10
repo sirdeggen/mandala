@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { useIdentitySearch } from '@bsv/identity-react'
@@ -6,11 +6,15 @@ import { Input } from '../ui/input'
 import { Select } from '../ui/select'
 import { Spinner } from '../ui/spinner'
 import { useWallet } from '../../context/WalletContext'
-import { AdminAsset, submitAdminAction, withReason } from '../../lib/mandala/assets'
-import { AssetAdminStateView } from '../../lib/mandala/adminState'
-import { formatAmount } from '../../lib/mandala/amount'
+import { AdminAsset, submitAdminAction, SubmitAdminActionParams, withReason } from '@bsv/mandala/assets'
+import { AssetAdminStateView } from '@bsv/mandala/adminState'
+import { formatAmount } from '@bsv/mandala/amount'
+import { guardAdminFields, guardPositiveAmount } from '@bsv/mandala/submitGuards'
+import { BusyError } from '@bsv/mandala/singleFlight'
+import { isAdminAuthInFlight } from '@bsv/mandala/adminAuthGate'
 import { useAssetState, useInvalidateAssetState } from '../../hooks/useAssetState'
 import { useInvalidateAdminHistory } from '../../hooks/useAdminHistory'
+import { useAdvanceAdminAuth } from '../../hooks/useAdminAssets'
 
 interface Props {
   assets: AdminAsset[]
@@ -30,7 +34,10 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   const [selectedAssetId, setSelectedAssetId] = useState('')
   // Tracks WHICH action is in flight, not just whether one is — so only the
   // pressed button shows its spinner; every other control is merely disabled.
+  // busyRef is the sync half: setState is async, so a double-click before
+  // re-render would both see busyAction === null without it.
   const [busyAction, setBusyAction] = useState<ActionKey | null>(null)
+  const busyRef = useRef(false)
   const busy = busyAction !== null
 
   // Admin Operations form: which action is selected in the dropdown, and the
@@ -68,6 +75,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   const state: AssetAdminStateView | null = stateQuery.data ?? null
   const invalidateAssetState = useInvalidateAssetState()
   const invalidateAdminHistory = useInvalidateAdminHistory()
+  const advanceAdminAuth = useAdvanceAdminAuth()
 
   // Keep the access-mode segmented control in sync with freshly loaded state.
   useEffect(() => {
@@ -106,8 +114,30 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     }
   })
 
+  // Single boundary for every regulatory action: submit, then advance the
+  // cached auth chain immediately so a rapid second action never reads the
+  // spent prior while the background refetch is still in flight.
+  const submitAction = useCallback(async (
+    args: Omit<SubmitAdminActionParams, 'wallet' | 'identityKey' | 'messageBoxClient'>
+  ) => {
+    const res = await submitAdminAction({
+      ...args,
+      wallet: wallet as any,
+      identityKey: identityKey!,
+      messageBoxClient: messageBoxClient ?? undefined
+    })
+    advanceAdminAuth(args.asset.assetId, res.nextAuthOutpoint, args.details)
+    return res
+  }, [wallet, identityKey, messageBoxClient, advanceAdminAuth])
+
   const run = useCallback(async (action: ActionKey, fn: () => Promise<void>) => {
     if (wallet == null || identityKey == null || asset == null) return
+    if (busyRef.current) return
+    if (isAdminAuthInFlight(asset.assetId)) {
+      toast.error('Admin action already in progress for this asset')
+      return
+    }
+    busyRef.current = true
     setBusyAction(action)
     try {
       await fn()
@@ -117,8 +147,13 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
       void invalidateAdminHistory(activeAssetId)
       onActionComplete?.()
     } catch (e) {
-      toast.error(`Action failed: ${String(e)}`)
+      if (e instanceof BusyError) {
+        toast.error(e.message)
+      } else {
+        toast.error(`Action failed: ${String(e)}`)
+      }
     } finally {
+      busyRef.current = false
       setBusyAction(null)
     }
   }, [wallet, identityKey, asset, activeAssetId, invalidateAssetState, invalidateAdminHistory, onActionComplete])
@@ -128,16 +163,13 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // ---------------------------------------------------------------------------
   const handlePauseToggle = () => void run('pause', async () => {
     const isPaused = state?.isPaused ?? false
-    await submitAdminAction({
-      wallet: wallet as any,
+    await submitAction({
       asset: asset!,
       details: withReason({
         kind: isPaused ? 'unpause' : 'pause',
         assetId: asset!.assetId,
         priorOutpoint: asset!.authOutpoint
-      }, reason),
-      identityKey: identityKey!,
-      messageBoxClient: messageBoxClient ?? undefined
+      }, reason)
     })
     toast.success(isPaused ? 'Asset unpaused' : 'Asset paused')
   })
@@ -147,13 +179,11 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // ---------------------------------------------------------------------------
   const handleFreeze = () => void run('freeze', async () => {
     const op = freezeOutpoint.trim()
-    if (op === '') { toast.error('Enter an outpoint to freeze'); return }
-    await submitAdminAction({
-      wallet: wallet as any,
+    const fields = guardAdminFields({ outpoint: op, requireOutpoint: true })
+    if (!fields.ok) { toast.error(fields.reason); return }
+    await submitAction({
       asset: asset!,
-      details: withReason({ kind: 'freezeOutput', assetId: asset!.assetId, outpoint: op, priorOutpoint: asset!.authOutpoint }, reason),
-      identityKey: identityKey!,
-      messageBoxClient: messageBoxClient ?? undefined
+      details: withReason({ kind: 'freezeOutput', assetId: asset!.assetId, outpoint: op, priorOutpoint: asset!.authOutpoint }, reason)
     })
     toast.success(`Output ${op.slice(0, 16)}… frozen`)
     setFreezeOutpoint('')
@@ -164,13 +194,11 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // ---------------------------------------------------------------------------
   const handleUnfreeze = () => void run('unfreeze', async () => {
     const op = selectedFreezeRef || freezeOutpoint.trim()
-    if (op === '') { toast.error('Select or enter an outpoint to unfreeze'); return }
-    await submitAdminAction({
-      wallet: wallet as any,
+    const fields = guardAdminFields({ outpoint: op, requireOutpoint: true })
+    if (!fields.ok) { toast.error(fields.reason); return }
+    await submitAction({
       asset: asset!,
-      details: withReason({ kind: 'unfreezeOutput', assetId: asset!.assetId, outpoint: op, priorOutpoint: asset!.authOutpoint }, reason),
-      identityKey: identityKey!,
-      messageBoxClient: messageBoxClient ?? undefined
+      details: withReason({ kind: 'unfreezeOutput', assetId: asset!.assetId, outpoint: op, priorOutpoint: asset!.authOutpoint }, reason)
     })
     toast.success(`Output ${op.slice(0, 16)}… unfrozen`)
     setSelectedFreezeRef('')
@@ -182,13 +210,11 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // ---------------------------------------------------------------------------
   const handleIdentityAction = (kind: 'blockIdentity' | 'unblockIdentity' | 'allowIdentity' | 'unallowIdentity') => void run(kind, async () => {
     const key = resolvedIdentityKey || publicKeyInput.trim()
-    if (key === '') { toast.error('Select or enter an identity key'); return }
-    await submitAdminAction({
-      wallet: wallet as any,
+    const fields = guardAdminFields({ identityKey: key, requireIdentity: true })
+    if (!fields.ok) { toast.error(fields.reason); return }
+    await submitAction({
       asset: asset!,
-      details: withReason({ kind, assetId: asset!.assetId, identityKey: key, priorOutpoint: asset!.authOutpoint }, reason),
-      identityKey: identityKey!,
-      messageBoxClient: messageBoxClient ?? undefined
+      details: withReason({ kind, assetId: asset!.assetId, identityKey: key, priorOutpoint: asset!.authOutpoint }, reason)
     })
     const labels: Record<string, string> = { blockIdentity: 'Blocked', unblockIdentity: 'Unblocked', allowIdentity: 'Allowlisted', unallowIdentity: 'Removed from allowlist' }
     toast.success(`${labels[kind]} ${key.slice(0, 12)}…`)
@@ -201,12 +227,9 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // Set access mode
   // ---------------------------------------------------------------------------
   const handleSetAccessMode = () => void run('accessMode', async () => {
-    await submitAdminAction({
-      wallet: wallet as any,
+    await submitAction({
       asset: asset!,
-      details: withReason({ kind: 'setAccessMode', assetId: asset!.assetId, mode: newAccessMode, priorOutpoint: asset!.authOutpoint }, reason),
-      identityKey: identityKey!,
-      messageBoxClient: messageBoxClient ?? undefined
+      details: withReason({ kind: 'setAccessMode', assetId: asset!.assetId, mode: newAccessMode, priorOutpoint: asset!.authOutpoint }, reason)
     })
     toast.success(`Access mode set to ${newAccessMode}`)
   })
@@ -216,13 +239,18 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // ---------------------------------------------------------------------------
   const handleReissue = () => void run('reissue', async () => {
     const op = reissueOutpoint
-    if (op === '') { toast.error('Select a frozen outpoint to reissue'); return }
     const recipient = reissueRecipient || reissueRecipientPublicKey.trim()
-    if (recipient === '') { toast.error('Enter a recipient identity key'); return }
+    const fields = guardAdminFields({
+      outpoint: op,
+      recipient,
+      requireOutpoint: true,
+      requireRecipient: true
+    })
+    if (!fields.ok) { toast.error(fields.reason); return }
     const amount = Number(reissueAmount)
-    if (!Number.isInteger(amount) || amount < 1) { toast.error('Enter a valid amount'); return }
-    await submitAdminAction({
-      wallet: wallet as any,
+    const amountGate = guardPositiveAmount(amount)
+    if (!amountGate.ok) { toast.error(amountGate.reason); return }
+    await submitAction({
       asset: asset!,
       details: withReason({
         kind: 'reissue',
@@ -232,9 +260,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
         recipient,
         priorOutpoint: asset!.authOutpoint
       }, reason),
-      ftOutput: { recipient, amount },
-      identityKey: identityKey!,
-      messageBoxClient: messageBoxClient ?? undefined
+      ftOutput: { recipient, amount }
     })
     toast.success(`Reissued ${formatAmount(amount, decimals)} ${asset!.label} to ${recipient.slice(0, 12)}…`)
     setReissueOutpoint('')
@@ -663,8 +689,11 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
           />
         </div>
 
-        {/* Shared submit */}
+        {/* Shared submit — busyRef + adminAuthGate block re-entry in the
+            handler before re-render (refs don't re-render, so they stay out
+            of `disabled`) */}
         <button
+          type="button"
           onClick={runSelectedOp}
           disabled={busy || asset == null || (op === 'reissue' && !hasFrozen) || opDisabled}
           className={submitButtonClassName}

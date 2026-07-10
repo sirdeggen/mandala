@@ -1,43 +1,24 @@
 import { useState, useEffect, useRef } from 'react'
-import { type AtomicBEEF } from '@bsv/sdk'
 import { Card, CardContent } from './ui/card'
 import { toast } from 'sonner'
 import { useWallet } from '../context/WalletContext'
 import { Check } from 'lucide-react'
-import { MESSAGEBOX, BASKET } from '../lib/mandala/constants'
+import { receiveTokens, ReceivedTransfer } from '@bsv/mandala/receive'
 import { useInvalidateHolderData } from '../hooks/useHolderData'
-import { resolveAssetMetadata } from '../lib/mandala/metadata'
-import { formatAmount } from '../lib/mandala/amount'
+import { formatAmount } from '@bsv/mandala/amount'
 import ReceivePanel from './holder/ReceivePanel'
 import { Spinner } from './ui/spinner'
 
-interface ReceivedToken {
-  id: string
-  assetId: string
-  amount: string
-  sender: string
-  label: string
-  decimals: number
+interface ReceivedToken extends ReceivedTransfer {
   at: number
-}
-
-interface IncomingMessage {
-  id: string
-  assetId: string
-  amount: string
-  sender: string
-  keyID: string
-  protocolID: [0 | 1 | 2, string]
-  transaction: AtomicBEEF
-  /** Where the sender's (randomized) tx put our output; 0 for legacy messages. */
-  outputIndex: number
 }
 
 /**
  * Incoming transfers are ACCEPTED AUTOMATICALLY — there is no manual
- * accept/reject step. On load (and on refresh) we internalize every pending
- * message-box transfer into the wallet basket, acknowledge it, and show a
- * read-only confirmation. The QR/identity panel lets others send to you.
+ * accept/reject step. On load (and on refresh) the @bsv/mandala receive
+ * pipeline internalizes every pending message-box transfer into the wallet
+ * basket and acknowledges it; we show a read-only confirmation. The
+ * QR/identity panel lets others send to you.
  */
 export default function ReceiveTokens() {
   const { wallet, messageBoxClient } = useWallet()
@@ -51,76 +32,33 @@ export default function ReceiveTokens() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messageBoxClient, wallet])
 
-  const acceptOne = async (msg: IncomingMessage): Promise<void> => {
-    if (wallet == null || messageBoxClient == null) return
-    const meta = await resolveAssetMetadata(msg.assetId)
-    const label = meta?.label ?? `${msg.assetId.slice(0, 20)}…`
-    const decimals = Number(meta?.decimals) || 0
-
-    await wallet.internalizeAction({
-      tx: msg.transaction,
-      // Sender key as an action label — survives the output being spent,
-      // unlike customInstructions (see history.ts counterparty resolution).
-      labels: ['mandala', 'receive', `from-${msg.sender.toLowerCase()}`],
-      outputs: [{
-        outputIndex: msg.outputIndex,
-        protocol: 'basket insertion',
-        insertionRemittance: {
-          basket: BASKET,
-          customInstructions: JSON.stringify({
-            protocolID: msg.protocolID,
-            keyID: msg.keyID,
-            counterparty: msg.sender,
-            label
-          }),
-          tags: ['mandala', 'received', msg.assetId]
-        }
-      }],
-      description: `Receive ${msg.amount} of ${msg.assetId}`
-    })
-    await messageBoxClient.acknowledgeMessage({ messageIds: [msg.id] })
-    // Balance + history changed — refresh the shared holder cache in the background.
-    void invalidateHolderData()
-
-    setReceived(prev => [
-      { id: msg.id, assetId: msg.assetId, amount: msg.amount, sender: msg.sender, label, decimals, at: Date.now() },
-      ...prev
-    ])
-    toast.success('Tokens received', {
-      description: `+${formatAmount(Number(msg.amount), decimals)} ${label}`,
-      duration: 4000
-    })
-  }
-
   const autoReceive = async () => {
     setIsLoading(true)
     try {
       if (messageBoxClient == null || wallet == null) return
-      const messages = await messageBoxClient.listMessages({ messageBox: MESSAGEBOX, acceptPayments: false })
-      for (const raw of messages as Array<{ messageId: string, body: any }>) {
-        if (processedRef.current.has(raw.messageId)) continue
-        processedRef.current.add(raw.messageId)
-        try {
-          await acceptOne({
-            id: raw.messageId,
-            assetId: raw.body.assetId,
-            amount: raw.body.amount,
-            sender: raw.body.sender,
-            keyID: raw.body.keyID,
-            protocolID: raw.body.protocolID,
-            transaction: raw.body.transaction,
-            // Senders now randomize output order and say where our output
-            // landed; older messages predate the field (recipient was always 0).
-            outputIndex: typeof raw.body.outputIndex === 'number' ? raw.body.outputIndex : 0
-          })
-        } catch (err) {
-          // One bad transfer shouldn't block the rest; allow a later retry.
-          processedRef.current.delete(raw.messageId)
-          console.error('Auto-receive failed for', raw.messageId, err)
-          toast.error('Could not receive a transfer', {
-            description: err instanceof Error ? err.message : 'Unexpected error'
+      const { accepted, failed } = await receiveTokens({
+        wallet,
+        messageBoxClient,
+        processed: processedRef.current
+      })
+      if (accepted.length > 0) {
+        // Balance + history changed — refresh the shared holder cache in the background.
+        void invalidateHolderData()
+        const at = Date.now()
+        setReceived(prev => [...accepted.map(t => ({ ...t, at })), ...prev])
+        for (const t of accepted) {
+          toast.success('Tokens received', {
+            description: `+${formatAmount(Number(t.amount), t.decimals)} ${t.label}`,
+            duration: 4000
           })
         }
+      }
+      for (const f of failed) {
+        // One bad transfer doesn't block the rest; it stays un-acknowledged for retry.
+        console.error('Auto-receive failed for', f.messageId, f.error)
+        toast.error('Could not receive a transfer', {
+          description: f.error instanceof Error ? f.error.message : 'Unexpected error'
+        })
       }
     } catch (error) {
       console.error('Error checking for incoming transfers:', error)

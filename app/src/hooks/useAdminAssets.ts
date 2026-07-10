@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '../context/WalletContext'
-import { listAdminAssets, AdminAsset } from '../lib/mandala/assets'
+import { listAdminAssets, AdminAsset } from '@bsv/mandala/assets'
 
 export const adminAssetsKey = (identityKey: string | null) =>
   ['admin-assets', identityKey] as const
@@ -19,4 +19,25 @@ export function useInvalidateAdminAssets() {
   const qc = useQueryClient()
   const { identityKey } = useWallet()
   return () => qc.invalidateQueries({ queryKey: adminAssetsKey(identityKey) })
+}
+
+/**
+ * Advance an asset's admin-auth chain in the cache the moment an action
+ * commits. The background refetch eventually agrees, but until it lands a
+ * second action would read the SPENT prior from the cache and die with
+ * StaleAdminAuthError — this closes that gap. authDetails must advance with
+ * the outpoint (the next unlock derives from them).
+ */
+export function useAdvanceAdminAuth() {
+  const qc = useQueryClient()
+  const { identityKey } = useWallet()
+  return (assetId: string, nextAuthOutpoint: string, nextAuthDetails?: AdminAsset['authDetails']) => {
+    qc.setQueryData<AdminAsset[]>(adminAssetsKey(identityKey), prev =>
+      prev?.map(a =>
+        a.assetId === assetId
+          ? { ...a, authOutpoint: nextAuthOutpoint, authDetails: nextAuthDetails ?? a.authDetails }
+          : a
+      )
+    )
+  }
 }

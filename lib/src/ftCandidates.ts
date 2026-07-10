@@ -8,6 +8,7 @@ import { MandalaToken } from '@bsv/templates'
 import { BASKET } from './constants'
 import { FtCandidate } from './ftSelect'
 import { resolveAssetState } from './adminState'
+import { assertSpendablePrior } from './adminAuthGate'
 
 // Wallet action statuses we treat as confirmed for coin-selection purposes.
 // Everything else (nosend/unproven/sending/unprocessed/…) is "unconfirmed" and
@@ -49,7 +50,16 @@ export function excludeFrozen (candidates: FtCandidate[], excluded: Set<string>)
  */
 export async function loadFtCandidates(
   wallet: WalletInterface,
-  assetId: string
+  assetId: string,
+  opts?: {
+    /**
+     * Outpoint that must still be spendable in the basket (e.g. the admin-auth
+     * prior for a redeem). Checked against the first listing so a stale prior
+     * fails fast before the heavier BEEF/listActions work — and without the
+     * extra listOutputs a caller-side pre-check would cost.
+     */
+    requireSpendable?: string
+  }
 ): Promise<{ candidates: FtCandidate[], beef: number[] }> {
   const scriptRes = await wallet.listOutputs({
     basket: BASKET,
@@ -57,6 +67,9 @@ export async function loadFtCandidates(
     includeCustomInstructions: true,
     limit: 1000
   })
+  if (opts?.requireSpendable != null) {
+    assertSpendablePrior(opts.requireSpendable, scriptRes.outputs.map(o => o.outpoint as string))
+  }
   const beefRes = await wallet.listOutputs({
     basket: BASKET,
     include: 'entire transactions',

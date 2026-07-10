@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '../context/WalletContext'
-import { deriveContacts, Contact } from '../lib/mandala/contacts'
-import { listContacts, StoredContact } from '../lib/mandala/contactsStore'
-import { loadHistory } from '../lib/mandala/history'
+import { deriveContacts, Contact } from '@bsv/mandala/contacts'
+import { listContacts, StoredContact } from '@bsv/mandala/contactsStore'
+import { loadHistory } from '@bsv/mandala/history'
 
 export interface ContactsData {
   /** Recency-ordered counterparties derived from transaction history. */

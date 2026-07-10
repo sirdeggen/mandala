@@ -3,8 +3,8 @@ import { Download, RefreshCw } from 'lucide-react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Select } from '../ui/select'
 import { Spinner } from '../ui/spinner'
-import { AdminAsset } from '../../lib/mandala/assets'
-import { describeAction, exportAdminHistoryCsv, resolveAdminHistory, AdminHistoryRow } from '../../lib/mandala/adminHistory'
+import { AdminAsset } from '@bsv/mandala/assets'
+import { describeAction, exportAdminHistoryCsv, resolveAdminHistory, AdminHistoryRow } from '@bsv/mandala/adminHistory'
 import { useAdminHistoryPages } from '../../hooks/useAdminHistory'
 
 interface Props {

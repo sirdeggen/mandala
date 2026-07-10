@@ -2,10 +2,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { LockingScript } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
 import { useWallet } from '../context/WalletContext'
-import { BASKET } from '../lib/mandala/constants'
-import { loadHistory, HistoryRow } from '../lib/mandala/history'
-import { listAdminAssets } from '../lib/mandala/assets'
-import { resolveAssetMetadata } from '../lib/mandala/metadata'
+import { BASKET } from '@bsv/mandala/constants'
+import { loadHistory, HistoryRow } from '@bsv/mandala/history'
+import { listAdminAssets } from '@bsv/mandala/assets'
+import { resolveAssetMetadata } from '@bsv/mandala/metadata'
 
 export interface AssetMeta {
   label: string

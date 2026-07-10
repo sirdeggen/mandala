@@ -23,7 +23,7 @@ vi.mock('../../context/WalletContext', () => ({
   useWallet: () => ({ wallet: null, identityKey: null })
 }))
 
-vi.mock('../../lib/mandala/history', () => ({
+vi.mock('@bsv/mandala/history', () => ({
   loadHistory: vi.fn().mockResolvedValue([]),
   exportTransactionsCsv: vi.fn().mockReturnValue('txid,assetId,direction,kind,amount,counterparty,when')
 }))

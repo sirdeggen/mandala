@@ -1,15 +1,15 @@
 import { describe, it, expect, vi } from 'vitest'
 
 // Mock network calls so the module loads in Node test env
-vi.mock('../../lib/mandala/adminHistory', () => ({
+vi.mock('@bsv/mandala/adminHistory', () => ({
   resolveAdminHistory: vi.fn().mockResolvedValue([]),
   describeAction: vi.fn().mockReturnValue(''),
   exportAdminHistoryCsv: vi.fn().mockReturnValue('')
 }))
-vi.mock('../../lib/mandala/adminState', () => ({
+vi.mock('@bsv/mandala/adminState', () => ({
   resolveAssetState: vi.fn().mockResolvedValue(null)
 }))
-vi.mock('../../lib/mandala/banking', () => ({
+vi.mock('@bsv/mandala/banking', () => ({
   reconcile: vi.fn().mockReturnValue({ bankBalance: 0, netSupply: 0, drift: 0 }),
   seedDeposits: vi.fn().mockReturnValue([])
 }))

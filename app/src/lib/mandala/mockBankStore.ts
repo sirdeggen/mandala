@@ -14,7 +14,7 @@
  * fabricated reserve numbers.
  */
 import { useSyncExternalStore } from 'react'
-import { MockTransfer } from './banking'
+import { MockTransfer } from '@bsv/mandala/banking'
 
 const KEY = 'mandala.mockDeposits'
 

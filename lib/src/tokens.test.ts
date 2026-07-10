@@ -3,6 +3,7 @@ import { Hash, PrivateKey, ProtoWallet } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
 import { outpoint, decodeBalances, revealLinkage, matchOutputIndices } from './tokens'
 import { encodeLinkagePayload, MandalaLinkagePayload } from './encoding'
+import { configureMandala } from './constants'
 
 describe('tokens helpers', () => {
   it('formats outpoints', () => {
@@ -55,6 +56,11 @@ describe('input linkage payload assembly', () => {
     // Simulate the pattern used in SendTokens.transfer:
     //   for each entry in spendInfo, call revealLinkage and push to inLinks.
     // We use ProtoWallet (same mock wallet as unlock tests) + 'self' counterparty.
+    // revealLinkage's verifier comes from configureMandala — the package has
+    // no ambient env, so tests must set a valid overlay identity key.
+    configureMandala({
+      overlayIdentityKey: PrivateKey.fromRandom().toPublicKey().toString()
+    })
     const wallet = new ProtoWallet(PrivateKey.fromRandom())
 
     const spendInfo = [

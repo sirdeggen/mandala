@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchOverlayActivity, flattenActivityPages, ActivityEntry, ActivityPage } from '../lib/mandala/overlayActivity'
+import { fetchOverlayActivity, flattenActivityPages, ActivityEntry, ActivityPage } from '@bsv/mandala/overlayActivity'
 
 export const overlayActivityKey = (assetId: string) =>
   ['overlay-activity', assetId] as const

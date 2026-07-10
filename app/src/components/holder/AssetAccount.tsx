@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ArrowLeft, Send, Download, Clock } from 'lucide-react'
 import { Button } from '../ui/button'
-import { formatCurrency } from '../../lib/mandala/amount'
+import { formatCurrency } from '@bsv/mandala/amount'
 import { useHolderData } from '../../hooks/useHolderData'
 import AlertBanners from './AlertBanners'
 import ReceivePanel from './ReceivePanel'
