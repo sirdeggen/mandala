@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ShieldCheck, Banknote, Wallet, Activity, ChevronDown
 } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
-import { AdminAsset } from '../../lib/mandala/assets'
+import { AdminAsset } from '@bsv/mandala/assets'
 import { useAdminAssets, useInvalidateAdminAssets } from '../../hooks/useAdminAssets'
 import { BrandMark } from '../ui/BrandMark'
 import { cn } from '@/lib/utils'

@@ -2,8 +2,9 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { WalletClient } from '@bsv/sdk'
 import { MessageBoxClient } from '@bsv/message-box-client'
 import { toast } from 'sonner'
-import { OVERLAY_IDENTITY_KEY, MESSAGEBOX_URL } from '../lib/mandala/constants'
-import { reconcileWallet } from '../lib/mandala/reconcile'
+import { OVERLAY_IDENTITY_KEY, MESSAGEBOX_URL } from '@bsv/mandala/constants'
+import { reconcileWallet } from '@bsv/mandala/reconcile'
+import { reconcileNotifications } from '@bsv/mandala/notifyJournal'
 
 interface WalletState {
   wallet: WalletClient | null
@@ -28,6 +29,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   })
 
   useEffect(() => {
+    // StrictMode double-invokes this effect: the cancelled flag stops the
+    // stale run from clobbering state, and the reconcile passes below are
+    // web-lock guarded so an overlapping second run skips instead of
+    // double-broadcasting/aborting.
+    let cancelled = false
     const init = async () => {
       try {
         const wallet = new WalletClient()
@@ -36,6 +42,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           host: MESSAGEBOX_URL, walletClient: wallet as any,
           enableLogging: false, networkPreset: 'mainnet'
         })
+        if (cancelled) return
         setState({
           wallet, messageBoxClient, identityKey,
           isIssuer: identityKey === OVERLAY_IDENTITY_KEY,
@@ -51,11 +58,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             toast.info(`Recovered ${recovered} pending transaction${recovered === 1 ? '' : 's'}`)
           }
         }).catch(e => console.warn('[mandala] reconcile failed:', e))
+        // Deliver recipient notifications a crashed/failed send left pending —
+        // without this the recipient never learns about their on-chain funds.
+        void reconcileNotifications(messageBoxClient).then(d => {
+          if (d.length > 0) console.info('[mandala] delivered pending transfer notifications:', d)
+        }).catch(e => console.warn('[mandala] notification retry failed:', e))
       } catch (e) {
-        setState(s => ({ ...s, isInitialized: true, error: 'Failed to initialize wallet. Ensure a BRC-100 wallet (Metanet) is running.' }))
+        if (!cancelled) {
+          setState(s => ({ ...s, isInitialized: true, error: 'Failed to initialize wallet. Ensure a BRC-100 wallet (Metanet) is running.' }))
+        }
       }
     }
     void init()
+    return () => { cancelled = true }
   }, [])
 
   return <WalletContext.Provider value={state}>{children}</WalletContext.Provider>

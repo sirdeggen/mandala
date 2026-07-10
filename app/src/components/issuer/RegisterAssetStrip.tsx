@@ -2,8 +2,8 @@ import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useWallet } from '../../context/WalletContext'
 import { useIssuerMutations } from '../../hooks/useIssuerMutations'
-import { guardRegisterSubmit } from '../../lib/mandala/submitGuards'
-import { registerFlight } from '../../lib/mandala/singleFlight'
+import { guardRegisterSubmit } from '@bsv/mandala/submitGuards'
+import { registerFlight } from '@bsv/mandala/singleFlight'
 import { Input } from '../ui/input'
 import { Spinner } from '../ui/spinner'
 
@@ -88,7 +88,7 @@ export default function RegisterAssetStrip() {
           <button
             type="button"
             onClick={handleRegister}
-            disabled={register.isPending || startedRef.current || label.trim() === ''}
+            disabled={register.isPending || label.trim() === ''}
             className="h-[30px] shrink-0 rounded-sm border border-input-border bg-card px-3 text-[12px] font-medium text-primary transition-[opacity,background-color] duration-150 hover:bg-accent disabled:opacity-40 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {register.isPending && <Spinner size="sm" tone="current" />}

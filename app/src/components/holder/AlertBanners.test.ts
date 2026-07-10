@@ -12,11 +12,11 @@ vi.mock('../../context/WalletContext', () => ({
   useWallet: () => ({ wallet: null, identityKey: null })
 }))
 
-vi.mock('../../lib/mandala/adminState', () => ({
+vi.mock('@bsv/mandala/adminState', () => ({
   resolveAssetState: vi.fn().mockResolvedValue(null)
 }))
 
-vi.mock('../../lib/mandala/metadata', () => ({
+vi.mock('@bsv/mandala/metadata', () => ({
   resolveAssetMetadata: vi.fn().mockResolvedValue(null)
 }))
 

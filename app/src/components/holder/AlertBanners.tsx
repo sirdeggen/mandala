@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, ShieldOff } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
-import { BASKET } from '../../lib/mandala/constants'
+import { BASKET } from '@bsv/mandala/constants'
 import { useAssetState } from '../../hooks/useAssetState'
 import { useHolderData } from '../../hooks/useHolderData'
-import { formatCurrency } from '../../lib/mandala/amount'
+import { formatCurrency } from '@bsv/mandala/amount'
 import { LockingScript } from '@bsv/sdk'
 import { MandalaToken } from '@bsv/templates'
 

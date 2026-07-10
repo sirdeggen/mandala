@@ -1,13 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useWallet } from '../context/WalletContext'
-import { AdminAsset } from '../lib/mandala/assets'
-import { registerAsset, issueTokens, redeemTokens } from '../lib/mandala/issuerOps'
-import { reconcileWallet } from '../lib/mandala/reconcile'
-import { formatAmount } from '../lib/mandala/amount'
-import { registerFlight, BusyError } from '../lib/mandala/singleFlight'
-import { guardIssueSubmit, guardRedeemSubmit, guardRegisterSubmit } from '../lib/mandala/submitGuards'
-import { adminAssetsKey } from './useAdminAssets'
+import { AdminAsset } from '@bsv/mandala/assets'
+import { registerAsset, issueTokens, redeemTokens } from '@bsv/mandala/issuerOps'
+import { reconcileWallet } from '@bsv/mandala/reconcile'
+import { formatAmount } from '@bsv/mandala/amount'
+import { registerFlight, BusyError } from '@bsv/mandala/singleFlight'
+import { guardIssueSubmit, guardRedeemSubmit, guardRegisterSubmit } from '@bsv/mandala/submitGuards'
+import { adminAssetsKey, useAdvanceAdminAuth } from './useAdminAssets'
 import { holderDataKey, HolderData } from './useHolderData'
 
 /**
@@ -24,6 +24,7 @@ export function useIssuerMutations() {
   const { wallet, identityKey } = useWallet()
   const qc = useQueryClient()
   const holderKey = holderDataKey(identityKey)
+  const advanceAdminAuth = useAdvanceAdminAuth()
 
   const settle = () => {
     void qc.invalidateQueries({ queryKey: adminAssetsKey(identityKey) })
@@ -67,7 +68,7 @@ export function useIssuerMutations() {
     onSettled: settle
   })
 
-  const issue = useMutation<{ txid: string }, Error, { asset: AdminAsset; amount: number }, { prev?: HolderData }>({
+  const issue = useMutation<Awaited<ReturnType<typeof issueTokens>>, Error, { asset: AdminAsset; amount: number }, { prev?: HolderData }>({
     mutationFn: async ({ asset, amount }) => {
       if (wallet == null || identityKey == null) throw new Error('Wallet not ready')
       const gate = guardIssueSubmit({ assetId: asset.assetId, amount, walletReady: true })
@@ -75,8 +76,12 @@ export function useIssuerMutations() {
       return issueTokens({ wallet: wallet as any, identityKey, asset, amount })
     },
     onMutate: ({ asset, amount }) => adjustBalance(asset.assetId, amount),
-    onSuccess: (_r, { asset, amount }) =>
-      toast.success(`Issued ${formatAmount(amount, Number(asset.metadata?.decimals) || 0)} ${asset.label}`),
+    onSuccess: (r, { asset, amount }) => {
+      // Advance the cached auth chain immediately — a second action before the
+      // background refetch lands must not read the spent prior.
+      advanceAdminAuth(asset.assetId, r.nextAuthOutpoint, r.nextAuthDetails)
+      toast.success(`Issued ${formatAmount(amount, Number(asset.metadata?.decimals) || 0)} ${asset.label}`)
+    },
     onError: (e, _v, ctx) => {
       if (ctx?.prev != null) qc.setQueryData(holderKey, ctx.prev)
       if (e instanceof BusyError) return
@@ -85,16 +90,18 @@ export function useIssuerMutations() {
     onSettled: settle
   })
 
-  const redeem = useMutation<{ txid: string }, Error, { asset: AdminAsset; amount: number }, { prev?: HolderData }>({
+  const redeem = useMutation<Awaited<ReturnType<typeof redeemTokens>>, Error, { asset: AdminAsset; amount: number }>({
     mutationFn: async ({ asset, amount }) => {
       if (wallet == null || identityKey == null) throw new Error('Wallet not ready')
       // Enforce balance at the mutation boundary even when the UI guard is
-      // bypassed (direct mutate). Prefer live holder-data cache; if that query
-      // has loaded but this asset is absent, treat balance as 0.
+      // bypassed (direct mutate). Read the cache BEFORE the optimistic
+      // decrement — onMutate would run first and make the gate compare
+      // against balance-minus-amount, refusing any redeem above half.
+      // A missing asset row means "balance unknown" (e.g. just-issued,
+      // refetch pending): skip the cap and let coin selection be the
+      // authority, matching the UI guard's semantics.
       const holder = qc.getQueryData<HolderData>(holderKey)
-      const balance = holder == null
-        ? undefined
-        : (holder.assets.find(a => a.assetId === asset.assetId)?.balance ?? 0)
+      const balance = holder?.assets.find(a => a.assetId === asset.assetId)?.balance
       const gate = guardRedeemSubmit({
         assetId: asset.assetId,
         amount,
@@ -102,19 +109,27 @@ export function useIssuerMutations() {
         walletReady: true
       })
       if (!gate.ok) throw new Error(gate.reason)
-      return redeemTokens({
-        wallet: wallet as any,
-        identityKey,
-        asset,
-        amount,
-        balance
-      })
+      // Optimistic decrement lives here (not onMutate) so the gate above sees
+      // the pre-decrement balance; roll back inline on any failure.
+      const { prev } = await adjustBalance(asset.assetId, -amount)
+      try {
+        return await redeemTokens({
+          wallet: wallet as any,
+          identityKey,
+          asset,
+          amount,
+          balance
+        })
+      } catch (e) {
+        if (prev != null) qc.setQueryData(holderKey, prev)
+        throw e
+      }
     },
-    onMutate: ({ asset, amount }) => adjustBalance(asset.assetId, -amount),
-    onSuccess: (_r, { asset, amount }) =>
-      toast.success(`Redeemed (burned) ${formatAmount(amount, Number(asset.metadata?.decimals) || 0)} ${asset.label}`),
-    onError: (e, _v, ctx) => {
-      if (ctx?.prev != null) qc.setQueryData(holderKey, ctx.prev)
+    onSuccess: (r, { asset, amount }) => {
+      advanceAdminAuth(asset.assetId, r.nextAuthOutpoint, r.nextAuthDetails)
+      toast.success(`Redeemed (burned) ${formatAmount(amount, Number(asset.metadata?.decimals) || 0)} ${asset.label}`)
+    },
+    onError: e => {
       if (e instanceof BusyError) return
       toast.error(`Redeem failed: ${String(e)}`)
     },

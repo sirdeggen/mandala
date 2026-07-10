@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
   guardPositiveAmount,
-  guardParseAmount,
   guardSendSubmit,
   guardIssueSubmit,
   guardRedeemSubmit,
@@ -21,26 +20,6 @@ describe('guardPositiveAmount', () => {
     expect(guardPositiveAmount(1.5).ok).toBe(false)
     expect(guardPositiveAmount(NaN).ok).toBe(false)
     expect(guardPositiveAmount(Infinity).ok).toBe(false)
-  })
-})
-
-describe('guardParseAmount', () => {
-  it('parses valid display amounts', () => {
-    const r = guardParseAmount('10.5', 2)
-    expect(r.ok).toBe(true)
-    if (r.ok) expect(r.amount).toBe(1050)
-  })
-
-  it('rejects over-precision and non-parseable input without inventing an amount', () => {
-    expect(guardParseAmount('1.234', 2).ok).toBe(false)
-    expect(guardParseAmount('abc', 0).ok).toBe(false)
-    expect(guardParseAmount('', 0).ok).toBe(false)
-    expect(guardParseAmount('0', 0).ok).toBe(false)
-  })
-
-  it('rejects amount above balance', () => {
-    const r = guardParseAmount('50', 0, { balance: 40 })
-    expect(r.ok).toBe(false)
   })
 })
 

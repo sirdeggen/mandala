@@ -181,7 +181,17 @@ const main = async (): Promise<void> => {
       try {
         const groups = await adminHistoryCol.aggregate([
           { $match: { assetId: req.params.assetId } },
-          { $group: { _id: '$actionDetails.kind', total: { $sum: '$actionDetails.amount' }, count: { $sum: 1 } } }
+          // Re-admits (GASP re-sync / reorg replay) append duplicate rows for
+          // the same on-chain action with a fresh admitSeq — collapse to one
+          // per (txid, outputIndex) BEFORE summing, or totals double-count.
+          {
+            $group: {
+              _id: { txid: '$txid', outputIndex: '$outputIndex' },
+              kind: { $first: '$actionDetails.kind' },
+              amount: { $first: '$actionDetails.amount' }
+            }
+          },
+          { $group: { _id: '$kind', total: { $sum: '$amount' }, count: { $sum: 1 } } }
         ]).toArray()
         const byKind = new Map(groups.map(g => [g._id as string, g]))
         // Matches the client-side sums this replaces: 'issue' and 'redeem'

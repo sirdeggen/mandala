@@ -9,6 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@bsv/mandala": "file:../lib",
     "@bsv/identity-react": "^1.1.14",
     "@bsv/message-box-client": "^2.2.0",
     "@bsv/sdk": "^2.1.6",

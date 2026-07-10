@@ -27,12 +27,12 @@ vi.mock('@bsv/identity-react', () => ({
 }))
 
 // Block network hits from resolveAssetState (used inside SendTokens)
-vi.mock('../../lib/mandala/adminState', () => ({
+vi.mock('@bsv/mandala/adminState', () => ({
   resolveAssetState: vi.fn().mockResolvedValue(null)
 }))
 
 // Block network hits from resolveAssetMetadata
-vi.mock('../../lib/mandala/metadata', () => ({
+vi.mock('@bsv/mandala/metadata', () => ({
   resolveAssetMetadata: vi.fn().mockResolvedValue(null)
 }))
 

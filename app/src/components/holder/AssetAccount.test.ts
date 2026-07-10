@@ -29,16 +29,16 @@ vi.mock('../../context/WalletContext', () => ({
   useWallet: () => ({ wallet: null, identityKey: null, messageBoxClient: null, isIssuer: false, isInitialized: true, error: null })
 }))
 
-vi.mock('../../lib/mandala/adminState', () => ({
+vi.mock('@bsv/mandala/adminState', () => ({
   resolveAssetState: vi.fn().mockResolvedValue(null)
 }))
 
-vi.mock('../../lib/mandala/history', () => ({
+vi.mock('@bsv/mandala/history', () => ({
   loadHistory: vi.fn().mockResolvedValue([]),
   exportTransactionsCsv: vi.fn().mockReturnValue('')
 }))
 
-vi.mock('../../lib/mandala/metadata', () => ({
+vi.mock('@bsv/mandala/metadata', () => ({
   resolveAssetMetadata: vi.fn().mockResolvedValue(null)
 }))
 
@@ -46,7 +46,7 @@ vi.mock('../../lib/mandala/qr', () => ({
   toQrDataUrl: vi.fn().mockResolvedValue('data:image/png;base64,abc')
 }))
 
-vi.mock('../../lib/mandala/tokens', () => ({
+vi.mock('@bsv/mandala/tokens', () => ({
   decodeBalances: vi.fn().mockReturnValue([])
 }))
 

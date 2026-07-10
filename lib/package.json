@@ -1,0 +1,26 @@
+{
+  "name": "@bsv/mandala",
+  "version": "0.1.0",
+  "description": "Token client for Mandala overlay assets — send, receive, and administer any asset with overlay-first commit and journaled recovery.",
+  "license": "Open BSV",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bsv/message-box-client": "^2.2.0",
+    "@bsv/sdk": "^2.1.6",
+    "@bsv/templates": "^1.9.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.9"
+  }
+}

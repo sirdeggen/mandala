@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { parseAmount } from '../lib/mandala/amount'
+import { toast } from 'sonner'
+import { parseAmount } from '@bsv/mandala/amount'
 import { useAdminAssets } from '../hooks/useAdminAssets'
 import { useIssuerMutations } from '../hooks/useIssuerMutations'
 import { useHolderData } from '../hooks/useHolderData'
-import { guardIssueSubmit, guardRedeemSubmit } from '../lib/mandala/submitGuards'
-import { isAdminAuthInFlight } from '../lib/mandala/adminAuthGate'
+import { guardIssueSubmit, guardRedeemSubmit } from '@bsv/mandala/submitGuards'
+import { isAdminAuthInFlight } from '@bsv/mandala/adminAuthGate'
 import { Sparkles, Flame } from 'lucide-react'
 import { Input } from './ui/input'
 import { Select } from './ui/select'
@@ -53,14 +54,20 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
     if (issueStartedRef.current || busy) return
     const asset = assets.find(a => a.assetId === effectiveIssueAsset)
     if (asset == null) return
-    if (isAdminAuthInFlight(asset.assetId)) return
+    if (isAdminAuthInFlight(asset.assetId)) {
+      toast.error('Admin action already in progress for this asset')
+      return
+    }
     const amount = parseAmount(issueAmount, Number(asset.metadata?.decimals) || 0)
     const gate = guardIssueSubmit({
       assetId: asset.assetId,
       amount,
       walletReady: true
     })
-    if (!gate.ok) return
+    if (!gate.ok) {
+      toast.error(gate.reason)
+      return
+    }
     issueStartedRef.current = true
     issue.mutate(
       { asset, amount },
@@ -75,7 +82,10 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
     if (redeemStartedRef.current || busy) return
     const asset = assets.find(a => a.assetId === effectiveRedeemAsset)
     if (asset == null) return
-    if (isAdminAuthInFlight(asset.assetId)) return
+    if (isAdminAuthInFlight(asset.assetId)) {
+      toast.error('Admin action already in progress for this asset')
+      return
+    }
     const amount = parseAmount(redeemAmount, Number(asset.metadata?.decimals) || 0)
     const held = holderData?.assets.find(a => a.assetId === asset.assetId)?.balance
     const gate = guardRedeemSubmit({
@@ -84,7 +94,10 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
       balance: held,
       walletReady: true
     })
-    if (!gate.ok) return
+    if (!gate.ok) {
+      toast.error(gate.reason)
+      return
+    }
     redeemStartedRef.current = true
     redeem.mutate(
       { asset, amount },
@@ -172,7 +185,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
 
           <Button
             onClick={handleIssue}
-            disabled={busy || issueStartedRef.current || effectiveIssueAsset === '' || issueAmount === ''}
+            disabled={busy || effectiveIssueAsset === '' || issueAmount === ''}
             loading={issue.isPending}
             loadingText="Issuing…"
             className="w-full rounded bg-primary text-primary-foreground mt-auto"
@@ -232,7 +245,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
           <button
             type="button"
             onClick={handleRedeem}
-            disabled={busy || redeemStartedRef.current || effectiveRedeemAsset === '' || redeemAmount === ''}
+            disabled={busy || effectiveRedeemAsset === '' || redeemAmount === ''}
             className="w-full rounded mt-auto py-[10px] px-4 text-[13.5px] font-medium transition-opacity disabled:opacity-40 bg-background border border-destructive/40 text-destructive flex items-center justify-center gap-2"
           >
             {redeem.isPending && <Spinner size="sm" tone="current" />}

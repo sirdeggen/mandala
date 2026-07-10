@@ -1,11 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useWallet } from '../context/WalletContext'
-import { transferTokens, TransferResult } from '../lib/mandala/transfer'
-import { reconcileWallet } from '../lib/mandala/reconcile'
-import { reconcileBans } from '../lib/mandala/reconcileBans'
-import { sendFlight, BusyError } from '../lib/mandala/singleFlight'
-import { guardPositiveAmount } from '../lib/mandala/submitGuards'
+import { transferTokens, TransferResult } from '@bsv/mandala/transfer'
+import { reconcileWallet } from '@bsv/mandala/reconcile'
+import { reconcileBans } from '@bsv/mandala/reconcileBans'
+import { reconcileNotifications } from '@bsv/mandala/notifyJournal'
+import { sendFlight, BusyError } from '@bsv/mandala/singleFlight'
+import { guardPositiveAmount } from '@bsv/mandala/submitGuards'
 import { holderDataKey, HolderData } from './useHolderData'
 import { contactsKey } from './useContactsData'
 
@@ -102,14 +103,21 @@ export function useSendMutation() {
       }
     },
 
-    onSettled: (_d, _e, vars, ctx) => {
+    onSettled: (_d, e, vars, ctx) => {
       if (ctx?.acquired) sendFlight.release()
+      // A losing BusyError mutate did no wallet work. Invalidating or
+      // reconciling here would race the winner's in-flight pipeline: a refetch
+      // clobbers its optimistic row, and the reconcile sweep can abort its
+      // live noSend action before the journal 'accepted' entry lands.
+      if (e instanceof BusyError) return
       void qc.invalidateQueries({ queryKey: key })
       void qc.invalidateQueries({ queryKey: contactsKey(identityKey) })
-      // Self-heal any half-finished state (stuck aborts, pending broadcasts)
-      // without waiting for the next page load.
+      // Self-heal any half-finished state (stuck aborts, pending broadcasts,
+      // undelivered recipient notifications) without waiting for the next
+      // page load.
       if (wallet != null) void reconcileWallet(wallet as any).catch(() => {})
       if (wallet != null) void reconcileBans(wallet as any, [vars.assetId]).catch(() => {})
+      if (messageBoxClient != null) void reconcileNotifications(messageBoxClient).catch(() => {})
     }
   })
 }

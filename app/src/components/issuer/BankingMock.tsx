@@ -4,13 +4,13 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Select } from '../ui/select'
 import { Input } from '../ui/input'
-import { AdminAsset } from '../../lib/mandala/assets'
+import { AdminAsset } from '@bsv/mandala/assets'
 import { useAdminAssets } from '../../hooks/useAdminAssets'
 import { useAdminSummary } from '../../hooks/useAdminHistory'
 import { useWallet } from '../../context/WalletContext'
-import { reconcile, makeTransfer, TransferDirection } from '../../lib/mandala/banking'
+import { reconcile, makeTransfer, TransferDirection } from '@bsv/mandala/banking'
 import { useMockTransfers, addMockTransfer, removeMockTransfer, clearMockTransfers } from '../../lib/mandala/mockBankStore'
-import { formatAmount, parseAmount } from '../../lib/mandala/amount'
+import { formatAmount, parseAmount } from '@bsv/mandala/amount'
 
 interface BankingMockProps {
   /** Controlled mode: when set, use this assetId and hide the header asset selector. */

@@ -12,6 +12,7 @@
  */
 
 import { BusyError } from './singleFlight'
+import { tryWithLock } from './webLocks'
 
 /** assetId → priorOutpoint currently being spent. */
 const inflight = new Map<string, string>()
@@ -69,9 +70,17 @@ export async function withAdminAuthGate<T>(
   priorOutpoint: string,
   fn: () => Promise<T>
 ): Promise<T> {
+  // Two layers: the synchronous in-process Map fails a same-tab double-click
+  // before any wallet work; the web lock extends the exclusion to other tabs
+  // of this origin (which share the wallet and would otherwise race on the
+  // same admin-auth prior).
   beginAdminAuth(assetId, priorOutpoint)
   try {
-    return await fn()
+    const { acquired, result } = await tryWithLock(`mandala.admin.${assetId}`, fn)
+    if (!acquired) {
+      throw new BusyError('Admin action already in progress for this asset in another tab')
+    }
+    return result as T
   } finally {
     endAdminAuth(assetId)
   }

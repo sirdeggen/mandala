@@ -20,7 +20,7 @@ import {
   saveContact,
   removeContact,
   type StoredContact,
-} from '../../lib/mandala/contactsStore'
+} from '@bsv/mandala/contactsStore'
 import { cn } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------

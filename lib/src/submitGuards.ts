@@ -1,10 +1,9 @@
 /**
  * Pure pre-submit gates for holder send and issuer mutations.
  * Callers must reject without starting wallet/overlay work when these fail.
- * Returns a human-readable reason, or null when the submit is allowed.
+ * Each guard returns { ok: true } when the submit is allowed, or
+ * { ok: false, reason } with a human-readable reason.
  */
-
-import { parseAmount } from './amount'
 
 export type GuardResult = { ok: true } | { ok: false; reason: string }
 
@@ -26,24 +25,6 @@ export function guardPositiveAmount(amount: number): GuardResult {
     return fail('Amount must be greater than zero')
   }
   return ok
-}
-
-/** Parse display string then apply positive-amount + optional balance cap. */
-export function guardParseAmount(
-  amountStr: string,
-  decimals: number,
-  options?: { balance?: number; label?: string }
-): GuardResult & { amount?: number } {
-  const amount = parseAmount(amountStr, decimals)
-  if (Number.isNaN(amount)) {
-    return fail('Enter a valid amount (check decimal places)')
-  }
-  const pos = guardPositiveAmount(amount)
-  if (!pos.ok) return pos
-  if (options?.balance != null && amount > options.balance) {
-    return fail(options.label ?? 'Amount exceeds available balance')
-  }
-  return { ok: true, amount }
 }
 
 export interface SendSubmitInput {

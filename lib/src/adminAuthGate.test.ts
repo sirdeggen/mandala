@@ -104,7 +104,9 @@ describe('double-submit race simulation (shipped gate)', () => {
 
     const pipeline = (label: string) =>
       withAdminAuthGate('shared.0', 'auth.0', async () => {
-        createAction()
+        // Await so the gate is held for the full critical section — otherwise
+        // it releases while the simulated wallet work is still in flight.
+        await createAction()
         return label
       })
 

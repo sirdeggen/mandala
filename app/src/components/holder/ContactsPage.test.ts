@@ -18,7 +18,7 @@ vi.mock('../../context/WalletContext', () => ({
   useWallet: () => ({ wallet: null, identityKey: null, isInitialized: true, error: null })
 }))
 
-vi.mock('../../lib/mandala/contactsStore', () => ({
+vi.mock('@bsv/mandala/contactsStore', () => ({
   listContacts: vi.fn().mockResolvedValue([]),
   saveContact: vi.fn().mockResolvedValue({ txid: 'abc123' }),
   removeContact: vi.fn().mockResolvedValue(undefined)

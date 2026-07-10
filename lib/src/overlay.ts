@@ -31,6 +31,14 @@ export async function broadcastAcceptedTx (wallet: WalletInterface, txid: string
 }
 
 /**
+ * Broadcast errors that mean the network/wallet already has the tx — for
+ * recovery purposes these ARE success (the journal entry can clear).
+ */
+export function isAlreadyBroadcast (e: unknown): boolean {
+  return /already|known|duplicate|mempool|txn-already/i.test(String(e))
+}
+
+/**
  * Overlay-gated finalize. The transaction must already be created + signed with
  * `noSend` (built, not broadcast). Submit it to the overlay FIRST; only when the
  * overlay accepts (admits outputs) is it broadcast to the network. On rejection,
@@ -80,6 +88,11 @@ export async function submitAndBroadcast (
   void broadcastAcceptedTx(wallet, signed.txid)
     .then(() => journalRemove(signed.txid))
     .catch(e => {
+      if (isAlreadyBroadcast(e)) {
+        // The network already has it — recovery complete, clear the entry.
+        journalRemove(signed.txid)
+        return
+      }
       console.warn(
         `[mandala] overlay accepted ${signed.txid} but broadcast failed; will retry via reconcile:`,
         e

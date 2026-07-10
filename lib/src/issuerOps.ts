@@ -16,6 +16,7 @@ import { selectFtInputs } from './ftSelect'
 import { AdminAsset, adminCustomInstructions } from './assets'
 import { withAdminAuthGate, assertSpendablePrior } from './adminAuthGate'
 import { guardRedeemSubmit } from './submitGuards'
+import { withIntent } from './txJournal'
 
 // ---------------------------------------------------------------------------
 // Register: ONE tx, ONE output that both carries the public metadata blob and
@@ -82,11 +83,12 @@ export interface IssueParams {
   amount: number
 }
 
-export async function issueTokens (p: IssueParams): Promise<{ txid: string }> {
+export async function issueTokens (p: IssueParams): Promise<{ txid: string, nextAuthOutpoint: string, nextAuthDetails: MandalaActionDetails }> {
   const { wallet, identityKey, asset, amount } = p
   // Serialize same-asset admin-auth so two issue/redeem/regulatory pipelines
-  // cannot both commit on one priorOutpoint.
-  return withAdminAuthGate(asset.assetId, asset.authOutpoint, async () => {
+  // cannot both commit on one priorOutpoint; the intent marker keeps the
+  // reconcile sweep away from the live noSend action while it runs.
+  return withAdminAuthGate(asset.assetId, asset.authOutpoint, async () => await withIntent(async () => {
     const keyID = 'mint-' + Date.now()
     // Self-mint: use our own identity key (hex) as counterparty, not the literal
     // 'self' — the revealed linkage echoes counterparty verbatim and the overlay
@@ -170,8 +172,11 @@ export async function issueTokens (p: IssueParams): Promise<{ txid: string }> {
       admin: [{ index: 1, actionDetails: issueDetails }]
     })
     await submitAndBroadcast(wallet as any, { tx: signed.tx as number[], txid: signed.txid }, offChainValues, created.signableTransaction.reference)
-    return { txid: signed.txid }
-  })
+    // Output order is fixed (randomizeOutputs: false): FT at 0, next auth at 1.
+    // nextAuthDetails must travel with the outpoint — the next action's unlock
+    // derives from the details the new auth output was locked with.
+    return { txid: signed.txid, nextAuthOutpoint: outpoint(signed.txid, 1), nextAuthDetails: issueDetails }
+  }))
 }
 
 // ---------------------------------------------------------------------------
@@ -191,7 +196,7 @@ export interface RedeemParams {
   balance?: number
 }
 
-export async function redeemTokens (p: RedeemParams): Promise<{ txid: string }> {
+export async function redeemTokens (p: RedeemParams): Promise<{ txid: string, nextAuthOutpoint: string, nextAuthDetails: MandalaActionDetails }> {
   const { wallet, identityKey, asset, amount, balance } = p
   // Client-side amount gate first — no gate acquire / wallet I/O on bad amount.
   const amountGate = guardRedeemSubmit({
@@ -202,21 +207,15 @@ export async function redeemTokens (p: RedeemParams): Promise<{ txid: string }> 
   })
   if (!amountGate.ok) throw new Error(amountGate.reason)
 
-  return withAdminAuthGate(asset.assetId, asset.authOutpoint, async () => {
-    // Fail fast on stale admin auth BEFORE FT coin selection (loadFtCandidates).
-    // Matches issueTokens / submitAdminAction so a double-spent prior never
-    // starts heavy wallet work or leaves a half-built redeem.
-    const authList = await wallet.listOutputs({
-      basket: BASKET,
-      limit: 1000
+  return withAdminAuthGate(asset.assetId, asset.authOutpoint, async () => await withIntent(async () => {
+    // Token-aware coin selection (confirmed-first, fewest UTXOs) — same as
+    // transfer. requireSpendable fails fast on a stale admin prior against the
+    // selection's own first basket listing (before the heavier BEEF/listActions
+    // work), matching issueTokens / submitAdminAction without an extra
+    // listOutputs round-trip.
+    const { candidates, beef: beefBytes } = await loadFtCandidates(wallet as any, asset.assetId, {
+      requireSpendable: asset.authOutpoint
     })
-    assertSpendablePrior(
-      asset.authOutpoint,
-      authList.outputs.map(o => o.outpoint)
-    )
-
-    // Token-aware coin selection (confirmed-first, fewest UTXOs) — same as transfer.
-    const { candidates, beef: beefBytes } = await loadFtCandidates(wallet as any, asset.assetId)
     const { selected, total: gathered } = selectFtInputs(candidates, amount) // throws if insufficient
     const beef = new Beef()
     beef.mergeBeef(beefBytes)
@@ -303,6 +302,7 @@ export async function redeemTokens (p: RedeemParams): Promise<{ txid: string }> 
       admin: [{ index: 0, actionDetails: redeemDetails }]
     })
     await submitAndBroadcast(wallet as any, { tx: signed.tx as number[], txid: signed.txid }, offChainValues, created.signableTransaction.reference)
-    return { txid: signed.txid }
-  })
+    // Output order is fixed (randomizeOutputs: false): next auth at 0.
+    return { txid: signed.txid, nextAuthOutpoint: outpoint(signed.txid, 0), nextAuthDetails: redeemDetails }
+  }))
 }

@@ -14,16 +14,16 @@ vi.mock('../../context/WalletContext', () => ({
   useWallet: () => ({ wallet: null, identityKey: null })
 }))
 
-vi.mock('../../lib/mandala/tokens', () => ({
+vi.mock('@bsv/mandala/tokens', () => ({
   decodeBalances: vi.fn().mockReturnValue([])
 }))
 
-vi.mock('../../lib/mandala/history', () => ({
+vi.mock('@bsv/mandala/history', () => ({
   loadHistory: vi.fn().mockResolvedValue([]),
   exportTransactionsCsv: vi.fn().mockReturnValue('')
 }))
 
-vi.mock('../../lib/mandala/metadata', () => ({
+vi.mock('@bsv/mandala/metadata', () => ({
   resolveAssetMetadata: vi.fn().mockResolvedValue(null)
 }))
 

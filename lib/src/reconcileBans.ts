@@ -26,7 +26,14 @@ export async function reconcileBans (
   } catch { return relinquished }
 
   for (const assetId of assetIds) {
-    const state = await resolveAssetState(assetId)
+    // Fail open PER ASSET — a throw for one asset (transient network error)
+    // must not abort the loop and silently skip every later asset.
+    let state
+    try {
+      state = await resolveAssetState(assetId)
+    } catch {
+      continue
+    }
     if (state == null) continue // fail open
     for (const op of state.evictedOutpoints) {
       if (!held.has(op)) continue

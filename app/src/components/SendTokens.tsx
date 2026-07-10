@@ -8,16 +8,16 @@ import { useWallet } from '../context/WalletContext'
 import { ChevronLeft, Search, CheckCircle2, Copy, QrCode, Send } from 'lucide-react'
 import { noAutofill } from '../lib/noAutofill'
 import { cn } from '@/lib/utils'
-import { parseAmount, formatAmount, formatAmountPlain } from '../lib/mandala/amount'
+import { parseAmount, formatAmount, formatAmountPlain } from '@bsv/mandala/amount'
 import { useHolderData } from '../hooks/useHolderData'
 import { useContactsData } from '../hooks/useContactsData'
 import { useAssetState } from '../hooks/useAssetState'
 import { useSendMutation } from '../hooks/useSendMutation'
 import { useDevMode } from '../lib/devMode'
-import { reconcileBans } from '../lib/mandala/reconcileBans'
-import { resolveAssetState } from '../lib/mandala/adminState'
-import { guardSendSubmit } from '../lib/mandala/submitGuards'
-import { sendFlight, BusyError } from '../lib/mandala/singleFlight'
+import { reconcileBans } from '@bsv/mandala/reconcileBans'
+import { resolveAssetState } from '@bsv/mandala/adminState'
+import { guardSendSubmit } from '@bsv/mandala/submitGuards'
+import { sendFlight, BusyError } from '@bsv/mandala/singleFlight'
 import QrScanModal from './QrScanModal'
 
 // ---------------------------------------------------------------------------
@@ -306,9 +306,13 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         },
         onError: e => {
           sendStartedRef.current = false
-          // Double-click that lost the race: stay silent, first pipeline owns the UI.
+          // Lost the race to another in-flight send (e.g. a second mounted
+          // send flow). This instance never started a pipeline — return it to
+          // review; advancing to 'sending' would strand a screen with no
+          // pipeline and no exit.
           if (e instanceof BusyError) {
-            setStep('sending')
+            setSendError(e.message)
+            setStep('review')
             return
           }
           console.error('Send error:', e)
@@ -786,9 +790,9 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
         </div>
       )}
 
-      {/* Confirm CTA — disabled while in-flight (isPending / step) and for
-          known-invalid gates; sync ref + sendFlight still block double-click
-          before the re-render lands. */}
+      {/* Confirm CTA — disabled while in-flight (isPending) and for
+          known-invalid gates; sync ref + sendFlight (handler-side, refs don't
+          re-render) still block double-click before the re-render lands. */}
       <div className="mt-auto px-5 pb-6 pt-4">
         <Button
           onClick={handleConfirmAndSend}
@@ -796,7 +800,6 @@ export default function SendTokens({ lockedAssetId }: { lockedAssetId?: string }
             (isPaused && !devMode) ||
             wallet == null ||
             sendMutation.isPending ||
-            sendStartedRef.current ||
             !sendAmount ||
             sendAmount <= 0 ||
             !selectedBalance ||

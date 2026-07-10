@@ -5,6 +5,7 @@ import { encodeLinkagePayload } from './encoding'
 import { revealLinkage, outpoint } from './tokens'
 import { submitAndBroadcast } from './overlay'
 import { withAdminAuthGate, assertSpendablePrior } from './adminAuthGate'
+import { withIntent } from './txJournal'
 
 // Admin auth bookkeeping lives in the admin output's customInstructions, so the
 // wallet basket is the single source of truth — no localStorage, no on-chain
@@ -207,8 +208,10 @@ export async function submitAdminAction (
 ): Promise<{ txid: string, nextAuthOutpoint: string }> {
   const { wallet, asset, details, ftOutput, messageBoxClient, identityKey } = p
 
-  // Same gate as issue/redeem — regulatory and treasury cannot share one prior.
-  return withAdminAuthGate(asset.assetId, asset.authOutpoint, async () => {
+  // Same gate as issue/redeem — regulatory and treasury cannot share one
+  // prior; the intent marker keeps the reconcile sweep away from the live
+  // noSend action while the pipeline runs.
+  return withAdminAuthGate(asset.assetId, asset.authOutpoint, async () => await withIntent(async () => {
     // Derive next auth locking script.
     const nextAuthLock = await MandalaAdmin.lock({ wallet: wallet as any, data: details })
 
@@ -273,7 +276,7 @@ export async function submitAdminAction (
     }
 
     return { txid: signed.txid, nextAuthOutpoint: outpoint(signed.txid, adminIndex) }
-  })
+  }))
 }
 
 /**
