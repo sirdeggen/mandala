@@ -658,3 +658,38 @@ func TestIdentifyNeededInputsAndMetadata(t *testing.T) {
 		t.Fatal("documentation must be non-empty")
 	}
 }
+
+// TestOneSatRule mirrors the TS MandalaTopicManager 1-satoshi rule: every
+// token output and every VERIFIED admin output must carry exactly 1 satoshi
+// (token value is payload-denominated). Ordinary P2PKH change — which is
+// admin-shaped but never admitted — is exempt.
+func TestOneSatRule(t *testing.T) {
+	t.Run("token output over 1 sat rejects", func(t *testing.T) {
+		h := newHarness(t)
+		h.tx.Outputs[0].Satoshis = 2
+		_, err := h.run(t, []uint32{0})
+		wantReject(t, err, "token output 0 must carry exactly 1 satoshi")
+	})
+
+	t.Run("verified admin output over 1 sat rejects", func(t *testing.T) {
+		h := newHarness(t)
+		prior := h.addPriorAuthInput(0x02, 0)
+		h.addAdminOutput(t, ActionDetails{"kind": "pause", "assetId": h.assetID, "priorOutpoint": prior})
+		h.tx.Outputs[len(h.tx.Outputs)-1].Satoshis = 2
+		_, err := h.run(t, []uint32{0})
+		wantReject(t, err, "admin output 2 must carry exactly 1 satoshi")
+	})
+
+	t.Run("non-admitted change output over 1 sat unaffected", func(t *testing.T) {
+		h := newHarness(t)
+		h.tx.AddOutput(&transaction.TransactionOutput{
+			Satoshis:      999,
+			LockingScript: p2pkhScript(t, [20]byte{0xde, 0xad, 0xbe, 0xef}),
+		})
+		res, err := h.run(t, []uint32{0})
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantAdmitted(t, res, 0, 1)
+	})
+}
