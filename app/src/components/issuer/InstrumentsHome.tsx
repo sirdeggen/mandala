@@ -13,6 +13,7 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Spinner } from '../ui/spinner'
 import { Sheet, SheetContent, SheetClose } from '../ui/sheet'
+import { IdentitySigil } from '@/components/ui/identity-sigil'
 import { cn } from '@/lib/utils'
 
 type Tab = 'draft' | 'issued' | 'circulating' | 'expired'
@@ -200,9 +201,6 @@ function IssueInstrumentDrawer({
 function tickerOf(a: AdminAsset): string {
   return String(a.metadata?.ticker ?? a.label.slice(0, 3)).toUpperCase()
 }
-function symbolOf(t: string): string {
-  return ({ USD: '$', EUR: '€', GBP: '£', CHF: 'Fr' } as Record<string, string>)[t] ?? t.slice(0, 2)
-}
 
 function InstrumentCard({ asset, onOpen }: { asset: AdminAsset; onOpen: () => void }) {
   const ticker = tickerOf(asset)
@@ -213,9 +211,7 @@ function InstrumentCard({ asset, onOpen }: { asset: AdminAsset; onOpen: () => vo
       className="group flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-left shadow-[var(--shadow-card)] transition-colors hover:border-muted-foreground"
     >
       <div className="flex items-center gap-3">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-[14px] font-semibold text-foreground">
-          {symbolOf(ticker)}
-        </div>
+        <IdentitySigil value={asset.assetId} size={40} className="rounded-lg" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-medium text-foreground">{asset.label}</p>
           <p className="truncate text-[12px] text-muted-foreground">{ticker}</p>

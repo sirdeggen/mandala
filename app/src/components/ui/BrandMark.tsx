@@ -26,7 +26,7 @@ export function BrandMark({ size = 'md', wordmark = false, sublabel, className }
 
   const tileSize = isSm ? 'h-7 w-7' : 'h-[30px] w-[30px]'
   const tileRound = 'rounded-md'
-  const wordSize = isSm ? 'text-[18px]' : 'text-[16px]'
+  const wordSize = isSm ? 'text-[24px]' : 'text-[22px]'
 
   return (
     <div className={cn('flex items-center gap-[9px]', className)}>
@@ -42,7 +42,7 @@ export function BrandMark({ size = 'md', wordmark = false, sublabel, className }
       {(wordmark || sublabel) && (
         <div>
           {wordmark && (
-            <div className={cn('font-semibold leading-none tracking-[-0.2px]', wordSize)}>
+            <div className={cn('font-handwritten font-bold leading-none tracking-[-0.2px]', wordSize)}>
               Underwrite
             </div>
           )}
