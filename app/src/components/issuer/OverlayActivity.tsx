@@ -7,6 +7,7 @@ import { ActivityEntry, ActivityKind } from '@bsv/mandala/overlayActivity'
 import { formatAmount } from '@bsv/mandala/amount'
 import { CounterpartyDisplay } from '../CounterpartyDisplay'
 import { useOnboarding } from '../../lib/onboarding'
+import { LedgerReconcileButton } from './ReconcileLink'
 import TabHeader from './TabHeader'
 import { Spinner } from '../ui/spinner'
 import { cn } from '@/lib/utils'
@@ -28,7 +29,7 @@ const KIND_LABEL: Record<ActivityKind, string> = {
 /** Fixed row height - required for smooth virtualization of thousands of rows. */
 const ROW_HEIGHT = 60
 /** Grid template shared by the header and every row. */
-const COLS = 'grid grid-cols-[1.1fr_1fr_1fr_110px_110px] items-center'
+const COLS = 'grid grid-cols-[1.1fr_1fr_1fr_100px_100px_110px] items-center'
 
 function KindChip ({ kind }: { kind: ActivityKind }) {
   return (
@@ -145,6 +146,7 @@ export default function OverlayActivity ({ assetId, decimals, standalone = false
             <div className="px-3 py-2 text-[11px] font-medium uppercase tracking-[0.8px] text-subtle-foreground">To</div>
             <div className="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[0.8px] text-subtle-foreground">Units</div>
             <div className="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[0.8px] text-subtle-foreground">Proof</div>
+            <div className="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[0.8px] text-subtle-foreground">Reconcile</div>
           </div>
 
           {/* Virtualized rows */}
@@ -203,6 +205,11 @@ export default function OverlayActivity ({ assetId, decimals, standalone = false
                         <ShieldCheck size={13} />
                         {e.proofs.length} linkage
                       </span>
+                    </div>
+                    <div className="flex justify-end px-3">
+                      {!masked && (
+                        <LedgerReconcileButton assetId={assetId} ledgerTxid={e.txid} amount={e.amount} decimals={decimals} />
+                      )}
                     </div>
                   </div>
                 )

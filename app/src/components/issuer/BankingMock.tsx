@@ -13,6 +13,7 @@ import { reconcile, makeTransfer, TransferDirection } from '@bsv/mandala/banking
 import { useMockTransfers, addMockTransfer, removeMockTransfer, clearMockTransfers } from '../../lib/mandala/mockBankStore'
 import { formatAmount, parseAmount } from '@bsv/mandala/amount'
 import { bankForRef } from '@/content/banks'
+import { BankReconcileButton } from './ReconcileLink'
 
 interface BankingMockProps {
   /** Controlled mode: when set, use this assetId and hide the header asset selector. */
@@ -276,6 +277,8 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
               <span className={cn('text-[15px] font-semibold tabular-nums', isOut ? 'text-destructive' : 'text-success')}>
                 {isOut ? '−' : '+'}{formatAmount(t.amount, decimals)}
               </span>
+              {/* Link to ledger statements */}
+              <BankReconcileButton assetId={activeAssetId} transferId={t.id} amount={t.amount} decimals={decimals} />
               {/* Delete */}
               <button
                 onClick={() => handleRemoveTransfer(t.id)}
