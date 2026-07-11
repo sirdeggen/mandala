@@ -123,7 +123,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
   )
 
   // Shared input style
-  const inputCls = 'bg-muted border border-border rounded px-[13px] py-[11px] text-[13px] text-subtle-foreground placeholder:text-subtle-foreground w-full'
+  const inputCls = 'bg-muted border border-border rounded px-[13px] py-[11px] text-[13px] text-foreground placeholder:text-subtle-foreground w-full'
   const labelCls = 'block text-[11px] font-medium text-subtle-foreground mb-[7px]'
 
   const TABS = [
