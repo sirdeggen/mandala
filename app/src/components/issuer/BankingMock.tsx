@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ArrowDownLeft, ArrowUpRight, PlusCircle, Trash2, ShieldCheck, AlertTriangle, ArrowRight } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, PlusCircle, Trash2, ShieldCheck, AlertTriangle, ArrowRight, Landmark } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Select } from '../ui/select'
@@ -267,8 +267,9 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="truncate text-[14px] font-semibold">{t.originator}</div>
-                <div className="mt-[3px] truncate text-[11.5px] text-subtle-foreground">
-                  {bank.name} · {bank.account} · {dateStr}
+                <div className="mt-[3px] flex items-center gap-1 text-[11.5px] text-subtle-foreground">
+                  <Landmark className="size-3 shrink-0" strokeWidth={2} style={{ color: bank.color }} />
+                  <span className="truncate">{bank.name} · {bank.account} · {dateStr}</span>
                 </div>
               </div>
               {/* Amount */}
