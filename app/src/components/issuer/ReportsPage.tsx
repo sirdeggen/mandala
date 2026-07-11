@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
+import { Search } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
 import type { ActivityEntry } from '@bsv/mandala/overlayActivity'
 import { useAdminAssets } from '../../hooks/useAdminAssets'
@@ -115,6 +116,11 @@ export default function ReportsPage() {
   const activeSpec = REPORT_SPECS.find(s => s.key === tab)!
   const activeTable = tablesByKey[tab]
 
+  // Inline filter across every column of the active report.
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+  const filteredRows = q === '' ? activeTable.rows : activeTable.rows.filter(row => row.some(cell => cell.toLowerCase().includes(q)))
+
   const exportOne = (key: ReportKey, format: ExportFormat) => {
     const spec = REPORT_SPECS.find(s => s.key === key)!
     const table = tablesByKey[key]
@@ -196,16 +202,30 @@ export default function ReportsPage() {
 
       {/* Active report */}
       <div className="rounded-xl border border-border bg-card shadow-[var(--shadow-card)]">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <div className="min-w-0">
-            <div className="text-[14px] font-semibold text-foreground">{activeSpec.name}</div>
-            <p className="text-[12px] text-muted-foreground">{activeSpec.description} · {activeTable.rows.length} row{activeTable.rows.length === 1 ? '' : 's'}</p>
+        <div className="border-b border-border px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[14px] font-semibold text-foreground">{activeSpec.name}</div>
+              <p className="text-[12px] text-muted-foreground">{activeSpec.description} · {activeTable.rows.length} row{activeTable.rows.length === 1 ? '' : 's'}</p>
+            </div>
+            <ExportButtonGroup onExport={f => exportOne(tab, f)} disabled={activeTable.rows.length === 0} />
           </div>
-          <ExportButtonGroup onExport={f => exportOne(tab, f)} disabled={activeTable.rows.length === 0} />
+          {/* Inline filter - matches any column, highlights matches below. */}
+          <div className="relative mt-2.5">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-faint-foreground" />
+            <Input value={query} onChange={e => setQuery(e.target.value)} placeholder={`Filter ${activeSpec.name.toLowerCase()}…`} className="h-8 pl-8 pr-20 text-[12px]" />
+            {query.trim() !== '' && (
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-subtle-foreground">
+                {filteredRows.length} of {activeTable.rows.length}
+              </span>
+            )}
+          </div>
         </div>
         <div className="max-h-[60vh] overflow-auto">
           {activeTable.rows.length === 0 ? (
             <p className="px-5 py-12 text-center text-[13px] text-muted-foreground">No data for this report{scope === 'all' ? ' across your instruments' : ''} in this period.</p>
+          ) : filteredRows.length === 0 ? (
+            <p className="px-5 py-12 text-center text-[13px] text-muted-foreground">No rows match “{query.trim()}”.</p>
           ) : (
             <table className="w-full border-collapse text-[12px]">
               <thead className="sticky top-0 bg-muted/70 backdrop-blur">
@@ -216,11 +236,11 @@ export default function ReportsPage() {
                 </tr>
               </thead>
               <tbody>
-                {activeTable.rows.map((row, i) => (
+                {filteredRows.map((row, i) => (
                   <tr key={i} className="hover:bg-muted/40">
                     {row.map((cell, j) => (
                       <td key={j} className={cn('border-b border-separator px-3 py-1.5 align-top', j === 0 && 'font-medium text-foreground', activeTable.columns[j]?.toLowerCase().includes('hash') || activeTable.columns[j] === 'Badge ID' ? 'font-mono text-[11px] text-subtle-foreground' : 'text-muted-foreground')}>
-                        {cell}
+                        <Highlight text={cell} query={query.trim()} />
                       </td>
                     ))}
                   </tr>
@@ -232,6 +252,24 @@ export default function ReportsPage() {
       </div>
     </div>
   )
+}
+
+/** Render `text`, wrapping case-insensitive matches of `query` in a highlight. */
+function Highlight({ text, query }: { text: string; query: string }) {
+  const q = query.toLowerCase()
+  if (q === '' || !text.toLowerCase().includes(q)) return <>{text}</>
+  const lower = text.toLowerCase()
+  const parts: ReactNode[] = []
+  let from = 0
+  let n = 0
+  for (;;) {
+    const at = lower.indexOf(q, from)
+    if (at === -1) { parts.push(text.slice(from)); break }
+    if (at > from) parts.push(text.slice(from, at))
+    parts.push(<mark key={n++} className="rounded-sm bg-warning/40 px-0.5 text-foreground">{text.slice(at, at + q.length)}</mark>)
+    from = at + q.length
+  }
+  return <>{parts}</>
 }
 
 function Header() {
