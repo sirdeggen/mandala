@@ -229,13 +229,15 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
                     </Select>
                   </div>
                 )}
-                <div>
-                  <label className={labelCls} htmlFor="redeem-amount">Amount</label>
-                  <Input id="redeem-amount" type="number" min="0" step="any" value={redeemAmount} onChange={e => setRedeemAmount(e.target.value)} className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls} htmlFor="redeem-note">Settlement note (optional)</label>
-                  <Input id="redeem-note" type="text" value={redeemNote} onChange={e => setRedeemNote(e.target.value)} placeholder="e.g. wire returned to holder" className={inputCls} />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className={labelCls} htmlFor="redeem-amount">Amount</label>
+                    <Input id="redeem-amount" type="number" min="0" step="any" value={redeemAmount} onChange={e => setRedeemAmount(e.target.value)} className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls} htmlFor="redeem-note">Settlement note (optional)</label>
+                    <Input id="redeem-note" type="text" value={redeemNote} onChange={e => setRedeemNote(e.target.value)} placeholder="e.g. wire returned to holder" className={inputCls} />
+                  </div>
                 </div>
               </div>
               <button
