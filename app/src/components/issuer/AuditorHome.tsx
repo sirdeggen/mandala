@@ -1,9 +1,12 @@
 import { Link } from 'react-router-dom'
-import { ShieldCheck, ArrowRight, ClipboardCheck, BookOpen } from 'lucide-react'
+import { ShieldCheck, ArrowRight, ClipboardCheck, BookOpen, Layers, ShieldAlert } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useOnboarding } from '../../lib/onboarding'
+import { useComplianceSnapshot, reservesTotalOf } from '../../lib/compliance'
+import { useAdminSummaries } from '../../hooks/useAdminHistory'
 import { InstrumentIcon } from '@/components/ui/instrument-icon'
-import { assetImage } from '@/lib/instrumentCategory'
+import { cn } from '@/lib/utils'
 
 /**
  * Auditor home - a verification workspace rather than an issuing surface.
@@ -16,6 +19,20 @@ export default function AuditorHome({ assets, onOpenInstrument }: {
   onOpenInstrument: (assetId: string) => void
 }) {
   const { name } = useOnboarding()
+  const snap = useComplianceSnapshot()
+  const summaries = useAdminSummaries(assets.map(a => a.assetId))
+
+  // Live verification signals across the book an auditor is responsible for.
+  const backedCount = assets.filter(a => {
+    const decimals = Number(a.metadata?.decimals) || 0
+    const s = summaries[a.assetId] ?? null
+    const circ = s != null ? (s.totalIssued - s.totalRedeemed) / 10 ** decimals : 0
+    const reserves = reservesTotalOf(snap.buckets[a.assetId] ?? { composition: [], circulation: 0 })
+    return circ > 0 ? reserves >= circ : reserves > 0
+  }).length
+  const pendingAtt = snap.attestations.filter(a => a.status === 'submitted').length
+  const hits = Object.values(snap.holders).filter(h => h.sanctions === 'hit').length
+  const allBacked = assets.length > 0 && backedCount === assets.length
 
   return (
     <div>
@@ -29,11 +46,12 @@ export default function AuditorHome({ assets, onOpenInstrument }: {
         </p>
       </div>
 
-      {/* Summary tiles */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
-        <StatTile label="Instruments to review" value={String(assets.length)} Icon={ClipboardCheck} />
-        <StatTile label="Verification" value="Continuous" Icon={ShieldCheck} />
-        <StatTile label="Source of truth" value="On-chain" Icon={ShieldCheck} />
+      {/* Live verification signals */}
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatTile label="Instruments to review" value={String(assets.length)} Icon={Layers} />
+        <StatTile label="Fully backed" value={`${backedCount}/${assets.length}`} Icon={ShieldCheck} tone={allBacked ? 'success' : 'warning'} />
+        <StatTile label="Attestations to sign" value={String(pendingAtt)} Icon={ClipboardCheck} tone={pendingAtt > 0 ? 'warning' : 'success'} />
+        <StatTile label="Sanctions hits" value={String(hits)} Icon={ShieldAlert} tone={hits > 0 ? 'destructive' : 'success'} />
       </div>
 
       {/* Instruments to review */}
@@ -60,7 +78,7 @@ export default function AuditorHome({ assets, onOpenInstrument }: {
               onClick={() => onOpenInstrument(a.assetId)}
               className={`group flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-accent ${i > 0 ? 'border-t border-border' : ''}`}
             >
-              <InstrumentIcon assetId={a.assetId} size={38} className="rounded-lg" image={assetImage(a)} />
+              <InstrumentIcon assetId={a.assetId} size={38} className="rounded-lg" solid />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-medium text-foreground">{a.label}</p>
                 <p className="truncate font-mono text-[11px] text-faint-foreground">{a.assetId}</p>
@@ -77,11 +95,20 @@ export default function AuditorHome({ assets, onOpenInstrument }: {
   )
 }
 
-function StatTile({ label, value, Icon }: { label: string; value: string; Icon: typeof ShieldCheck }) {
+const TONE: Record<'success' | 'warning' | 'destructive', { icon: string; value: string }> = {
+  success: { icon: 'bg-success/10 text-success', value: 'text-foreground' },
+  warning: { icon: 'bg-warning/10 text-warning', value: 'text-warning' },
+  destructive: { icon: 'bg-destructive/10 text-destructive', value: 'text-destructive' },
+}
+
+function StatTile({ label, value, Icon, tone }: { label: string; value: string; Icon: LucideIcon; tone?: 'success' | 'warning' | 'destructive' }) {
+  const t = tone != null ? TONE[tone] : null
   return (
     <div className="rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
-      <Icon className="size-5 text-muted-foreground" strokeWidth={1.8} />
-      <p className="mt-3 text-[22px] font-semibold leading-none tracking-[-0.01em] text-foreground">{value}</p>
+      <div className={cn('grid size-8 place-items-center rounded-lg', t?.icon ?? 'bg-muted text-muted-foreground')}>
+        <Icon className="size-4.5" strokeWidth={1.9} />
+      </div>
+      <p className={cn('mt-3 text-[22px] font-semibold leading-none tracking-[-0.01em]', t?.value ?? 'text-foreground')}>{value}</p>
       <p className="mt-1.5 text-[12.5px] text-muted-foreground">{label}</p>
     </div>
   )
