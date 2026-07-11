@@ -22,10 +22,10 @@ illustrate.
 
 | File | Used for | Source (Unsplash) |
 |------|----------|-------------------|
-| `usd-stablecoin.jpg`  | USD Stablecoin template   | https://images.unsplash.com/photo-1500496733680-167c3db69389 |
-| `chf-stablecoin.jpg`  | CHF Stablecoin template   | https://images.unsplash.com/photo-1527014054578-59ecef09abfd |
-| `eur-stablecoin.jpg`  | EUR Stablecoin template   | https://images.unsplash.com/photo-1579170053380-58064b2dee67 |
-| `gbp-stablecoin.jpg`  | GBP Stablecoin template   | https://images.unsplash.com/photo-1517232117795-40c9d8212a04 |
+| `usd-stablecoin.jpg`  | USD Stablecoin template   | https://unsplash.com/photos/100-us-dollar-banknote-rKPiuXLq29A |
+| `chf-stablecoin.jpg`  | CHF Stablecoin template   | https://unsplash.com/photos/10-and-100-banknotes-on-white-table-htol9OLeW20 |
+| `eur-stablecoin.jpg`  | EUR Stablecoin template   | https://unsplash.com/photos/50-euro-bill-on-brown-wooden-table-cg4MzL_eSvU |
+| `gbp-stablecoin.jpg`  | GBP Stablecoin template   | https://unsplash.com/photos/20-pounds-bank-of-england-8WRRJ4xJeyg |
 | `deposit-token.jpg`   | Deposit Token template    | https://images.unsplash.com/photo-1462206092226-f46025ffe607 |
 | `money-market.jpg`    | Money Market Token        | https://images.unsplash.com/photo-1535320903710-d993d3d77d29 |
 | `emoney.jpg`          | E-Money Token template    | https://images.unsplash.com/photo-1509017174183-0b7e0278f1ec |
