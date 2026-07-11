@@ -87,7 +87,7 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
           <EditableInstrumentIcon
             assetId={assetId}
             size={52}
-            dark
+            solid
             className="rounded-xl shadow-lg ring-2 ring-white/40"
           />
           <div className="min-w-0 flex-1">

@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useAdminAssets, useInvalidateAdminAssets } from '../../hooks/useAdminAssets'
+import { useAdminSummary } from '../../hooks/useAdminHistory'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import {
@@ -53,6 +54,75 @@ function tickerOf(asset: AdminAsset): string {
   return String(asset.metadata?.ticker ?? asset.label.slice(0, 3)).toUpperCase()
 }
 
+/** Compact unit count for a sidebar badge, e.g. 1_000 -> "1K", 100_000 -> "100K". */
+function compactUnits(amount: number, decimals: number): string {
+  const human = amount / 10 ** decimals
+  return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(human)
+}
+
+/** One instrument row in the sidebar list. Renders the expanded photo row (with
+ *  a circulation/issuance badge) and the collapsed icon. Fetches this
+ *  instrument's whole-history totals for the badge - cached and shared with the
+ *  detail views. */
+function InstrumentNavItem({ asset: a, active, onOpen }: {
+  asset: AdminAsset
+  active: boolean
+  onOpen: (assetId: string) => void
+}) {
+  const img = assetImage(a)
+  const decimals = Number(a.metadata?.decimals) || 0
+  const { data: summary } = useAdminSummary(a.assetId)
+  const issued = summary?.totalIssued ?? 0
+  const circulation = summary != null ? summary.totalIssued - summary.totalRedeemed : 0
+  const showBadge = summary != null && issued > 0
+
+  return (
+    <SidebarMenuItem>
+      {/* Expanded: full photo row */}
+      <button
+        type="button"
+        onClick={() => onOpen(a.assetId)}
+        className={cn(
+          'relative block h-12 w-full overflow-hidden rounded-lg text-left outline-none transition focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:hidden',
+          active && 'ring-2 ring-white/70'
+        )}
+      >
+        <img src={img} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0" style={{ backgroundColor: iconColor(a.assetId), opacity: 0.5 }} />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/15" />
+        <div className="relative flex h-full items-center gap-2 px-2.5">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[12.5px] font-semibold leading-tight text-white">{a.label}</div>
+            <div className="truncate text-[10.5px] font-medium leading-tight text-white/75">{tickerOf(a)}</div>
+          </div>
+          {showBadge && (
+            <span
+              className="tabular shrink-0 rounded-full border border-white/45 px-1.5 py-0.5 text-[10px] font-medium leading-none text-white/90"
+              title={`${circulation.toLocaleString()} in circulation of ${issued.toLocaleString()} issued`}
+            >
+              {compactUnits(circulation, decimals)} / {compactUnits(issued, decimals)}
+            </span>
+          )}
+        </div>
+      </button>
+      {/* Collapsed: premium icon */}
+      <button
+        type="button"
+        onClick={() => onOpen(a.assetId)}
+        title={a.label}
+        className="hidden w-full place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:grid"
+      >
+        <InstrumentIcon
+          assetId={a.assetId}
+          size={28}
+          image={img}
+          className={cn('rounded-md', active && 'ring-2 ring-sidebar-ring ring-offset-2 ring-offset-sidebar')}
+        />
+      </button>
+    </SidebarMenuItem>
+  )
+}
+
 /** Vertical, scrollable list of every registered instrument - the sidebar's
  *  primary instrument navigation. A header row carries a "＋" that opens the
  *  Issue drawer; each row opens that instrument's detail view. Collapses to
@@ -90,47 +160,14 @@ function InstrumentList({ assets, currentAssetId, activeSection, onOpen, onNew }
           </p>
         ) : (
           <SidebarMenu className="gap-1.5">
-            {assets.map(a => {
-              const active = activeSection === 'instrument' && a.assetId === currentAssetId
-              const img = assetImage(a)
-              return (
-                <SidebarMenuItem key={a.assetId}>
-                  {/* Expanded: full photo row */}
-                  <button
-                    type="button"
-                    onClick={() => onOpen(a.assetId)}
-                    className={cn(
-                      'relative block h-12 w-full overflow-hidden rounded-lg text-left outline-none transition focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:hidden',
-                      active && 'ring-2 ring-white/70'
-                    )}
-                  >
-                    <img src={img} alt="" className="absolute inset-0 h-full w-full object-cover" />
-                    <div className="absolute inset-0" style={{ backgroundColor: iconColor(a.assetId), opacity: 0.5 }} />
-                    <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/15" />
-                    <div className="relative flex h-full items-center px-2.5">
-                      <div className="min-w-0">
-                        <div className="truncate text-[12.5px] font-semibold leading-tight text-white">{a.label}</div>
-                        <div className="truncate text-[10.5px] font-medium leading-tight text-white/75">{tickerOf(a)}</div>
-                      </div>
-                    </div>
-                  </button>
-                  {/* Collapsed: premium icon */}
-                  <button
-                    type="button"
-                    onClick={() => onOpen(a.assetId)}
-                    title={a.label}
-                    className="hidden w-full place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:grid"
-                  >
-                    <InstrumentIcon
-                      assetId={a.assetId}
-                      size={28}
-                      image={img}
-                      className={cn('rounded-md', active && 'ring-2 ring-sidebar-ring ring-offset-2 ring-offset-sidebar')}
-                    />
-                  </button>
-                </SidebarMenuItem>
-              )
-            })}
+            {assets.map(a => (
+              <InstrumentNavItem
+                key={a.assetId}
+                asset={a}
+                active={activeSection === 'instrument' && a.assetId === currentAssetId}
+                onOpen={onOpen}
+              />
+            ))}
           </SidebarMenu>
         )}
       </div>

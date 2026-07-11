@@ -17,6 +17,14 @@ function tintToWhite(hex: string, amount: number): string {
   return `rgb(${ch(1)} ${ch(3)} ${ch(5)})`
 }
 
+/** Legible glyph colour for a solid ground: black on light (e.g. yellow)
+ *  grounds, white on dark ones, judged by perceived brightness (YIQ). */
+function readableGlyph(hex: string): string {
+  const c = (start: number) => parseInt(hex.slice(start, start + 2), 16)
+  const brightness = (c(1) * 299 + c(3) * 587 + c(5) * 114) / 1000
+  return brightness > 135 ? '#000000' : '#ffffff'
+}
+
 /**
  * Instrument identity tile - a curated Lucide glyph over a deterministic ground.
  * With `image` (the instrument's type photo) it becomes a premium tile: the
@@ -25,32 +33,32 @@ function tintToWhite(hex: string, amount: number): string {
  * with a coloured glyph. The colour is stable so the instrument keeps identity.
  */
 export function InstrumentIcon({
-  assetId, size = 40, className, image, dark = false,
+  assetId, size = 40, className, image, solid = false,
 }: {
   assetId: string
   size?: number
   className?: string
   /** Type background photo (see lib/instrumentCategory). */
   image?: string
-  /** Solid-black tile with a white glyph - used where the theme colour is
-   *  carried by the surrounding surface (e.g. a banner matte) rather than the
-   *  tile itself. */
-  dark?: boolean
+  /** Solid theme-colour tile with a contrast-aware glyph (black on light/yellow
+   *  grounds, white otherwise) - used where the theme colour reads best on the
+   *  tile itself rather than a surrounding matte. */
+  solid?: boolean
 }) {
   const name = useInstrumentIconName(assetId)
   const Icon = ICON_BY_NAME[name] ?? ICON_BY_NAME[defaultIconName(assetId)]!
   const color = useInstrumentColor(assetId)
   const glyph = { width: Math.round(size * 0.5), height: Math.round(size * 0.5) }
 
-  if (dark && image == null) {
+  if (solid && image == null) {
     return (
       <div
-        className={cn('grid shrink-0 place-items-center rounded-lg bg-black', className)}
-        style={{ width: size, height: size }}
+        className={cn('grid shrink-0 place-items-center rounded-lg', className)}
+        style={{ width: size, height: size, backgroundColor: color }}
         role="img"
         aria-hidden="true"
       >
-        <Icon className="text-white" style={glyph} strokeWidth={2} />
+        <Icon style={{ ...glyph, color: readableGlyph(color) }} strokeWidth={2} />
       </div>
     )
   }
@@ -87,13 +95,13 @@ export function InstrumentIcon({
  * the curated icon set. Do not nest inside another `<button>` (it renders one).
  */
 export function EditableInstrumentIcon({
-  assetId, size = 40, className, image, dark = false,
+  assetId, size = 40, className, image, solid = false,
 }: {
   assetId: string
   size?: number
   className?: string
   image?: string
-  dark?: boolean
+  solid?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const current = useInstrumentIconName(assetId)
@@ -105,7 +113,7 @@ export function EditableInstrumentIcon({
         className="group relative rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
         aria-label="Change instrument icon"
       >
-        <InstrumentIcon assetId={assetId} size={size} className={className} image={image} dark={dark} />
+        <InstrumentIcon assetId={assetId} size={size} className={className} image={image} solid={solid} />
         {/* Pencil edit affordance pinned to the top-right corner. */}
         <span className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-white text-foreground shadow-md ring-1 ring-black/10 transition-colors group-hover:bg-white">
           <Pencil className="size-2.5" strokeWidth={2.5} />
