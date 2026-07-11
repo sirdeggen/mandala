@@ -109,15 +109,16 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="mb-6 flex gap-5 overflow-x-auto border-b border-border">
+      {/* Tabs - only the active tab is underlined; the strip scrolls on small
+          screens with the scrollbar hidden. */}
+      <div className="mb-6 flex gap-5 overflow-x-auto scrollbar-none">
         {TABS.map(({ id, label }) => (
           <button
             key={id}
             type="button"
             onClick={() => setTab(id)}
             className={cn(
-              '-mb-px whitespace-nowrap border-b-[1.5px] pb-3 pt-2 text-[14px] font-medium transition-colors',
+              'whitespace-nowrap border-b-[1.5px] pb-3 pt-2 text-[14px] font-medium transition-colors',
               tab === id ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >

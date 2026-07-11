@@ -112,7 +112,7 @@ export default function RedemptionRequests({ assetId, asset }: { assetId: string
       <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="text-[14px] font-semibold text-foreground">
-            Requests {pending.length > 0 && <span className="ml-1 text-[12px] font-medium text-warning">· {pending.length} pending</span>}
+            Redemption requests {pending.length > 0 && <span className="ml-1 text-[12px] font-medium text-warning">· {pending.length} pending</span>}
           </div>
           {!isAuditor && (
             <button
