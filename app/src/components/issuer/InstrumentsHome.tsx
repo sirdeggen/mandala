@@ -198,7 +198,7 @@ export default function InstrumentsHome({ assets, onReload, onSelectAsset, onOpe
   const TABS: { id: Tab; label: string }[] = [
     { id: 'issued', label: 'Issued' },
     { id: 'circulating', label: 'Circulating' },
-    { id: 'expired', label: 'Expired' },
+    { id: 'expired', label: 'Past Maturity' },
   ]
 
   const openInstrument = (assetId: string) => onOpenInstrument(assetId)

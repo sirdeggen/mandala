@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  Home, LayoutDashboard, Users, ShieldCheck, ChevronsUpDown, BadgeCheck,
+  Home, Signature, Building2, ShieldCheck, ChevronsUpDown, BadgeCheck,
   Settings, Plus, LogOut, BookOpen
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -42,8 +42,8 @@ type NavItem = {
 // Ledger) now live as tabs inside the instrument view, not the sidebar.
 const TOP_NAV: NavItem[] = [
   { key: 'home',          section: 'home',          label: 'Home',          icon: Home },
-  { key: 'instruments',   section: 'overview',      label: 'Instruments',   icon: LayoutDashboard },
-  { key: 'relationships', section: 'relationships', label: 'Relationships', icon: Users },
+  { key: 'instruments',   section: 'overview',      label: 'Instruments',   icon: Signature },
+  { key: 'relationships', section: 'relationships', label: 'Relationships', icon: Building2 },
   { key: 'compliance',    section: 'compliance',    label: 'Compliance',    icon: ShieldCheck },
 ]
 
@@ -196,7 +196,6 @@ function AccountMenu({ seed, displayName, verified, onSettings }: {
         {/* Actions */}
         <div className="border-t border-border p-1.5">
           <AccountMenuItem icon={Settings} label="Account settings" onClick={onSettings} />
-          <AccountMenuItem icon={Plus} label="Add account" onClick={() => toast.info('Multiple issuer accounts are coming soon.')} />
           <AccountMenuItem icon={LogOut} label="Sign out" danger onClick={() => toast.info('Disconnect in your wallet to sign out.')} />
         </div>
       </PopoverContent>

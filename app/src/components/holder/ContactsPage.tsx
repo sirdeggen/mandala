@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useState } from 'react'
-import { Users, UserPlus, Pencil, Trash2, X, Check, Search, ChevronRight, BadgeCheck, Send } from 'lucide-react'
+import { Building2, UserPlus, Pencil, Trash2, X, Check, Search, ChevronRight, BadgeCheck, Send } from 'lucide-react'
 import { noAutofill } from '../../lib/noAutofill'
 import { IdentityClient } from '@bsv/sdk'
 import { useWallet } from '../../context/WalletContext'
@@ -826,7 +826,7 @@ export default function ContactsPage({ onBack, onSend }: {
               </svg>
             </button>
           )}
-          <Users className="h-[20px] w-[20px] text-primary" strokeWidth={1.9} />
+          <Building2 className="h-[20px] w-[20px] text-primary" strokeWidth={1.9} />
           <h1 className="text-[18px] font-semibold tracking-[-0.01em]">Relationships</h1>
         </div>
         <button
@@ -863,7 +863,7 @@ export default function ContactsPage({ onBack, onSend }: {
       {!loading && contacts.length === 0 && (
         <div className="flex flex-col items-center gap-[12px] px-[26px] py-[48px]">
           <div className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-muted">
-            <Users className="h-[26px] w-[26px] text-muted-foreground" />
+            <Building2 className="h-[26px] w-[26px] text-muted-foreground" />
           </div>
           <p className="text-center text-[14px] font-medium text-muted-foreground">
             No contacts yet - add someone.
