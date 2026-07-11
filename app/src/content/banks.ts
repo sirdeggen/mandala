@@ -11,19 +11,21 @@ export interface DemoBank {
   short: string
   /** Brand-ish colour for the logo tile. */
   color: string
+  /** SWIFT/BIC - used to build realistic backing-reference presets. */
+  bic: string
 }
 
 export const DEMO_BANKS: DemoBank[] = [
-  { name: 'JPMorgan Chase', short: 'JP', color: '#1a4b8c' },
-  { name: 'HSBC', short: 'HS', color: '#c8102e' },
-  { name: 'Barclays', short: 'BA', color: '#00aeef' },
-  { name: 'Citibank', short: 'CI', color: '#003b70' },
-  { name: 'BNP Paribas', short: 'BP', color: '#00915a' },
-  { name: 'UBS', short: 'UB', color: '#d5001c' },
-  { name: 'Deutsche Bank', short: 'DB', color: '#0b1f3a' },
-  { name: 'Santander', short: 'SA', color: '#ec0000' },
-  { name: 'Standard Chartered', short: 'SC', color: '#0473ea' },
-  { name: 'Société Générale', short: 'SG', color: '#e60028' },
+  { name: 'JPMorgan Chase', short: 'JP', color: '#1a4b8c', bic: 'CHASUS33' },
+  { name: 'HSBC', short: 'HS', color: '#c8102e', bic: 'HBUKGB4B' },
+  { name: 'Barclays', short: 'BA', color: '#00aeef', bic: 'BARCGB22' },
+  { name: 'Citibank', short: 'CI', color: '#003b70', bic: 'CITIUS33' },
+  { name: 'BNP Paribas', short: 'BP', color: '#00915a', bic: 'BNPAFRPP' },
+  { name: 'UBS', short: 'UB', color: '#d5001c', bic: 'UBSWCHZH80A' },
+  { name: 'Deutsche Bank', short: 'DB', color: '#0b1f3a', bic: 'DEUTDEFF' },
+  { name: 'Santander', short: 'SA', color: '#ec0000', bic: 'BSCHESMM' },
+  { name: 'Standard Chartered', short: 'SC', color: '#0473ea', bic: 'SCBLGB2L' },
+  { name: 'Société Générale', short: 'SG', color: '#e60028', bic: 'SOGEFRPP' },
 ]
 
 /** FNV-1a 32-bit hash - deterministic, so a given reference always maps to the
@@ -49,3 +51,30 @@ export function bankForRef(ref: string): ResolvedBank {
   const last4 = String(h % 10000).padStart(4, '0')
   return { ...bank, account: `•••• ${last4}` }
 }
+
+export interface BackingRefSuggestion {
+  /** What kind of reference this is. */
+  label: string
+  /** A fully-formed example reference to drop into the field. */
+  value: string
+  /** One-line context for when this reference type is used. */
+  hint: string
+}
+
+const bic = (i: number) => DEMO_BANKS[i]!.bic
+
+/**
+ * Typical references an issuer records against an issuance to evidence the
+ * reserve deposit that backs it. These mirror the payment rails the supported
+ * banks settle on (SWIFT MT103, Fedwire, SEPA, CHAPS, UETR) plus the artefacts
+ * an auditor reconciles against (deposit confirmations, custody statements).
+ */
+export const BACKING_REF_SUGGESTIONS: BackingRefSuggestion[] = [
+  { label: 'SWIFT MT103 wire', value: `MT103 ${bic(0)} REF-8842019`, hint: 'Incoming international wire' },
+  { label: 'Fedwire (IMAD)', value: 'IMAD 20260710B1QGC08C000123', hint: 'US domestic same-day wire' },
+  { label: 'SEPA credit transfer', value: `SEPA-CT ${bic(4)} 2026071000047`, hint: 'Euro-area bank transfer' },
+  { label: 'CHAPS payment', value: `CHAPS ${bic(2)} 20260710-0091`, hint: 'UK same-day sterling' },
+  { label: 'UETR (end-to-end ref)', value: 'UETR 7f3a1c9e-4b2d-4c6a-9e21-8a5f0d2b1c34', hint: 'Unique payment tracking id' },
+  { label: 'Deposit confirmation', value: 'DEP-20260710-4471', hint: 'Bank reserve deposit slip' },
+  { label: 'Custody statement line', value: 'CUST-STMT-2026Q3-118', hint: 'Reconciles to custodian report' },
+]

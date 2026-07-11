@@ -10,6 +10,7 @@ import { guardIssueSubmit, guardRedeemSubmit } from '@bsv/mandala/submitGuards'
 import { isAdminAuthInFlight } from '@bsv/mandala/adminAuthGate'
 import { Sparkles, Flame } from 'lucide-react'
 import { Input } from './ui/input'
+import { BackingRefField } from './issuer/BackingRefField'
 import { Select } from './ui/select'
 import { Button } from './ui/button'
 import { Spinner } from './ui/spinner'
@@ -199,7 +200,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
                 </div>
                 <div>
                   <label className={labelCls} htmlFor="issue-ref">Backed by (optional)</label>
-                  <Input id="issue-ref" type="text" value={issueRef} onChange={e => setIssueRef(e.target.value)} placeholder="Bank deposit ref · BR-…" className={inputCls} />
+                  <BackingRefField id="issue-ref" value={issueRef} onChange={setIssueRef} placeholder="Bank wire, SWIFT, or deposit reference…" className={inputCls} />
                 </div>
               </div>
               <Button
