@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
-import { Search } from 'lucide-react'
+import { Search, Download, Trash2 } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
 import type { ActivityEntry } from '@bsv/mandala/overlayActivity'
 import { useAdminAssets } from '../../hooks/useAdminAssets'
@@ -12,8 +12,8 @@ import {
   REPORT_SPECS, buildReport, withInstrumentColumn,
   type ReportCtx, type DateFilter, type ReportKey,
 } from '../../lib/reports'
-import { exportReport, exportBundle, type ReportTable, type ExportFormat, type ReportSection } from '../../lib/exports'
-import { logExport } from '../../lib/exportHistory'
+import { exportReport, exportBundle, FORMAT_LABEL, type ReportTable, type ExportFormat, type ReportSection } from '../../lib/exports'
+import { logExport, removeExport, useExportHistory } from '../../lib/exportHistory'
 import { YearSelect, availableYears } from './YearSelect'
 import { ExportButtonGroup } from './ExportButtonGroup'
 import { Select } from '../ui/select'
@@ -121,23 +121,44 @@ export default function ReportsPage() {
   const q = query.trim().toLowerCase()
   const filteredRows = q === '' ? activeTable.rows : activeTable.rows.filter(row => row.some(cell => cell.toLowerCase().includes(q)))
 
+  const historyAssetId = scope === 'all' ? '' : scope
+  const history = useExportHistory(historyAssetId)
+
+  // Actual file generation - from the toast CTA or Recent exports.
+  const downloadOne = (key: ReportKey, format: ExportFormat) => {
+    const spec = REPORT_SPECS.find(s => s.key === key)
+    if (spec == null) return
+    exportReport(`${scopeName} ${spec.name} ${periodName}`, format, tablesByKey[key])
+  }
+  const downloadAllBundle = (format: ExportFormat) => {
+    const sections: ReportSection[] = REPORT_SPECS
+      .map(s => ({ title: s.name, table: tablesByKey[s.key] }))
+      .filter(s => s.table.rows.length > 0)
+    if (sections.length === 0) { toast.error('Nothing to export.'); return }
+    exportBundle(`${scopeName} all reports ${periodName}`, format, sections)
+  }
+
+  // Clicking an export button adds it to Recent exports and offers a download
+  // shortcut, rather than downloading straight away (matches the instrument tab).
   const exportOne = (key: ReportKey, format: ExportFormat) => {
     const spec = REPORT_SPECS.find(s => s.key === key)!
     const table = tablesByKey[key]
     if (table.rows.length === 0) { toast.error('No rows to export.'); return }
-    exportReport(`${scopeName} ${spec.name} ${periodName}`, format, table)
-    logExport({ assetId: scope === 'all' ? '' : scope, reportKey: key, reportName: `${scopeName} · ${spec.name}`, format, rowCount: table.rows.length })
-    toast.success(`Exported ${spec.name}`)
+    logExport({ assetId: historyAssetId, reportKey: key, reportName: `${scopeName} · ${spec.name}`, format, rowCount: table.rows.length })
+    toast.success(`${spec.name} (${FORMAT_LABEL[format]}) is ready`, {
+      description: 'Download it from Recent exports below.',
+      action: { label: 'Download', onClick: () => downloadOne(key, format) },
+    })
   }
 
   const exportAll = (format: ExportFormat) => {
-    const sections: ReportSection[] = REPORT_SPECS
-      .map(s => ({ title: s.name, table: tablesByKey[s.key] }))
-      .filter(s => s.table.rows.length > 0)
-    if (sections.length === 0) { toast.error('No rows to export for this selection.'); return }
-    exportBundle(`${scopeName} all reports ${periodName}`, format, sections)
-    logExport({ assetId: scope === 'all' ? '' : scope, reportKey: 'summary', reportName: `${scopeName} · all reports`, format, rowCount: sections.reduce((n, s) => n + s.table.rows.length, 0) })
-    toast.success(`Exported all reports`)
+    const rows = REPORT_SPECS.reduce((n, s) => n + tablesByKey[s.key].rows.length, 0)
+    if (rows === 0) { toast.error('No rows to export for this selection.'); return }
+    logExport({ assetId: historyAssetId, reportKey: 'summary', reportName: `${scopeName} · all reports`, format, rowCount: rows, bundle: true })
+    toast.success(`All reports (${FORMAT_LABEL[format]}) are ready`, {
+      description: 'Download them from Recent exports below.',
+      action: { label: 'Download', onClick: () => downloadAllBundle(format) },
+    })
   }
 
   if (assets.length === 0) {
@@ -250,8 +271,55 @@ export default function ReportsPage() {
           )}
         </div>
       </div>
+
+      {/* Recent exports - prepared exports are downloaded from here. */}
+      <div className="mt-5 rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+        <div className="mb-3 text-[14px] font-semibold text-foreground">Recent exports</div>
+        {history.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-[12.5px] text-muted-foreground">
+            No exports yet. Export a report above and it will be logged here.
+          </p>
+        ) : (
+          <div className="overflow-hidden rounded-lg border border-border">
+            <div className="grid grid-cols-[1.6fr_70px_60px_1fr_72px] items-center border-b border-border bg-muted/40 px-3 py-2 text-[10.5px] font-medium uppercase tracking-wide text-subtle-foreground">
+              <div>Report</div><div>Format</div><div className="text-right">Rows</div><div className="text-right">Created</div><div className="text-right">Actions</div>
+            </div>
+            {history.map(h => (
+              <div key={h.id} className="grid grid-cols-[1.6fr_70px_60px_1fr_72px] items-center border-t border-separator px-3 py-2 text-[12.5px]">
+                <div className="truncate font-medium text-foreground">{h.reportName}</div>
+                <div><span className="rounded bg-muted px-1.5 py-0.5 text-[10.5px] font-semibold text-muted-foreground">{FORMAT_LABEL[h.format]}</span></div>
+                <div className="text-right tabular text-muted-foreground">{h.rowCount}</div>
+                <div className="truncate text-right text-[11.5px] text-subtle-foreground">{fmtDateTime(h.createdAt)}</div>
+                <div className="flex justify-end gap-1">
+                  <button
+                    type="button"
+                    aria-label="Download"
+                    onClick={() => { if (h.bundle) downloadAllBundle(h.format); else downloadOne(h.reportKey as ReportKey, h.format) }}
+                    className="grid size-7 place-items-center rounded border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <Download className="size-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Delete"
+                    onClick={() => removeExport(h.id)}
+                    className="grid size-7 place-items-center rounded border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
+}
+
+const fmtDateTime = (iso: string): string => {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
 /** Render `text`, wrapping case-insensitive matches of `query` in a highlight. */
