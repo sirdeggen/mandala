@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Plus, X, ShieldCheck, ChevronDown } from 'lucide-react'
+import { Plus, X, Info, ChevronDown, ArrowUpRight, PlayCircle } from 'lucide-react'
 import { guardRegisterSubmit } from '@bsv/mandala/submitGuards'
 import { registerFlight } from '@bsv/mandala/singleFlight'
 import { useWallet } from '../../context/WalletContext'
@@ -94,6 +95,33 @@ export default function IssueInstrumentDrawer({
 
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
           <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
+            {/* Instructional intro - what registering does, a link to the full
+                guide, and a slot for a short tutorial video. Sits above the
+                inputs so first-time issuers get oriented before filling them in. */}
+            <div className="space-y-3">
+              <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/60 px-3 py-2.5">
+                <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                <div className="space-y-1">
+                  <p className="text-[12px] leading-snug text-muted-foreground">
+                    Registering records the instrument on-chain and assigns its permanent identifier. You can issue units right after.
+                  </p>
+                  <Link
+                    to="/help/for-issuers/issuing-your-first-instrument"
+                    className="inline-flex items-center gap-0.5 text-[12px] font-medium text-primary hover:underline"
+                  >
+                    Learn more <ArrowUpRight className="size-3.5" />
+                  </Link>
+                </div>
+              </div>
+              {/* Tutorial video placeholder - drop an embed here later. */}
+              <div className="flex aspect-video w-full items-center justify-center rounded-lg border border-dashed border-border bg-muted/40">
+                <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
+                  <PlayCircle className="size-8" strokeWidth={1.5} />
+                  <span className="text-[12px]">Video tutorial coming soon</span>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="ins-label">Instrument name</Label>
               <Input id="ins-label" autoFocus placeholder="e.g. Euro Deposit Token" value={label} onChange={e => setLabel(e.target.value)} />
@@ -139,13 +167,6 @@ export default function IssueInstrumentDrawer({
                   </span>
                 </div>
               </div>
-            </div>
-
-            <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/60 px-3 py-2.5">
-              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" />
-              <p className="text-[12px] leading-snug text-muted-foreground">
-                Registering records the instrument on-chain and assigns its permanent identifier. You can issue units right after.
-              </p>
             </div>
           </div>
 
