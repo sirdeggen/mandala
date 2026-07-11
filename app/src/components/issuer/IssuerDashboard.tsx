@@ -17,9 +17,10 @@ import {
   SidebarRail, SidebarInset, SidebarTrigger
 } from '@/components/ui/sidebar'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import 'flag-icons/css/flag-icons.min.css'
 import { InstrumentIcon } from '@/components/ui/instrument-icon'
 import { iconColor } from '@/lib/instrumentIcons'
-import { assetImage } from '@/lib/instrumentCategory'
+import { assetImage, stablecoinFlag } from '@/lib/instrumentCategory'
 import { cn } from '@/lib/utils'
 import InstrumentsHome from './InstrumentsHome'
 import InstrumentDetail from './InstrumentDetail'
@@ -70,6 +71,7 @@ function InstrumentNavItem({ asset: a, active, onOpen }: {
   onOpen: (assetId: string) => void
 }) {
   const img = assetImage(a)
+  const flag = stablecoinFlag(a)
   const decimals = Number(a.metadata?.decimals) || 0
   const { data: summary } = useAdminSummary(a.assetId)
   const issued = summary?.totalIssued ?? 0
@@ -91,6 +93,13 @@ function InstrumentNavItem({ asset: a, active, onOpen }: {
         <div className="absolute inset-0" style={{ backgroundColor: iconColor(a.assetId), opacity: 0.5 }} />
         <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/15" />
         <div className="relative flex h-full items-center gap-2 px-2.5">
+          {flag != null && (
+            <span
+              className={`fi fi-${flag} h-3.5 w-5 shrink-0 rounded-[2px] shadow-sm ring-1 ring-black/20`}
+              aria-hidden="true"
+              title="Reserve currency"
+            />
+          )}
           <div className="min-w-0 flex-1">
             <div className="truncate text-[12.5px] font-semibold leading-tight text-white">{a.label}</div>
             <div className="truncate text-[10.5px] font-medium leading-tight text-white/75">{tickerOf(a)}</div>

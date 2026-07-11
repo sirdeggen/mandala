@@ -109,17 +109,19 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
         </div>
       </div>
 
-      {/* Tabs - only the active tab is underlined; the strip scrolls on small
+      {/* Tabs - only the active tab is underlined (black), via an ::after bar so
+          no base border colour bleeds through. The strip scrolls on small
           screens with the scrollbar hidden. */}
-      <div className="mb-6 flex gap-5 overflow-x-auto scrollbar-none">
+      <div className="mb-6 flex gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map(({ id, label }) => (
           <button
             key={id}
             type="button"
             onClick={() => setTab(id)}
             className={cn(
-              'whitespace-nowrap border-b-[1.5px] pb-3 pt-2 text-[14px] font-medium transition-colors',
-              tab === id ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+              'relative whitespace-nowrap pb-3 pt-2 text-[14px] font-medium transition-colors',
+              'after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:rounded-full after:bg-foreground after:transition-opacity',
+              tab === id ? 'text-foreground after:opacity-100' : 'text-muted-foreground hover:text-foreground after:opacity-0'
             )}
           >
             {label}

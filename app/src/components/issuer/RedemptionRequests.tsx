@@ -15,6 +15,7 @@ import { Input } from '../ui/input'
 import { Select } from '../ui/select'
 import { Label } from '../ui/label'
 import { EditablePresetField } from './EditablePresetField'
+import { RelationshipField } from './RelationshipField'
 import { cn } from '@/lib/utils'
 
 /**
@@ -182,7 +183,16 @@ function NewRequestForm({ assetId, currency, minAmount, onDone }: {
         <Input value={name} onChange={e => setName(e.target.value)} placeholder="Holder name (optional)" className="h-9 text-[13px]" />
         <Input value={amount} onChange={e => setAmount(e.target.value)} type="number" min="0" step="any" placeholder={`Amount (${currency})`} className="tabular h-9 text-[13px]" />
       </div>
-      <Input value={key} onChange={e => setKey(e.target.value)} placeholder="Holder Badge ID" className="mt-2 h-9 font-mono text-[12px]" />
+      <div className="mt-2">
+        <RelationshipField
+          id="rdm-holder-key"
+          value={key}
+          onChange={setKey}
+          onSelect={r => { setKey(r.identityKey); if (r.name) setName(r.name) }}
+          placeholder="Relationship or Badge ID"
+          className="h-9 font-mono text-[12px]"
+        />
+      </div>
       <div className="mt-2 flex gap-2">
         <Button type="submit" className="h-8 px-3 text-[12.5px]">Log request</Button>
         <button type="button" onClick={onDone} className="rounded-md border border-border px-3 text-[12.5px] font-medium text-foreground hover:bg-muted">Cancel</button>
