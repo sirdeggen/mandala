@@ -1,7 +1,9 @@
 import { useSearchParams } from 'react-router-dom'
 import { AdminAsset } from '@bsv/mandala/assets'
+import { formatAmount } from '@bsv/mandala/amount'
 import { EditableInstrumentIcon } from '@/components/ui/instrument-icon'
 import { assetImage } from '@/lib/instrumentCategory'
+import { useAdminSummary } from '../../hooks/useAdminHistory'
 import TreasurySection from './TreasurySection'
 import ReserveAttestations from './ReserveAttestations'
 import RedemptionRequests from './RedemptionRequests'
@@ -49,6 +51,16 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
   }, { replace: true })
 
   const ticker = asset?.metadata?.ticker != null ? String(asset.metadata.ticker).toUpperCase() : undefined
+  const decimals = Number(asset?.metadata?.decimals) || 0
+
+  // Whole-history issue/redeem totals for the header stats. Circulation is
+  // issued minus redeemed - the figure an auditor reconciles against reserves.
+  // A settled-but-null summary (overlay unreachable) reads as zeros rather than
+  // an endless skeleton.
+  const { data: summary, isPending: summaryPending } = useAdminSummary(assetId)
+  const totals = summary ?? (summaryPending ? null : { totalIssued: 0, totalRedeemed: 0 })
+  const stat = (n: number) => formatAmount(n, decimals)
+  const circulation = totals != null ? totals.totalIssued - totals.totalRedeemed : null
 
   if (assetId === '') {
     return (
@@ -72,9 +84,21 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
             image={assetImage(asset)}
             className="rounded-xl shadow-lg ring-2 ring-white/40"
           />
-          <div className="min-w-0">
-            <h1 className="truncate text-[22px] font-semibold leading-snug text-white">{asset?.label ?? 'Instrument'}</h1>
-            {ticker != null && <div className="text-[12.5px] font-medium text-white/70">{ticker}</div>}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2.5">
+              <h1 className="truncate text-[22px] font-semibold leading-snug text-white">{asset?.label ?? 'Instrument'}</h1>
+              {ticker != null && (
+                <span className="shrink-0 rounded-md bg-white/15 px-2 py-0.5 text-[12px] font-semibold uppercase tracking-wide text-white ring-1 ring-inset ring-white/25">
+                  {ticker}
+                </span>
+              )}
+            </div>
+            {/* Auditor stats - the figures reconciled against reserves. */}
+            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1">
+              <HeaderStat label="In circulation" value={circulation != null ? stat(circulation) : null} />
+              <HeaderStat label="Total issued" value={totals != null ? stat(totals.totalIssued) : null} />
+              <HeaderStat label="Total redeemed" value={totals != null ? stat(totals.totalRedeemed) : null} />
+            </div>
           </div>
         </div>
       </div>
@@ -141,6 +165,19 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
           />
         </div>
       )}
+    </div>
+  )
+}
+
+/** One figure in the instrument header - a bold white value over a muted label,
+ *  with a subtle skeleton while the overlay summary is still loading. */
+function HeaderStat({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="leading-tight">
+      {value != null
+        ? <div className="tabular text-[15px] font-semibold text-white">{value}</div>
+        : <div className="mt-0.5 h-[15px] w-14 animate-pulse rounded bg-white/25" />}
+      <div className="text-[11px] font-medium uppercase tracking-wide text-white/60">{label}</div>
     </div>
   )
 }

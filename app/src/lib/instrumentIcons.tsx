@@ -121,19 +121,33 @@ export function defaultIconName(assetId: string): string {
 }
 
 /** Deterministic tile color for an instrument (stable across icon changes). */
-export function iconColor(assetId: string): string {
+export function defaultIconColor(assetId: string): string {
   return ICON_PALETTE[(fnv1a(`c:${assetId}`) >>> 3) % ICON_PALETTE.length]!
 }
 
-// ── Persistence store ─────────────────────────────────────────────────────────
+/**
+ * The theme colour for an instrument: the issuer's chosen colour if set,
+ * otherwise the deterministic default. Reads the override synchronously so even
+ * non-reactive callers pick up a change on their next render; components that
+ * must update live should use `useInstrumentColor`.
+ */
+export function iconColor(assetId: string): string {
+  return currentColors[assetId] ?? defaultIconColor(assetId)
+}
 
-const KEY = 'underwrite.instrumentIcons.v1'
+// ── Persistence stores ────────────────────────────────────────────────────────
+// Two parallel per-assetId maps: the chosen icon name, and the chosen theme
+// colour. Both use the module-level store + useSyncExternalStore pattern so
+// every surface stays in sync without a context provider.
+
+const ICON_KEY = 'underwrite.instrumentIcons.v1'
+const COLOR_KEY = 'underwrite.instrumentColors.v1'
 const listeners = new Set<() => void>()
 
-function readAll(): Record<string, string> {
+function readMap(key: string): Record<string, string> {
   try {
     if (typeof localStorage === 'undefined') return {}
-    const raw = localStorage.getItem(KEY)
+    const raw = localStorage.getItem(key)
     if (raw == null) return {}
     const parsed = JSON.parse(raw)
     return parsed != null && typeof parsed === 'object' ? parsed as Record<string, string> : {}
@@ -142,7 +156,8 @@ function readAll(): Record<string, string> {
   }
 }
 
-let current = readAll()
+let current = readMap(ICON_KEY)
+let currentColors = readMap(COLOR_KEY)
 
 /** Override the icon for one instrument (pass null to revert to the default). */
 export function setInstrumentIcon(assetId: string, name: string | null): void {
@@ -150,7 +165,18 @@ export function setInstrumentIcon(assetId: string, name: string | null): void {
   if (name == null || !(name in ICON_BY_NAME)) delete next[assetId]
   else next[assetId] = name
   current = next
-  try { localStorage.setItem(KEY, JSON.stringify(next)) } catch { /* ignore */ }
+  try { localStorage.setItem(ICON_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+  listeners.forEach(l => l())
+}
+
+/** Override the theme colour for one instrument (pass null to revert). Updates
+ *  the icon tile and every surface that derives its colour from `iconColor`. */
+export function setInstrumentColor(assetId: string, color: string | null): void {
+  const next = { ...currentColors }
+  if (color == null || !ICON_PALETTE.includes(color)) delete next[assetId]
+  else next[assetId] = color
+  currentColors = next
+  try { localStorage.setItem(COLOR_KEY, JSON.stringify(next)) } catch { /* ignore */ }
   listeners.forEach(l => l())
 }
 
@@ -163,4 +189,10 @@ function subscribe(cb: () => void): () => void {
 export function useInstrumentIconName(assetId: string): string {
   const map = useSyncExternalStore(subscribe, () => current, () => current)
   return map[assetId] ?? defaultIconName(assetId)
+}
+
+/** Reactive: the theme colour for an instrument (its default if unset). */
+export function useInstrumentColor(assetId: string): string {
+  const map = useSyncExternalStore(subscribe, () => currentColors, () => currentColors)
+  return map[assetId] ?? defaultIconColor(assetId)
 }

@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import {
-  ICON_GROUPS, ICON_BY_NAME, iconColor, defaultIconName,
+  ICON_GROUPS, ICON_BY_NAME, ICON_PALETTE, defaultIconName,
   useInstrumentIconName, setInstrumentIcon,
+  useInstrumentColor, setInstrumentColor,
 } from '@/lib/instrumentIcons'
+import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /** Mix a hex color toward white by `amount` (0–1) for a soft tinted ground. */
@@ -33,7 +35,7 @@ export function InstrumentIcon({
 }) {
   const name = useInstrumentIconName(assetId)
   const Icon = ICON_BY_NAME[name] ?? ICON_BY_NAME[defaultIconName(assetId)]!
-  const color = iconColor(assetId)
+  const color = useInstrumentColor(assetId)
   const glyph = { width: Math.round(size * 0.5), height: Math.round(size * 0.5) }
 
   if (image != null) {
@@ -77,6 +79,7 @@ export function EditableInstrumentIcon({
 }) {
   const [open, setOpen] = useState(false)
   const current = useInstrumentIconName(assetId)
+  const currentColor = useInstrumentColor(assetId)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -90,6 +93,29 @@ export function EditableInstrumentIcon({
         </span>
       </PopoverTrigger>
       <PopoverContent align="start" className="max-h-80 w-64 overflow-y-auto p-2">
+        {/* Theme colour - applied to the tile matte and every surface that
+            derives this instrument's colour. */}
+        <p className="px-1 pb-1 text-[11px] font-semibold text-muted-foreground">Theme colour</p>
+        <div className="mb-2 flex flex-wrap gap-1 px-1">
+          {ICON_PALETTE.map(hex => {
+            const active = hex === currentColor
+            return (
+              <button
+                key={hex}
+                type="button"
+                aria-label={`Set colour ${hex}`}
+                onClick={() => setInstrumentColor(assetId, hex)}
+                className={cn(
+                  'grid size-6 place-items-center rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-ring/60',
+                  active && 'ring-2 ring-foreground/50 ring-offset-1 ring-offset-popover'
+                )}
+                style={{ backgroundColor: hex }}
+              >
+                {active && <Check className="size-3.5 text-white" strokeWidth={3} />}
+              </button>
+            )
+          })}
+        </div>
         <p className="px-1 pb-1 text-[11px] font-semibold text-muted-foreground">Change icon</p>
         {ICON_GROUPS.map(group => (
           <div key={group.label} className="mb-1">

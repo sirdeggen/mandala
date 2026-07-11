@@ -119,12 +119,14 @@ function InstrumentList({ assets, currentAssetId, activeSection, onOpen, onNew }
                     type="button"
                     onClick={() => onOpen(a.assetId)}
                     title={a.label}
-                    className={cn(
-                      'hidden w-full place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:grid',
-                      active && 'ring-2 ring-sidebar-ring'
-                    )}
+                    className="hidden w-full place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:grid"
                   >
-                    <InstrumentIcon assetId={a.assetId} size={28} image={img} className="rounded-md" />
+                    <InstrumentIcon
+                      assetId={a.assetId}
+                      size={28}
+                      image={img}
+                      className={cn('rounded-md', active && 'ring-2 ring-sidebar-ring ring-offset-2 ring-offset-sidebar')}
+                    />
                   </button>
                 </SidebarMenuItem>
               )
