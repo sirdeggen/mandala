@@ -78,3 +78,17 @@ export const BACKING_REF_SUGGESTIONS: BackingRefSuggestion[] = [
   { label: 'Deposit confirmation', value: 'DEP-20260710-4471', hint: 'Bank reserve deposit slip' },
   { label: 'Custody statement line', value: 'CUST-STMT-2026Q3-118', hint: 'Reconciles to custodian report' },
 ]
+
+/**
+ * Typical notes an issuer records when settling a redemption - how the reserves
+ * were returned to the holder. Mirror the same payment rails as backing
+ * references, plus the reserve-release artefacts an auditor reconciles against.
+ */
+export const SETTLEMENT_NOTE_SUGGESTIONS: BackingRefSuggestion[] = [
+  { label: 'Wire returned to holder', value: `Wire returned to holder · MT103 ${bic(0)}`, hint: 'International wire out' },
+  { label: 'SEPA transfer to holder', value: `SEPA transfer to holder · ${bic(4)}`, hint: 'Euro-area, same/next day' },
+  { label: 'CHAPS payment to holder', value: `CHAPS to holder · ${bic(2)}`, hint: 'UK same-day sterling' },
+  { label: 'Reserves released from custody', value: 'Redeemed at par (1:1), reserves released from custody', hint: 'Custody account debited' },
+  { label: 'Bank transfer · T+1', value: 'Bank transfer initiated · T+1 settlement', hint: 'Next-day value' },
+  { label: 'Off-ramp to linked account', value: 'Off-ramped to holder’s linked bank account', hint: 'Returned to source account' },
+]

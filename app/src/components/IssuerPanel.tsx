@@ -10,7 +10,8 @@ import { guardIssueSubmit, guardRedeemSubmit } from '@bsv/mandala/submitGuards'
 import { isAdminAuthInFlight } from '@bsv/mandala/adminAuthGate'
 import { Sparkles, Flame } from 'lucide-react'
 import { Input } from './ui/input'
-import { BackingRefField } from './issuer/BackingRefField'
+import { SuggestField } from './issuer/SuggestField'
+import { BACKING_REF_SUGGESTIONS, SETTLEMENT_NOTE_SUGGESTIONS } from '@/content/banks'
 import { Select } from './ui/select'
 import { Button } from './ui/button'
 import { Spinner } from './ui/spinner'
@@ -201,7 +202,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
                   </div>
                   <div>
                     <label className={labelCls} htmlFor="issue-ref">Backed by (optional)</label>
-                    <BackingRefField id="issue-ref" value={issueRef} onChange={setIssueRef} placeholder="Bank wire, SWIFT, or deposit reference…" className={inputCls} />
+                    <SuggestField id="issue-ref" value={issueRef} onChange={setIssueRef} suggestions={BACKING_REF_SUGGESTIONS} heading="Common backing references" placeholder="Bank wire, SWIFT, or deposit reference…" className={inputCls} />
                   </div>
                 </div>
               </div>
@@ -236,7 +237,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
                   </div>
                   <div>
                     <label className={labelCls} htmlFor="redeem-note">Settlement note (optional)</label>
-                    <Input id="redeem-note" type="text" value={redeemNote} onChange={e => setRedeemNote(e.target.value)} placeholder="e.g. wire returned to holder" className={inputCls} />
+                    <SuggestField id="redeem-note" value={redeemNote} onChange={setRedeemNote} suggestions={SETTLEMENT_NOTE_SUGGESTIONS} heading="Common settlement notes" placeholder="How reserves were returned to the holder…" className={inputCls} />
                   </div>
                 </div>
               </div>
