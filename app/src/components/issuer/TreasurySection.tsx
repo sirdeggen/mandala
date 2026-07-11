@@ -87,10 +87,16 @@ export default function TreasurySection({ assetId, asset }: Props) {
   // context an issuer/auditor wants next to the raw balance.
   const { data: summary } = useAdminSummary(assetId)
   const circulation = summary != null ? summary.totalIssued - summary.totalRedeemed : null
-  const circulationLabel = circulation != null ? formatAmount(circulation, decimals) : null
   const treasuryShare = circulation != null && circulation > 0 && balance != null
     ? Math.round((balance / circulation) * 100)
     : null
+  // Stats that don't already appear in the instrument header (which shows
+  // circulation, total issued, total redeemed): what share sits in treasury vs
+  // out with holders, and how many on-chain actions the instrument has seen.
+  const heldByOthersLabel = circulation != null && balance != null
+    ? formatAmount(Math.max(0, circulation - balance), decimals)
+    : null
+  const actionCount = summary?.actionCount ?? null
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -104,10 +110,11 @@ export default function TreasurySection({ assetId, asset }: Props) {
 
       {/* Balance card - themed security-textured surface, white text. */}
       <div className="relative overflow-hidden rounded-lg border border-black/10 bg-neutral-950 px-6 py-5 shadow-[var(--shadow-card)]">
-        {/* Layers: subtle guilloché texture, theme-colour matte, depth gradient. */}
-        <img src={texture} alt="" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-[0.18]" />
-        <div className="pointer-events-none absolute inset-0" style={{ backgroundColor: themeColor, opacity: 0.55 }} />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-black/55 via-black/25 to-black/50" />
+        {/* Layers: guilloché texture (kept visible), a lighter theme-colour
+            matte, and a soft vignette for text contrast. */}
+        <img src={texture} alt="" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-40" />
+        <div className="pointer-events-none absolute inset-0" style={{ backgroundColor: themeColor, opacity: 0.34 }} />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-black/40 via-transparent to-black/40" />
 
         <div className="relative">
           <div className="mb-2.5 flex items-center justify-between gap-3">
@@ -147,21 +154,27 @@ export default function TreasurySection({ assetId, asset }: Props) {
             )}
           </div>
 
-          {/* Auditor context: circulation and treasury's share of it. */}
-          {(circulationLabel != null || treasuryShare != null) && (
+          {/* Auditor context - stats not already in the instrument header. */}
+          {(treasuryShare != null || heldByOthersLabel != null || actionCount != null) && (
             <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 border-t border-white/15 pt-3">
-              {circulationLabel != null && (
-                <div>
-                  <div className="tabular text-[15px] font-semibold text-white">
-                    {circulationLabel}{ticker != null && <span className="ml-1 text-[12px] font-medium text-white/70">{ticker}</span>}
-                  </div>
-                  <div className="text-[11px] font-medium uppercase tracking-wide text-white/55">In circulation</div>
-                </div>
-              )}
               {treasuryShare != null && (
                 <div>
                   <div className="tabular text-[15px] font-semibold text-white">{treasuryShare}%</div>
                   <div className="text-[11px] font-medium uppercase tracking-wide text-white/55">Held in treasury</div>
+                </div>
+              )}
+              {heldByOthersLabel != null && (
+                <div>
+                  <div className="tabular text-[15px] font-semibold text-white">
+                    {heldByOthersLabel}{ticker != null && <span className="ml-1 text-[12px] font-medium text-white/70">{ticker}</span>}
+                  </div>
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-white/55">Held by holders</div>
+                </div>
+              )}
+              {actionCount != null && (
+                <div>
+                  <div className="tabular text-[15px] font-semibold text-white">{actionCount.toLocaleString()}</div>
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-white/55">On-chain actions</div>
                 </div>
               )}
             </div>
