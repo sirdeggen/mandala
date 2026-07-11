@@ -2,6 +2,7 @@ import { useSearchParams } from 'react-router-dom'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { formatAmount } from '@bsv/mandala/amount'
 import { EditableInstrumentIcon } from '@/components/ui/instrument-icon'
+import { useInstrumentColor } from '@/lib/instrumentIcons'
 import { assetImage } from '@/lib/instrumentCategory'
 import { useAdminSummary } from '../../hooks/useAdminHistory'
 import TreasurySection from './TreasurySection'
@@ -62,6 +63,9 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
   const stat = (n: number) => formatAmount(n, decimals)
   const circulation = totals != null ? totals.totalIssued - totals.totalRedeemed : null
 
+  // The instrument's theme colour, laid over the banner photo as a matte.
+  const themeColor = useInstrumentColor(assetId)
+
   if (assetId === '') {
     return (
       <div className="rounded-lg border border-border bg-card p-[24px_20px] text-center">
@@ -76,12 +80,14 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
           escapes the page padding to sit flush with the top and side edges. */}
       <div className="relative -mx-5 -mt-5 mb-6 overflow-hidden border-b border-border shadow-[var(--shadow-card)] lg:-mx-8 lg:-mt-8">
         <img src={assetImage(asset)} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        {/* Theme-colour matte over the photo, then a dark gradient for legibility. */}
+        <div className="absolute inset-0" style={{ backgroundColor: themeColor, opacity: 0.5 }} />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/55 to-black/35" />
         <div className="relative flex items-center gap-4 px-5 py-6 lg:px-8">
           <EditableInstrumentIcon
             assetId={assetId}
             size={52}
-            image={assetImage(asset)}
+            dark
             className="rounded-xl shadow-lg ring-2 ring-white/40"
           />
           <div className="min-w-0 flex-1">

@@ -5,7 +5,7 @@ import {
   useInstrumentIconName, setInstrumentIcon,
   useInstrumentColor, setInstrumentColor,
 } from '@/lib/instrumentIcons'
-import { Check } from 'lucide-react'
+import { Check, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /** Mix a hex color toward white by `amount` (0–1) for a soft tinted ground. */
@@ -25,18 +25,35 @@ function tintToWhite(hex: string, amount: number): string {
  * with a coloured glyph. The colour is stable so the instrument keeps identity.
  */
 export function InstrumentIcon({
-  assetId, size = 40, className, image,
+  assetId, size = 40, className, image, dark = false,
 }: {
   assetId: string
   size?: number
   className?: string
   /** Type background photo (see lib/instrumentCategory). */
   image?: string
+  /** Solid-black tile with a white glyph - used where the theme colour is
+   *  carried by the surrounding surface (e.g. a banner matte) rather than the
+   *  tile itself. */
+  dark?: boolean
 }) {
   const name = useInstrumentIconName(assetId)
   const Icon = ICON_BY_NAME[name] ?? ICON_BY_NAME[defaultIconName(assetId)]!
   const color = useInstrumentColor(assetId)
   const glyph = { width: Math.round(size * 0.5), height: Math.round(size * 0.5) }
+
+  if (dark && image == null) {
+    return (
+      <div
+        className={cn('grid shrink-0 place-items-center rounded-lg bg-black', className)}
+        style={{ width: size, height: size }}
+        role="img"
+        aria-hidden="true"
+      >
+        <Icon className="text-white" style={glyph} strokeWidth={2} />
+      </div>
+    )
+  }
 
   if (image != null) {
     return (
@@ -70,12 +87,13 @@ export function InstrumentIcon({
  * the curated icon set. Do not nest inside another `<button>` (it renders one).
  */
 export function EditableInstrumentIcon({
-  assetId, size = 40, className, image,
+  assetId, size = 40, className, image, dark = false,
 }: {
   assetId: string
   size?: number
   className?: string
   image?: string
+  dark?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const current = useInstrumentIconName(assetId)
@@ -87,9 +105,10 @@ export function EditableInstrumentIcon({
         className="group relative rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
         aria-label="Change instrument icon"
       >
-        <InstrumentIcon assetId={assetId} size={size} className={className} image={image} />
-        <span className="pointer-events-none absolute inset-0 grid place-items-center rounded-lg text-[9px] font-semibold uppercase tracking-wide text-primary-foreground opacity-0 transition-opacity group-hover:bg-foreground/45 group-hover:opacity-100">
-          Edit
+        <InstrumentIcon assetId={assetId} size={size} className={className} image={image} dark={dark} />
+        {/* Pencil edit affordance pinned to the top-right corner. */}
+        <span className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-white text-foreground shadow-md ring-1 ring-black/10 transition-colors group-hover:bg-white">
+          <Pencil className="size-2.5" strokeWidth={2.5} />
         </span>
       </PopoverTrigger>
       <PopoverContent align="start" className="max-h-80 w-64 overflow-y-auto p-2">
