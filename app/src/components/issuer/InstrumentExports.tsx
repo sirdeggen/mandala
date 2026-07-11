@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
-  FileText, FileSpreadsheet, Eye, Download, Trash2, X,
-  ListOrdered, Layers, BadgeCheck, HandCoins, ShieldAlert, Link2, GaugeCircle, DownloadCloud,
+  Eye, Download, Trash2, X,
+  ListOrdered, Layers, BadgeCheck, HandCoins, ShieldAlert, Link2, GaugeCircle,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { ExportButtonGroup } from './ExportButtonGroup'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useOverlayActivity } from '../../hooks/useOverlayActivity'
 import { useAdminSummary } from '../../hooks/useAdminHistory'
@@ -84,8 +85,8 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
   return (
     <div className="max-w-3xl space-y-5">
       <TabHeader
-        title="Reports & exports"
-        description="Preview and export the evidence an auditor needs - as CSV or a spreadsheet - across every compliance surface for this instrument."
+        title="Reports"
+        description="Preview and export the evidence an auditor needs - as CSV, spreadsheet (.xls) or PDF - across every compliance surface for this instrument."
         guide="/help/for-auditors/reading-reconciliation-reports"
       />
 
@@ -97,12 +98,7 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[12px] font-medium text-muted-foreground">Download all</span>
-          <button type="button" onClick={() => downloadAll('csv')} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-muted">
-            <DownloadCloud className="size-4" /> CSV
-          </button>
-          <button type="button" onClick={() => downloadAll('xls')} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90">
-            <DownloadCloud className="size-4" /> .xls
-          </button>
+          <ExportButtonGroup onExport={downloadAll} primary />
         </div>
       </div>
 
@@ -121,10 +117,9 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
             </div>
             <div className="mt-3 flex items-center justify-between gap-2">
               <span className="text-[11px] text-faint-foreground">{r.table.rows.length} row{r.table.rows.length === 1 ? '' : 's'}</span>
-              <div className="flex flex-wrap justify-end gap-1.5">
+              <div className="flex flex-wrap items-center justify-end gap-1.5">
                 <ActionBtn Icon={Eye} label="View" onClick={() => setPreview(r)} />
-                <ActionBtn Icon={FileText} label="CSV" onClick={() => runExport(r, 'csv')} disabled={r.table.rows.length === 0} />
-                <ActionBtn Icon={FileSpreadsheet} label=".xls" onClick={() => runExport(r, 'xls')} disabled={r.table.rows.length === 0} />
+                <ExportButtonGroup onExport={f => runExport(r, f)} disabled={r.table.rows.length === 0} />
               </div>
             </div>
           </div>
@@ -210,8 +205,7 @@ function PreviewModal({ report, onClose, onExport }: {
             <p className="text-[12px] text-muted-foreground">{report.table.rows.length} row{report.table.rows.length === 1 ? '' : 's'}</p>
           </div>
           <div className="flex items-center gap-1.5">
-            <ActionBtn Icon={FileText} label="CSV" onClick={() => onExport(report, 'csv')} disabled={report.table.rows.length === 0} />
-            <ActionBtn Icon={FileSpreadsheet} label=".xls" onClick={() => onExport(report, 'xls')} disabled={report.table.rows.length === 0} />
+            <ExportButtonGroup onExport={f => onExport(report, f)} disabled={report.table.rows.length === 0} />
             <button type="button" onClick={onClose} aria-label="Close" className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
               <X className="size-4" />
             </button>

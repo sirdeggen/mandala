@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Home, Signature, Building2, ShieldCheck, ChevronsUpDown, BadgeCheck,
-  Settings, Plus, LogOut, BookOpen
+  Settings, Plus, LogOut, BookOpen, FileText
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useWallet } from '../../context/WalletContext'
@@ -28,10 +28,11 @@ import IssuerHome from './IssuerHome'
 import AuditorHome from './AuditorHome'
 import IssueInstrumentDrawer from './IssueInstrumentDrawer'
 import ComplianceOverview from './ComplianceOverview'
+import ReportsPage from './ReportsPage'
 import AccountSettings from '../settings/AccountSettings'
 import ContactsPage from '../holder/ContactsPage'
 
-type Section = 'home' | 'overview' | 'relationships' | 'compliance' | 'instrument' | 'settings'
+type Section = 'home' | 'overview' | 'relationships' | 'compliance' | 'reports' | 'instrument' | 'settings'
 
 type NavItem = {
   key: string
@@ -47,6 +48,7 @@ const TOP_NAV: NavItem[] = [
   { key: 'instruments',   section: 'overview',      label: 'Instruments',   icon: Signature },
   { key: 'relationships', section: 'relationships', label: 'Relationships', icon: Building2 },
   { key: 'compliance',    section: 'compliance',    label: 'Compliance',    icon: ShieldCheck },
+  { key: 'reports',       section: 'reports',       label: 'Reports',       icon: FileText },
 ]
 
 // ── Instrument switcher (sidebar popover) ─────────────────────────────────────
@@ -265,7 +267,7 @@ function AccountMenu({ seed, displayName, verified, onSettings }: {
 
 // `home` / `overview` are nav-backed; `instrument` is reached by selecting an
 // instrument; `settings` is reached from the account menu.
-const VALID_SECTIONS = ['home', 'overview', 'relationships', 'compliance', 'instrument', 'settings']
+const VALID_SECTIONS = ['home', 'overview', 'relationships', 'compliance', 'reports', 'instrument', 'settings']
 
 export default function IssuerDashboard() {
   const { identityKey } = useWallet()
@@ -457,6 +459,9 @@ export default function IssuerDashboard() {
             )}
             {section === 'compliance' && (
               <ComplianceOverview onOpenInstrument={openInstrument} />
+            )}
+            {section === 'reports' && (
+              <ReportsPage />
             )}
             {section === 'instrument' && (
               <InstrumentDetail

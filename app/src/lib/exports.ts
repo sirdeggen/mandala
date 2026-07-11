@@ -9,11 +9,12 @@ export interface ReportTable {
   rows: string[][]
 }
 
-export type ExportFormat = 'csv' | 'xls'
+export type ExportFormat = 'csv' | 'xls' | 'pdf'
 
 export const FORMAT_LABEL: Record<ExportFormat, string> = {
   csv: 'CSV',
   xls: '.xls',
+  pdf: 'PDF',
 }
 
 export interface ReportSection {
@@ -54,13 +55,44 @@ export function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'export'
 }
 
-/** Download a report in the given format. */
+function tableHtml(table: ReportTable): string {
+  const head = `<tr>${table.columns.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr>`
+  const body = table.rows.map(r => `<tr>${r.map(c => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('')
+  return `<table>${head}${body}</table>`
+}
+
+/** Open a print-ready window for the given sections; the browser's print dialog
+ *  produces the PDF ("Save as PDF"). User-initiated, so not popup-blocked. */
+function printSections(title: string, sections: ReportSection[]): void {
+  if (typeof window === 'undefined') return
+  const w = window.open('', '_blank', 'noopener,noreferrer')
+  if (w == null) return
+  const style = `<style>
+    *{box-sizing:border-box} body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#111;margin:0;padding:28px}
+    h1{font-size:20px;margin:0 0 4px} .meta{color:#666;font-size:12px;margin-bottom:16px}
+    h3{font-size:13px;margin:22px 0 6px;color:#333}
+    table{border-collapse:collapse;width:100%;font-size:11px;margin-bottom:4px}
+    th,td{border:1px solid #ddd;padding:5px 7px;text-align:left;vertical-align:top}
+    th{background:#f4f4f5;font-weight:600}
+    @media print{@page{margin:16mm}}
+  </style>`
+  const body = sections.map(s => `<h3>${escapeHtml(s.title)}</h3>${tableHtml(s.table)}`).join('')
+  const now = new Date().toLocaleString('en-GB')
+  w.document.write(`<html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>${style}</head><body><h1>${escapeHtml(title)}</h1><div class="meta">Generated ${escapeHtml(now)}</div>${body}</body></html>`)
+  w.document.close()
+  w.focus()
+  setTimeout(() => { try { w.print() } catch { /* ignore */ } }, 300)
+}
+
+/** Download a report in the given format (PDF opens a print-to-PDF window). */
 export function exportReport(name: string, format: ExportFormat, table: ReportTable): void {
   const stem = slugify(name)
   if (format === 'csv') {
     triggerDownload(`${stem}.csv`, 'text/csv;charset=utf-8', toCSV(table))
-  } else {
+  } else if (format === 'xls') {
     triggerDownload(`${stem}.xls`, 'application/vnd.ms-excel', toExcelHtml(name, table))
+  } else {
+    printSections(name, [{ title: name, table }])
   }
 }
 
@@ -68,7 +100,9 @@ export function exportReport(name: string, format: ExportFormat, table: ReportTa
  *  multi-table .xls workbook-style document). */
 export function exportBundle(name: string, format: ExportFormat, sections: ReportSection[]): void {
   const stem = slugify(name)
-  if (format === 'csv') {
+  if (format === 'pdf') {
+    printSections(name, sections)
+  } else if (format === 'csv') {
     const body = sections.map(s => `# ${s.title}\r\n${toCSV(s.table)}`).join('\r\n\r\n')
     triggerDownload(`${stem}.csv`, 'text/csv;charset=utf-8', body)
   } else {

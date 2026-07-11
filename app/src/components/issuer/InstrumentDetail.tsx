@@ -33,7 +33,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'operations', label: 'Issuance & redemption' },
   { id: 'ledger', label: 'Ledger' },
   { id: 'sanctions', label: 'Restrictions' },
-  { id: 'exports', label: 'Exports' },
+  { id: 'exports', label: 'Reports' },
 ]
 
 interface Props {

@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { parseAmount } from '@bsv/mandala/amount'
+import { parseAmount, formatAmount } from '@bsv/mandala/amount'
 import { useAdminAssets } from '../hooks/useAdminAssets'
+import { useAdminSummary } from '../hooks/useAdminHistory'
 import { useIssuerMutations } from '../hooks/useIssuerMutations'
 import { useHolderData } from '../hooks/useHolderData'
 import { useOnboarding, isReviewerRole } from '../lib/onboarding'
+import { useReserveBucket, reservesTotalOf } from '../lib/compliance'
+import { useMockTransfers } from '../lib/mandala/mockBankStore'
 import TabHeader from './issuer/TabHeader'
 import { guardIssueSubmit, guardRedeemSubmit } from '@bsv/mandala/submitGuards'
 import { isAdminAuthInFlight } from '@bsv/mandala/adminAuthGate'
-import { Sparkles, Flame } from 'lucide-react'
+import { Sparkles, Flame, ShieldCheck } from 'lucide-react'
 import { Input } from './ui/input'
 import { SuggestField } from './issuer/SuggestField'
-import { BACKING_REF_SUGGESTIONS, SETTLEMENT_NOTE_SUGGESTIONS } from '@/content/banks'
+import { BACKING_REF_SUGGESTIONS, SETTLEMENT_NOTE_SUGGESTIONS, bankForRef, type BackingRefSuggestion } from '@/content/banks'
 import { Select } from './ui/select'
 import { Button } from './ui/button'
 import { Spinner } from './ui/spinner'
@@ -32,6 +35,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
   // UI-only state (not passed to any core function)
   const [issueRef, setIssueRef] = useState('')
   const [redeemNote, setRedeemNote] = useState('')
+  const [wildbank, setWildbank] = useState(false)
 
   // Shared cached admin-asset list; mutations invalidate it on settle.
   const { data } = useAdminAssets()
@@ -56,12 +60,40 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
   const effectiveIssueAsset = controlledAssetId ?? issueAsset
   const effectiveRedeemAsset = controlledAssetId ?? redeemAsset
 
+  // ── Backing references: real reserve-account statements + format presets ──────
+  const issueAssetObj = assets.find(a => a.assetId === effectiveIssueAsset) ?? null
+  const issueDecimals = Number(issueAssetObj?.metadata?.decimals) || 0
+  const bankTransfers = useMockTransfers(effectiveIssueAsset)
+  const bankStatementSuggestions: BackingRefSuggestion[] = bankTransfers
+    .filter(t => t.direction === 'in')
+    .map(t => {
+      const bank = bankForRef(t.id)
+      return {
+        label: `${bank.name} deposit`,
+        value: `${bank.name} ${bank.account} · ${formatAmount(t.amount, issueDecimals)}`,
+        hint: new Date(t.timestamp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+      }
+    })
+  const backingSuggestions = [...bankStatementSuggestions, ...BACKING_REF_SUGGESTIONS]
+
+  // ── Wildbank protection: cap issuance at the available reserve balance ────────
+  const reserves = reservesTotalOf(useReserveBucket(effectiveIssueAsset))
+  const { data: issueSummary } = useAdminSummary(effectiveIssueAsset)
+  const circulation = issueSummary != null ? (issueSummary.totalIssued - issueSummary.totalRedeemed) / 10 ** issueDecimals : 0
+  const availableReserve = Math.max(0, reserves - circulation)
+  const issueAmountNum = Number(issueAmount)
+  const exceedsReserve = wildbank && Number.isFinite(issueAmountNum) && issueAmountNum > availableReserve
+
   const handleIssue = () => {
     if (issueStartedRef.current || busy) return
     const asset = assets.find(a => a.assetId === effectiveIssueAsset)
     if (asset == null) return
     if (isAdminAuthInFlight(asset.assetId)) {
       toast.error('Admin action already in progress for this asset')
+      return
+    }
+    if (wildbank && Number(issueAmount) > availableReserve) {
+      toast.error(`Wildbank protection: cannot mint more than the available reserve balance (${availableReserve.toLocaleString('en-US')}).`)
       return
     }
     const amount = parseAmount(issueAmount, Number(asset.metadata?.decimals) || 0)
@@ -202,13 +234,43 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
                   </div>
                   <div>
                     <label className={labelCls} htmlFor="issue-ref">Backed by (optional)</label>
-                    <SuggestField id="issue-ref" value={issueRef} onChange={setIssueRef} suggestions={BACKING_REF_SUGGESTIONS} heading="Common backing references" placeholder="Bank wire, SWIFT, or deposit reference…" className={inputCls} />
+                    <SuggestField id="issue-ref" value={issueRef} onChange={setIssueRef} suggestions={backingSuggestions} heading={bankStatementSuggestions.length > 0 ? 'Reserve deposits & references' : 'Common backing references'} placeholder="Bank wire, SWIFT, or deposit reference…" className={inputCls} />
                   </div>
                 </div>
               </div>
+
+              {/* Wildbank protection - block minting beyond the available reserve balance. */}
+              <div className={cn('flex items-start gap-3 rounded-lg border px-3 py-2.5', exceedsReserve ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-muted/40')}>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={wildbank}
+                  aria-label="Wildbank protection"
+                  onClick={() => setWildbank(v => !v)}
+                  className={cn('relative mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60', wildbank ? 'bg-primary' : 'bg-muted-foreground/40')}
+                >
+                  <span className={cn('inline-block size-4 transform rounded-full bg-white shadow transition-transform', wildbank ? 'translate-x-[18px]' : 'translate-x-[2px]')} />
+                </button>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-foreground">
+                    <ShieldCheck className="size-3.5 text-success" /> Wildbank protection
+                  </div>
+                  <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">
+                    {wildbank
+                      ? <>Minting is capped at the available reserve balance: <span className="tabular font-medium text-foreground">{availableReserve.toLocaleString('en-US')}</span>.</>
+                      : 'Prevent minting more than the current available reserve balance.'}
+                  </p>
+                  {exceedsReserve && (
+                    <p className="mt-1 text-[11.5px] font-medium text-destructive">
+                      Amount exceeds the available reserve balance.
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <Button
                 onClick={handleIssue}
-                disabled={busy || effectiveIssueAsset === '' || issueAmount === ''}
+                disabled={busy || effectiveIssueAsset === '' || issueAmount === '' || exceedsReserve}
                 loading={issue.isPending}
                 loadingText="Issuing…"
                 className="w-full rounded bg-primary text-primary-foreground"
