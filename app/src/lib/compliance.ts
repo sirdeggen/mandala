@@ -221,8 +221,13 @@ export function removeReserveLine(assetId: string, id: string): void {
 
 // ── Attestations ──────────────────────────────────────────────────────────────
 
-/** Snapshot the current composition + circulation as a submitted attestation. */
-export function createAttestation(assetId: string, currency: string): Attestation {
+/**
+ * Snapshot the current composition + circulation as a submitted attestation.
+ * `circulation` is passed in so callers can snapshot the authoritative on-chain
+ * figure (issued - redeemed) rather than the local bucket field; it falls back
+ * to the bucket value when omitted.
+ */
+export function createAttestation(assetId: string, currency: string, circulation?: number): Attestation {
   const bucket = bucketOf(assetId)
   const now = new Date()
   const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -232,7 +237,7 @@ export function createAttestation(assetId: string, currency: string): Attestatio
     period,
     createdAt: now.toISOString(),
     currency,
-    circulation: bucket.circulation,
+    circulation: circulation ?? bucket.circulation,
     reservesTotal: reservesTotalOf(bucket),
     lines: bucket.composition.map(l => ({ ...l })),
     status: 'submitted',

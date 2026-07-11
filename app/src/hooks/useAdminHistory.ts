@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   resolveAdminHistory,
   resolveAdminHistoryPage,
@@ -47,6 +47,21 @@ export function useAdminSummary(assetId: string) {
     enabled: assetId !== '',
     queryFn: async (): Promise<AdminSummary | null> => resolveAdminSummary(assetId)
   })
+}
+
+/** Summaries for many assets at once (shares the per-asset cache above), keyed
+ *  by assetId. Used by the cross-instrument compliance roll-up. */
+export function useAdminSummaries(assetIds: string[]): Record<string, AdminSummary | null> {
+  const results = useQueries({
+    queries: assetIds.map(id => ({
+      queryKey: adminSummaryKey(id),
+      enabled: id !== '',
+      queryFn: async (): Promise<AdminSummary | null> => resolveAdminSummary(id)
+    }))
+  })
+  const map: Record<string, AdminSummary | null> = {}
+  assetIds.forEach((id, i) => { map[id] = results[i]?.data ?? null })
+  return map
 }
 
 /** Invalidate one asset's admin history views from anywhere (post-admin-action). */

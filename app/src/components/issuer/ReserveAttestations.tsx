@@ -3,9 +3,10 @@ import { toast } from 'sonner'
 import { ShieldCheck, Plus, Trash2, AlertTriangle, BadgeCheck, Check, Flag, FileCheck2 } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
+import { useAdminSummary } from '../../hooks/useAdminHistory'
 import {
   useReserveBucket, useAttestations, reservesTotalOf,
-  addReserveLine, updateReserveLine, removeReserveLine, setCirculation,
+  addReserveLine, updateReserveLine, removeReserveLine,
   createAttestation, reviewAttestation, type Attestation,
 } from '../../lib/compliance'
 import { RESERVE_CLASSES, RESERVE_CLASS_BY_KEY } from '@/content/reserveClasses'
@@ -13,7 +14,6 @@ import TabHeader from './TabHeader'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Select } from '../ui/select'
-import { Label } from '../ui/label'
 import { cn } from '@/lib/utils'
 
 /**
@@ -29,9 +29,15 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
   const attestations = useAttestations(assetId)
 
   const currency = asset?.metadata?.ticker != null ? String(asset.metadata.ticker).toUpperCase() : 'units'
+  const decimals = Number(asset?.metadata?.decimals) || 0
   const reserves = reservesTotalOf(bucket)
-  const circ = bucket.circulation
-  const backing = circ > 0 ? (reserves / circ) * 100 : (reserves > 0 ? 100 : null)
+
+  // Circulation is read from the ledger (issued - redeemed), not entered by
+  // hand, so it always matches the on-chain record. Null while the summary
+  // loads; 0 once loaded means nothing has been issued yet.
+  const { data: summary, isPending: circPending } = useAdminSummary(assetId)
+  const circ = summary != null ? (summary.totalIssued - summary.totalRedeemed) / 10 ** decimals : null
+  const backing = circ != null && circ > 0 ? (reserves / circ) * 100 : (circ === 0 && reserves > 0 ? 100 : null)
   const fullyBacked = backing != null && backing >= 100
   const hasIneligible = bucket.composition.some(l => RESERVE_CLASS_BY_KEY[l.assetClass]?.eligible === false)
 
@@ -41,7 +47,7 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
 
   function create() {
     if (bucket.composition.length === 0) { toast.error('Add at least one reserve line first.'); return }
-    createAttestation(assetId, currency)
+    createAttestation(assetId, currency, circ ?? 0)
     toast.success('Attestation submitted for audit')
   }
 
@@ -62,16 +68,22 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
             </div>
             <div>
               <div className="text-[22px] font-semibold leading-none tracking-[-0.02em] tabular text-foreground">
-                {backing != null ? `${fmt(backing)}%` : '-'}
+                {backing != null ? `${fmt(backing)}%` : circPending ? '…' : '-'}
               </div>
               <div className="mt-1 text-[12.5px] text-muted-foreground">
-                {backing == null ? 'No circulation recorded' : fullyBacked ? 'Fully backed by reserves' : 'Under-collateralised'}
+                {backing != null
+                  ? (fullyBacked ? 'Fully backed by reserves' : 'Under-collateralised')
+                  : circPending
+                    ? 'Reading circulation from the ledger…'
+                    : circ === 0
+                      ? 'No units issued yet'
+                      : 'Add reserves to show backing'}
               </div>
             </div>
           </div>
           <div className="text-right text-[12px] text-muted-foreground">
             <div><span className="tabular font-medium text-foreground">{fmt(reserves)}</span> reserves</div>
-            <div><span className="tabular font-medium text-foreground">{fmt(circ)}</span> {currency} in circulation</div>
+            <div><span className="tabular font-medium text-foreground">{circ != null ? fmt(circ) : '-'}</span> {currency} in circulation</div>
           </div>
         </div>
         <div className="mt-3 border-t border-border/60 pt-2.5 text-[12px] text-muted-foreground">
@@ -150,8 +162,8 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
           </div>
         )}
 
-        {!isAuditor && (
-          <div className="mt-3 flex flex-wrap items-end gap-3">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          {!isAuditor ? (
             <button
               type="button"
               onClick={() => addReserveLine(assetId)}
@@ -159,21 +171,15 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
             >
               <Plus className="size-4" /> Add reserve line
             </button>
-            <div className="space-y-1">
-              <Label htmlFor="circ" className="text-[11px]">Units in circulation</Label>
-              <Input
-                id="circ"
-                type="number"
-                min="0"
-                step="any"
-                value={circ !== 0 ? String(circ) : ''}
-                placeholder="0"
-                onChange={e => setCirculation(assetId, Number(e.target.value) || 0)}
-                className="tabular h-10 w-44 text-[13px]"
-              />
+          ) : <span />}
+          {/* Circulation is read straight from the ledger - not editable. */}
+          <div className="text-right">
+            <div className="text-[11px] text-faint-foreground">Units in circulation (from ledger)</div>
+            <div className="tabular text-[14px] font-semibold text-foreground">
+              {circ != null ? `${fmt(circ)} ${currency}` : circPending ? '…' : '-'}
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Attestation register */}

@@ -6,7 +6,9 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
+import type { AdminSummary } from '@bsv/mandala/adminHistory'
 import { useAdminAssets } from '../../hooks/useAdminAssets'
+import { useAdminSummaries } from '../../hooks/useAdminHistory'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
 import {
   useComplianceSnapshot, reservesTotalOf, useGovernance, setGovernance,
@@ -35,7 +37,8 @@ export default function ComplianceOverview({ onOpenInstrument }: {
   const { role, name } = useOnboarding()
   const isAuditor = isReviewerRole(role)
 
-  const rows = assets.map(a => compliance(a, snap.buckets[a.assetId], snap))
+  const summaries = useAdminSummaries(assets.map(a => a.assetId))
+  const rows = assets.map(a => compliance(a, snap.buckets[a.assetId], snap, summaries[a.assetId] ?? null))
   const backedCount = rows.filter(r => r.fullyBacked).length
   const pendingAtt = snap.attestations.filter(a => a.status === 'submitted')
   const openRedemptions = snap.requests.filter(r => r.status === 'pending')
@@ -97,7 +100,7 @@ export default function ComplianceOverview({ onOpenInstrument }: {
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[14px] font-medium text-foreground">{r.asset.label}</div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                    <MiniPill label={r.backing != null ? `${fmt(r.backing)}% backed` : 'No circulation'} tone={r.fullyBacked ? 'success' : 'warning'} />
+                    <MiniPill label={r.backing != null ? `${fmt(r.backing)}% backed` : 'Not yet issued'} tone={r.fullyBacked ? 'success' : 'warning'} />
                     <MiniPill label={attLabel(r.latestAtt)} tone={r.latestAtt?.status === 'signed' ? 'success' : r.latestAtt?.status === 'flagged' ? 'destructive' : 'muted'} />
                     {r.openRedemptions > 0 && <MiniPill label={`${r.openRedemptions} redemption${r.openRedemptions === 1 ? '' : 's'}`} tone="warning" />}
                   </div>
@@ -165,11 +168,14 @@ interface Row {
   openRedemptions: number
 }
 
-function compliance(asset: AdminAsset, bucket: ReserveBucket | undefined, snap: ReturnType<typeof useComplianceSnapshot>): Row {
+function compliance(asset: AdminAsset, bucket: ReserveBucket | undefined, snap: ReturnType<typeof useComplianceSnapshot>, summary: AdminSummary | null): Row {
   const b = bucket ?? { composition: [], circulation: 0 }
   const reserves = reservesTotalOf(b)
-  const circ = b.circulation
-  const backing = circ > 0 ? (reserves / circ) * 100 : (reserves > 0 ? 100 : null)
+  // Circulation from the ledger (issued - redeemed), matching the instrument
+  // views; falls back to the local bucket figure only if the summary is absent.
+  const decimals = Number(asset.metadata?.decimals) || 0
+  const circ = summary != null ? (summary.totalIssued - summary.totalRedeemed) / 10 ** decimals : b.circulation
+  const backing = circ > 0 ? (reserves / circ) * 100 : (reserves > 0 && circ === 0 ? 100 : null)
   return {
     asset,
     reserves,
