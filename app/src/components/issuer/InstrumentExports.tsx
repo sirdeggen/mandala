@@ -68,18 +68,34 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
 
   const scopeLabel = `${asset?.label ?? 'instrument'}${year === 'all' ? '' : ` ${year}`}`
 
-  const runExport = (r: ReportView, format: ExportFormat) => {
+  // Actual file generation - triggered from the toast CTA or Recent exports.
+  const downloadReport = (r: ReportView, format: ExportFormat) => {
     exportReport(`${scopeLabel} ${r.name}`, format, r.table)
-    logExport({ assetId, reportKey: r.key, reportName: r.name, format, rowCount: r.table.rows.length })
-    toast.success(`Exported ${r.name} (${FORMAT_LABEL[format]})`)
   }
-
   const downloadAll = (format: ExportFormat) => {
     const sections = reports.filter(r => r.table.rows.length > 0).map(r => ({ title: r.name, table: r.table }))
     if (sections.length === 0) { toast.error('Nothing to export yet.'); return }
     exportBundle(`${scopeLabel} all reports`, format, sections)
-    logExport({ assetId, reportKey: 'summary', reportName: 'All reports', format, rowCount: sections.reduce((n, s) => n + s.table.rows.length, 0) })
-    toast.success(`Exported all reports (${FORMAT_LABEL[format]})`)
+  }
+
+  // Clicking an export button prepares the file and logs it to Recent exports
+  // rather than downloading straight away; the toast offers a download shortcut.
+  const prepareReport = (r: ReportView, format: ExportFormat) => {
+    if (r.table.rows.length === 0) { toast.error('No rows to export yet.'); return }
+    logExport({ assetId, reportKey: r.key, reportName: r.name, format, rowCount: r.table.rows.length })
+    toast.success(`${r.name} (${FORMAT_LABEL[format]}) is ready`, {
+      description: 'Download it from Recent exports below.',
+      action: { label: 'Download', onClick: () => downloadReport(r, format) },
+    })
+  }
+  const prepareAll = (format: ExportFormat) => {
+    const rows = reports.reduce((n, r) => n + r.table.rows.length, 0)
+    if (rows === 0) { toast.error('Nothing to export yet.'); return }
+    logExport({ assetId, reportKey: 'summary', reportName: 'All reports', format, rowCount: rows, bundle: true })
+    toast.success(`All reports (${FORMAT_LABEL[format]}) are ready`, {
+      description: 'Download them from Recent exports below.',
+      action: { label: 'Download', onClick: () => downloadAll(format) },
+    })
   }
 
   return (
@@ -97,8 +113,8 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
           <YearSelect value={year} years={years} onChange={setYear} />
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[12px] font-medium text-muted-foreground">Download all</span>
-          <ExportButtonGroup onExport={downloadAll} primary />
+          <span className="text-[12px] font-medium text-muted-foreground">Export all</span>
+          <ExportButtonGroup onExport={prepareAll} primary />
         </div>
       </div>
 
@@ -119,7 +135,7 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
               <span className="text-[11px] text-faint-foreground">{r.table.rows.length} row{r.table.rows.length === 1 ? '' : 's'}</span>
               <div className="flex flex-wrap items-center justify-end gap-1.5">
                 <ActionBtn Icon={Eye} label="View" onClick={() => setPreview(r)} />
-                <ExportButtonGroup onExport={f => runExport(r, f)} disabled={r.table.rows.length === 0} />
+                <ExportButtonGroup onExport={f => prepareReport(r, f)} disabled={r.table.rows.length === 0} />
               </div>
             </div>
           </div>
@@ -149,9 +165,9 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
                   <div className="flex justify-end gap-1">
                     <button
                       type="button"
-                      aria-label="Re-download"
-                      disabled={report == null}
-                      onClick={() => report != null && runExport(report, h.format)}
+                      aria-label="Download"
+                      disabled={!h.bundle && report == null}
+                      onClick={() => { if (h.bundle) downloadAll(h.format); else if (report != null) downloadReport(report, h.format) }}
                       className="grid size-7 place-items-center rounded border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
                     >
                       <Download className="size-3.5" />
@@ -172,7 +188,7 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
         )}
       </div>
 
-      {preview != null && <PreviewModal report={preview} onClose={() => setPreview(null)} onExport={runExport} />}
+      {preview != null && <PreviewModal report={preview} onClose={() => setPreview(null)} onExport={prepareReport} />}
     </div>
   )
 }

@@ -15,6 +15,8 @@ export interface ExportRecord {
   format: ExportFormat
   rowCount: number
   createdAt: string   // ISO
+  /** True when this record is a bundle of every report, not a single one. */
+  bundle?: boolean
 }
 
 const KEY = 'underwrite.exportHistory.v1'
