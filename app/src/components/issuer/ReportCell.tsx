@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { IdentitySigil } from '@/components/ui/identity-sigil'
+import { IdentityKeyPopover } from './IdentityKeyPopover'
 
 const ID_COLS = new Set(['From', 'To', 'Badge ID'])
 const looksLikeKey = (v: string) => /^[0-9a-f]{16,}$/i.test(v)
@@ -38,12 +38,7 @@ export function Highlight({ text, query }: { text: string; query: string }) {
  */
 export function ReportCell({ column, value, query = '' }: { column: string; value: string; query?: string }) {
   if (ID_COLS.has(column) && looksLikeKey(value)) {
-    return (
-      <span className="inline-flex items-center gap-1.5" title={value}>
-        <IdentitySigil value={value} size={16} className="rounded" />
-        <span className="font-mono text-[11px] text-subtle-foreground"><Highlight text={trunc(value)} query={query} /></span>
-      </span>
-    )
+    return <IdentityKeyPopover value={value} />
   }
   if (column.toLowerCase().includes('hash') && value !== '') {
     return <span className="font-mono text-[11px] text-subtle-foreground" title={value}><Highlight text={trunc(value)} query={query} /></span>

@@ -12,6 +12,7 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { RelationshipField } from './RelationshipField'
+import { IdentityKeyPopover } from './IdentityKeyPopover'
 import { cn } from '@/lib/utils'
 
 /**
@@ -174,9 +175,11 @@ function HolderRow({ holder, readOnly }: { holder: HolderRecord; readOnly: boole
         <IdentitySigil value={holder.identityKey} size={30} className="rounded-md" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13.5px] font-medium text-foreground">{holder.name || 'Holder'}</div>
-          <div className="truncate font-mono text-[11px] text-subtle-foreground" title={holder.identityKey}>
-            {holder.identityKey.length > 12 ? `${holder.identityKey.slice(0, 5)}…${holder.identityKey.slice(-5)}` : holder.identityKey}
-          </div>
+          <IdentityKeyPopover value={holder.identityKey}>
+            <span className="font-mono text-[11px] text-subtle-foreground">
+              {holder.identityKey.length > 12 ? `${holder.identityKey.slice(0, 5)}…${holder.identityKey.slice(-5)}` : holder.identityKey}
+            </span>
+          </IdentityKeyPopover>
         </div>
         {!readOnly && (
           <div className="flex shrink-0 gap-1">
