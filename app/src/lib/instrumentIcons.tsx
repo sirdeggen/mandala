@@ -120,6 +120,17 @@ export function defaultIconName(assetId: string): string {
   return ALL_NAMES[fnv1a(assetId) % ALL_NAMES.length]!
 }
 
+/** Guilloché "security feature" line-wave textures (public/backgrounds). */
+const SECURITY_PATTERNS = Array.from(
+  { length: 9 },
+  (_, i) => `/backgrounds/Gold Line Waves_${i + 1}.png`,
+)
+
+/** A stable-but-varied security texture for an instrument (URL-encoded path). */
+export function securityPattern(assetId: string): string {
+  return encodeURI(SECURITY_PATTERNS[fnv1a(`p:${assetId}`) % SECURITY_PATTERNS.length]!)
+}
+
 /** Deterministic tile color for an instrument (stable across icon changes). */
 export function defaultIconColor(assetId: string): string {
   return ICON_PALETTE[(fnv1a(`c:${assetId}`) >>> 3) % ICON_PALETTE.length]!

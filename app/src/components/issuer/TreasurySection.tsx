@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ArrowUpRight, ArrowDownLeft, Coins, Plus } from 'lucide-react'
+import { ArrowUpRight, ArrowDownLeft, Coins, Plus, ShieldCheck } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset } from '@bsv/mandala/assets'
-import { formatCurrency } from '@bsv/mandala/amount'
+import { formatCurrency, formatAmount } from '@bsv/mandala/amount'
 import { useHolderData } from '../../hooks/useHolderData'
+import { useAdminSummary } from '../../hooks/useAdminHistory'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
+import { useInstrumentColor, securityPattern } from '../../lib/instrumentIcons'
 import SendTokens from '../SendTokens'
 import ReceivePanel from '../holder/ReceivePanel'
 import { IdentitySigil } from '@/components/ui/identity-sigil'
@@ -75,6 +77,21 @@ export default function TreasurySection({ assetId, asset }: Props) {
 
   const isEmpty = balance === 0
 
+  // ── Card theming + auditor context ──────────────────────────────────────────
+  // Themed, textured summary card: a subtle guilloché security texture under a
+  // semi-transparent matte in the instrument's theme colour, white text on top.
+  const themeColor = useInstrumentColor(assetId)
+  const texture = securityPattern(assetId)
+
+  // Whole-history totals let us show what share of circulation sits in treasury -
+  // context an issuer/auditor wants next to the raw balance.
+  const { data: summary } = useAdminSummary(assetId)
+  const circulation = summary != null ? summary.totalIssued - summary.totalRedeemed : null
+  const circulationLabel = circulation != null ? formatAmount(circulation, decimals) : null
+  const treasuryShare = circulation != null && circulation > 0 && balance != null
+    ? Math.round((balance / circulation) * 100)
+    : null
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -85,34 +102,69 @@ export default function TreasurySection({ assetId, asset }: Props) {
         guide="/help/for-issuers/backing-instruments-with-reserves"
       />
 
-      {/* Balance card */}
-      <div className="rounded-lg border border-separator bg-card px-[24px] py-[20px] shadow-[var(--shadow-card)]">
-        <div className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground mb-[10px]">
-          Treasury balance
-        </div>
-        {loading ? (
-          <div className="animate-pulse h-[44px] w-[180px] rounded-sm bg-muted" />
-        ) : (
-          <div
-            className={cn(
-              'tabular text-[44px] font-semibold leading-none tracking-[-1.5px]',
-              isEmpty ? 'text-muted-foreground' : 'text-foreground'
-            )}
-          >
-            {formattedBalance}
+      {/* Balance card - themed security-textured surface, white text. */}
+      <div className="relative overflow-hidden rounded-lg border border-black/10 bg-neutral-950 px-6 py-5 shadow-[var(--shadow-card)]">
+        {/* Layers: subtle guilloché texture, theme-colour matte, depth gradient. */}
+        <img src={texture} alt="" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-[0.18]" />
+        <div className="pointer-events-none absolute inset-0" style={{ backgroundColor: themeColor, opacity: 0.55 }} />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-black/55 via-black/25 to-black/50" />
+
+        <div className="relative">
+          <div className="mb-2.5 flex items-center justify-between gap-3">
+            <span className="text-[11px] font-medium uppercase tracking-[1.2px] text-white/70">
+              Treasury balance
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-white ring-1 ring-inset ring-white/25">
+              <ShieldCheck className="size-3" strokeWidth={2.5} />
+              Reserve-backed
+            </span>
           </div>
-        )}
-        <div className="mt-[10px] flex flex-wrap items-center gap-1.5 text-[12px] text-subtle-foreground">
-          <span>Held by this issuer</span>
-          {identityKey != null && (
-            <>
-              <span aria-hidden>&middot;</span>
-              <IdentitySigil value={identityKey} size={16} className="rounded" />
-              {issuerName.trim() !== '' && (
-                <span className="font-medium text-foreground">{issuerName.trim()}</span>
+
+          {loading ? (
+            <div className="h-[44px] w-[180px] animate-pulse rounded-sm bg-white/20" />
+          ) : (
+            <div
+              className={cn(
+                'tabular text-[44px] font-semibold leading-none tracking-[-1.5px]',
+                isEmpty ? 'text-white/55' : 'text-white'
               )}
-              <span className="tabular font-mono">{keyAbbr}</span>
-            </>
+            >
+              {formattedBalance}
+            </div>
+          )}
+
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[12px] text-white/70">
+            <span>Held by this issuer</span>
+            {identityKey != null && (
+              <>
+                <span aria-hidden>&middot;</span>
+                <IdentitySigil value={identityKey} size={16} className="rounded ring-1 ring-white/30" />
+                {issuerName.trim() !== '' && (
+                  <span className="font-medium text-white">{issuerName.trim()}</span>
+                )}
+                <span className="tabular font-mono text-white/80">{keyAbbr}</span>
+              </>
+            )}
+          </div>
+
+          {/* Auditor context: circulation and treasury's share of it. */}
+          {(circulationLabel != null || treasuryShare != null) && (
+            <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 border-t border-white/15 pt-3">
+              {circulationLabel != null && (
+                <div>
+                  <div className="tabular text-[15px] font-semibold text-white">
+                    {circulationLabel}{ticker != null && <span className="ml-1 text-[12px] font-medium text-white/70">{ticker}</span>}
+                  </div>
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-white/55">In circulation</div>
+                </div>
+              )}
+              {treasuryShare != null && (
+                <div>
+                  <div className="tabular text-[15px] font-semibold text-white">{treasuryShare}%</div>
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-white/55">Held in treasury</div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
