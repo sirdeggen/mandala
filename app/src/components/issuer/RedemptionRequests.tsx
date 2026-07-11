@@ -14,6 +14,7 @@ import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Select } from '../ui/select'
 import { Label } from '../ui/label'
+import { EditablePresetField } from './EditablePresetField'
 import { cn } from '@/lib/utils'
 
 /**
@@ -96,13 +97,12 @@ export default function RedemptionRequests({ assetId, asset }: { assetId: string
         </div>
         <div className="mt-3 space-y-1.5">
           <Label htmlFor="rdm-terms" className="text-[11px]">Published terms (optional)</Label>
-          <Input
+          <EditablePresetField
             id="rdm-terms"
-            type="text"
             disabled={!policy.enabled || isAuditor}
             value={policy.terms}
             placeholder="e.g. Redeem to your bank account within one business day, no fee."
-            onChange={e => setRedemptionPolicy(assetId, { terms: e.target.value })}
+            onChange={v => setRedemptionPolicy(assetId, { terms: v })}
             className="text-[13px]"
           />
         </div>

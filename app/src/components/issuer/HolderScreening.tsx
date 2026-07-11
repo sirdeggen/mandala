@@ -11,6 +11,7 @@ import { IdentitySigil } from '@/components/ui/identity-sigil'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
+import { RelationshipField } from './RelationshipField'
 import { cn } from '@/lib/utils'
 
 /**
@@ -78,7 +79,14 @@ export default function HolderScreening({ assetId, asset }: { assetId: string; a
             {!isAuditor && (
               <form onSubmit={screen} className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
                 <Input value={name} onChange={e => setName(e.target.value)} placeholder="Holder name (optional)" className="h-10 text-[13px]" />
-                <Input value={key} onChange={e => setKey(e.target.value)} placeholder="Holder Badge ID" className="h-10 font-mono text-[12px]" />
+                <RelationshipField
+                  id="hs-key"
+                  value={key}
+                  onChange={setKey}
+                  onSelect={r => { setKey(r.identityKey); if (r.name) setName(r.name) }}
+                  placeholder="Relationship or Badge ID"
+                  className="h-10 font-mono text-[12px]"
+                />
                 <Button type="submit" className="h-10 gap-1.5 px-3 text-[13px]">
                   <Search className="size-4" /> Screen
                 </Button>
