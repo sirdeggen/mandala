@@ -9,6 +9,7 @@ import TreasurySection from './TreasurySection'
 import ReserveAttestations from './ReserveAttestations'
 import RedemptionRequests from './RedemptionRequests'
 import HolderScreening from './HolderScreening'
+import InstrumentExports from './InstrumentExports'
 import TabHeader from './TabHeader'
 import IssuerPanel from '../IssuerPanel'
 import RegulatoryControls from './RegulatoryControls'
@@ -23,7 +24,7 @@ import { cn } from '@/lib/utils'
  * on the same tab.
  */
 
-type Tab = 'reserves' | 'attestations' | 'banking' | 'operations' | 'ledger' | 'sanctions'
+type Tab = 'reserves' | 'attestations' | 'banking' | 'operations' | 'ledger' | 'sanctions' | 'exports'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'reserves', label: 'Treasury' },
@@ -32,6 +33,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'operations', label: 'Issuance & redemption' },
   { id: 'ledger', label: 'Ledger' },
   { id: 'sanctions', label: 'Restrictions' },
+  { id: 'exports', label: 'Exports' },
 ]
 
 interface Props {
@@ -173,6 +175,9 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
             onActionComplete={onReload}
           />
         </div>
+      )}
+      {tab === 'exports' && (
+        <InstrumentExports assetId={assetId} asset={asset} />
       )}
     </div>
   )
