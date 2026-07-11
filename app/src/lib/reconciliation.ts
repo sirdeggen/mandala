@@ -90,13 +90,21 @@ export function removeLink(id: string): void {
 
 // ── Reactive reads ────────────────────────────────────────────────────────────
 
-export function useReconLinks(assetId: string): ReconLink[] {
-  const all = useSyncExternalStore(
+function useAll(): ReconLink[] {
+  return useSyncExternalStore(
     cb => { listeners.add(cb); return () => listeners.delete(cb) },
     () => current,
     () => current,
   )
-  return all.filter(l => l.assetId === assetId)
+}
+
+export function useReconLinks(assetId: string): ReconLink[] {
+  return useAll().filter(l => l.assetId === assetId)
+}
+
+/** All reconciliation links across every instrument (for the exports dashboard). */
+export function useAllReconLinks(): ReconLink[] {
+  return useAll()
 }
 
 /** Links reconciling a given ledger statement. */

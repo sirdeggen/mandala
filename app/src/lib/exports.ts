@@ -13,7 +13,12 @@ export type ExportFormat = 'csv' | 'xls'
 
 export const FORMAT_LABEL: Record<ExportFormat, string> = {
   csv: 'CSV',
-  xls: 'Spreadsheet',
+  xls: '.xls',
+}
+
+export interface ReportSection {
+  title: string
+  table: ReportTable
 }
 
 function toCSV(table: ReportTable): string {
@@ -56,5 +61,21 @@ export function exportReport(name: string, format: ExportFormat, table: ReportTa
     triggerDownload(`${stem}.csv`, 'text/csv;charset=utf-8', toCSV(table))
   } else {
     triggerDownload(`${stem}.xls`, 'application/vnd.ms-excel', toExcelHtml(name, table))
+  }
+}
+
+/** Download several report sections as a single file (CSV sections, or a
+ *  multi-table .xls workbook-style document). */
+export function exportBundle(name: string, format: ExportFormat, sections: ReportSection[]): void {
+  const stem = slugify(name)
+  if (format === 'csv') {
+    const body = sections.map(s => `# ${s.title}\r\n${toCSV(s.table)}`).join('\r\n\r\n')
+    triggerDownload(`${stem}.csv`, 'text/csv;charset=utf-8', body)
+  } else {
+    const tables = sections.map(s => `<h3>${escapeHtml(s.title)}</h3><table border="1" cellspacing="0">${
+      `<tr>${s.table.columns.map(c => `<th style="background:#f2f2f2;text-align:left">${escapeHtml(c)}</th>`).join('')}</tr>`
+    }${s.table.rows.map(r => `<tr>${r.map(c => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`).join('')}</table>`).join('<br/>')
+    const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><title>${escapeHtml(name)}</title></head><body>${tables}</body></html>`
+    triggerDownload(`${stem}.xls`, 'application/vnd.ms-excel', doc)
   }
 }

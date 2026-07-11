@@ -17,6 +17,7 @@ import {
 } from '../../lib/compliance'
 import { InstrumentIcon } from '@/components/ui/instrument-icon'
 import { assetImage } from '@/lib/instrumentCategory'
+import ComplianceExports from './ComplianceExports'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { cn } from '@/lib/utils'
@@ -45,9 +46,11 @@ export default function ComplianceOverview({ onOpenInstrument }: {
   const hits = Object.values(snap.holders).filter(h => h.sanctions === 'hit')
   const pendingProposals = snap.proposals.filter(p => p.status === 'pending')
 
+  const [tab, setTab] = useState<'overview' | 'exports'>('overview')
+
   return (
     <div className="w-full max-w-4xl">
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="font-heading text-[26px] font-medium tracking-[-0.02em] text-foreground">Compliance</h1>
         <p className="mt-1 text-[15px] text-muted-foreground">
           {isAuditor
@@ -56,6 +59,27 @@ export default function ComplianceOverview({ onOpenInstrument }: {
         </p>
       </div>
 
+      {/* Overview / Exports tabs */}
+      <div className="mb-6 flex gap-5 border-b border-transparent">
+        {([['overview', 'Overview'], ['exports', 'Exports']] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={cn(
+              'relative pb-2.5 pt-1 text-[14px] font-medium transition-colors',
+              'after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:rounded-full after:bg-foreground after:transition-opacity',
+              tab === id ? 'text-foreground after:opacity-100' : 'text-muted-foreground hover:text-foreground after:opacity-0'
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'exports' && <ComplianceExports assets={assets} />}
+
+      {tab === 'overview' && (<>
       {/* Summary tiles */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <Tile Icon={Layers} label="Instruments" value={String(assets.length)} />
@@ -152,6 +176,7 @@ export default function ComplianceOverview({ onOpenInstrument }: {
           </div>
         </div>
       </Section>
+      </>)}
     </div>
   )
 }
