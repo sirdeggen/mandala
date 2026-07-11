@@ -194,13 +194,15 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
                     </Select>
                   </div>
                 )}
-                <div>
-                  <label className={labelCls} htmlFor="issue-amount">Amount</label>
-                  <Input id="issue-amount" type="number" min="0" step="any" value={issueAmount} onChange={e => setIssueAmount(e.target.value)} className={inputCls} />
-                </div>
-                <div>
-                  <label className={labelCls} htmlFor="issue-ref">Backed by (optional)</label>
-                  <BackingRefField id="issue-ref" value={issueRef} onChange={setIssueRef} placeholder="Bank wire, SWIFT, or deposit reference…" className={inputCls} />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className={labelCls} htmlFor="issue-amount">Amount</label>
+                    <Input id="issue-amount" type="number" min="0" step="any" value={issueAmount} onChange={e => setIssueAmount(e.target.value)} className={inputCls} />
+                  </div>
+                  <div>
+                    <label className={labelCls} htmlFor="issue-ref">Backed by (optional)</label>
+                    <BackingRefField id="issue-ref" value={issueRef} onChange={setIssueRef} placeholder="Bank wire, SWIFT, or deposit reference…" className={inputCls} />
+                  </div>
                 </div>
               </div>
               <Button
