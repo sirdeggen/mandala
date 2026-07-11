@@ -26,9 +26,9 @@ import { cn } from '@/lib/utils'
 type Tab = 'reserves' | 'attestations' | 'banking' | 'operations' | 'ledger' | 'sanctions'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'reserves', label: 'Reserves' },
+  { id: 'reserves', label: 'Treasury' },
+  { id: 'banking', label: 'Reserves' },
   { id: 'attestations', label: 'Attestations' },
-  { id: 'banking', label: 'Banking' },
   { id: 'operations', label: 'Issuance & redemption' },
   { id: 'ledger', label: 'Ledger' },
   { id: 'sanctions', label: 'Restrictions' },
@@ -135,8 +135,8 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
       {tab === 'banking' && (
         <div className="max-w-3xl">
           <TabHeader
-            title="Banking reserves"
-            description="Connect the bank or asset account holding the reserves that back this instrument, and reconcile it against circulation."
+            title="Reserve accounts"
+            description="Connect the bank or asset accounts holding the reserves that back this instrument, and reconcile them against circulation."
             guide="/help/for-issuers/backing-instruments-with-reserves"
           />
           <BankingMock assetId={assetId} />

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
-import { ArrowDownLeft, ArrowUpRight, PlusCircle, Trash2 } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { ArrowDownLeft, ArrowUpRight, PlusCircle, Trash2, ShieldCheck, AlertTriangle, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Select } from '../ui/select'
@@ -11,6 +12,7 @@ import { useWallet } from '../../context/WalletContext'
 import { reconcile, makeTransfer, TransferDirection } from '@bsv/mandala/banking'
 import { useMockTransfers, addMockTransfer, removeMockTransfer, clearMockTransfers } from '../../lib/mandala/mockBankStore'
 import { formatAmount, parseAmount } from '@bsv/mandala/amount'
+import { bankForRef } from '@/content/banks'
 
 interface BankingMockProps {
   /** Controlled mode: when set, use this assetId and hide the header asset selector. */
@@ -57,6 +59,23 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
     })
   }, [summary, transfers])
 
+  // Reserve coverage links the two sides the whole tab is about: how much of the
+  // circulating supply the bank reserves actually back. 100%+ = fully backed.
+  const coveragePct = recon != null && recon.netSupply > 0
+    ? Math.round((recon.bankBalance / recon.netSupply) * 100)
+    : null
+  const fullyBacked = recon != null && recon.bankBalance >= recon.netSupply
+
+  // Switch to the instrument's Issuance & redemption tab (id 'operations').
+  const [, setSearchParams] = useSearchParams()
+  const goToIssuance = useCallback(() => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', 'operations')
+      return next
+    }, { replace: true })
+  }, [setSearchParams])
+
   // Add a demo transfer - the counterparty is always a synthetic
   // "Company {letter}" (see makeTransfer); only amount + direction are admin-supplied.
   const handleAddTransfer = useCallback(() => {
@@ -82,13 +101,14 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
 
   return (
     <div>
-      {/* Page heading row */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[27px] font-semibold tracking-[-0.5px] leading-tight">Banking</h1>
-          <p className="text-[13px] text-muted-foreground mt-[3px]">Demo deposit feed &amp; reserve reconciliation - issuance lives on Operations</p>
-        </div>
-        {controlledAssetId == null && (
+      {/* Standalone heading (when embedded in the instrument detail, the tab's
+          own header covers this). Includes the asset picker. */}
+      {controlledAssetId == null && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-[27px] font-semibold tracking-[-0.5px] leading-tight">Reserve accounts</h1>
+            <p className="text-[13px] text-muted-foreground mt-[3px]">Bank reserve feed &amp; reconciliation against circulating supply</p>
+          </div>
           <Select
             id="bm-asset"
             value={selectedAssetId}
@@ -100,8 +120,48 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
               <option key={a.assetId} value={a.assetId}>{a.label}</option>
             ))}
           </Select>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* RESERVE COVERAGE - the headline link between bank reserves and the
+          circulating/issued supply they back. */}
+      {recon != null && (
+        <div className={cn(
+          'rounded-lg border p-4',
+          fullyBacked ? 'border-success/30 bg-success/[0.06]' : 'border-warning/30 bg-warning/[0.06]'
+        )}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground">
+                Reserve coverage
+              </div>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className={cn('tabular text-[30px] font-semibold leading-none', fullyBacked ? 'text-success' : 'text-warning')}>
+                  {coveragePct != null ? `${coveragePct}%` : '-'}
+                </span>
+                <span className={cn(
+                  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                  fullyBacked ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning'
+                )}>
+                  {fullyBacked ? <ShieldCheck className="size-3" /> : <AlertTriangle className="size-3" />}
+                  {fullyBacked ? 'Fully backed' : 'Under-reserved'}
+                </span>
+              </div>
+              <p className="mt-1.5 text-[12.5px] text-muted-foreground">
+                <span className="font-medium text-foreground">{formatAmount(recon.bankBalance, decimals)}</span> in bank reserves backing{' '}
+                <span className="font-medium text-foreground">{formatAmount(recon.netSupply, decimals)}</span> in circulation.
+              </p>
+            </div>
+          </div>
+          {/* Coverage bar */}
+          <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn('h-full rounded-full', fullyBacked ? 'bg-success' : 'bg-warning')}
+              style={{ width: `${Math.min(100, coveragePct ?? 0)}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* SIMULATE A TRANSFER - the counterparty is always a synthetic "Company
           {letter}"; only amount + direction are admin-supplied. This is a
@@ -181,23 +241,34 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
         {transfers.map((t, idx) => {
           const dateStr = new Date(t.timestamp).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
           const isOut = t.direction === 'out'
+          const bank = bankForRef(t.id)
           return (
             <div
               key={t.id}
               className={`flex items-center gap-[14px] px-[18px] py-[15px]${idx > 0 ? ' border-t border-separator' : ''}`}
             >
-              {/* Icon */}
-              <div className={cn(
-                'w-10 h-10 rounded grid place-items-center flex-none',
-                isOut ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'
-              )}>
-                {isOut ? <ArrowUpRight size={18} /> : <ArrowDownLeft size={18} />}
+              {/* Bank logo with a direction badge - the institution the transfer
+                  moved through, plus whether it was a deposit or withdrawal. */}
+              <div className="relative flex-none">
+                <div
+                  className="grid size-10 place-items-center rounded-lg text-[13px] font-bold text-white shadow-sm"
+                  style={{ backgroundColor: bank.color }}
+                  title={bank.name}
+                >
+                  {bank.short}
+                </div>
+                <span className={cn(
+                  'absolute -bottom-1 -right-1 grid size-[18px] place-items-center rounded-full text-white ring-2 ring-card',
+                  isOut ? 'bg-destructive' : 'bg-success'
+                )}>
+                  {isOut ? <ArrowUpRight size={11} strokeWidth={2.5} /> : <ArrowDownLeft size={11} strokeWidth={2.5} />}
+                </span>
               </div>
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <div className="text-[14px] font-semibold">{t.originator}</div>
-                <div className="text-[11.5px] text-subtle-foreground mt-[3px]">
-                  {t.id} · {dateStr}
+                <div className="truncate text-[14px] font-semibold">{t.originator}</div>
+                <div className="mt-[3px] truncate text-[11.5px] text-subtle-foreground">
+                  {bank.name} · {bank.account} · {dateStr}
                 </div>
               </div>
               {/* Amount */}
@@ -244,14 +315,22 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
                   {recon.drift > 0 ? '+' : ''}{formatAmount(recon.drift, decimals)}
                 </span>
               </div>
-              {/* Amber callout - how to close the gap */}
+              {/* Amber callout - how to close the gap, with a link straight to
+                  the Issuance & redemption tab where the action is taken. */}
               {hasDrift && (
                 <div className="bg-warning/[0.08] rounded px-[13px] py-[10px] text-[11.5px] text-warning leading-[1.4]">
                   <span className="font-semibold">
                     {recon.drift > 0
-                      ? 'Bank reserves exceed on-chain supply - issue tokens from the Operations page to match.'
-                      : 'On-chain supply exceeds bank reserves - redeem tokens from the Operations page (or add deposits) to match.'}
+                      ? 'Bank reserves exceed on-chain supply - issue tokens to match.'
+                      : 'On-chain supply exceeds bank reserves - redeem tokens (or add deposits) to match.'}
                   </span>
+                  <button
+                    type="button"
+                    onClick={goToIssuance}
+                    className="mt-1.5 inline-flex items-center gap-1 font-semibold underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                  >
+                    Go to Issuance &amp; redemption <ArrowRight size={12} />
+                  </button>
                 </div>
               )}
               {/* Reconciled callout */}
