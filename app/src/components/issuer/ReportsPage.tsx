@@ -53,7 +53,7 @@ export default function ReportsPage() {
   const [year, setYear] = useState<number>(() => new Date().getFullYear())
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
-  const [tab, setTab] = useState<ReportKey>('summary')
+  const [tab, setTab] = useState<ReportKey | 'recent'>('summary')
   const [ledgerMap, setLedgerMap] = useState<Record<string, ActivityEntry[]>>({})
 
   const collect = useCallback((id: string, entries: ActivityEntry[]) => {
@@ -114,8 +114,9 @@ export default function ReportsPage() {
 
   const scopeName = scope === 'all' ? 'All instruments' : (assets.find(a => a.assetId === scope)?.label ?? 'Instrument')
   const periodName = periodMode === 'all' ? 'all time' : periodMode === 'year' ? String(year) : `${from || '…'} to ${to || '…'}`
-  const activeSpec = REPORT_SPECS.find(s => s.key === tab)!
-  const activeTable = tablesByKey[tab]
+  const isReport = tab !== 'recent'
+  const activeSpec = isReport ? REPORT_SPECS.find(s => s.key === tab) : undefined
+  const activeTable: ReportTable = isReport ? tablesByKey[tab as ReportKey] : { columns: [], rows: [] }
 
   // Inline filter across every column of the active report.
   const [query, setQuery] = useState('')
@@ -205,118 +206,136 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Report tabs */}
-      <div className="mb-5 mt-5 flex gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {REPORT_SPECS.map(s => (
-          <button
-            key={s.key}
-            type="button"
-            onClick={() => setTab(s.key)}
-            className={cn(
-              'relative whitespace-nowrap pb-3 pt-2 text-[14px] font-medium transition-colors',
-              'after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:rounded-full after:bg-foreground after:transition-opacity',
-              tab === s.key ? 'text-foreground after:opacity-100' : 'text-muted-foreground hover:text-foreground after:opacity-0'
-            )}
-          >
-            {s.name}
-          </button>
-        ))}
-      </div>
-
-      {/* Active report */}
-      <div className="rounded-xl border border-border bg-card shadow-[var(--shadow-card)]">
-        <div className="border-b border-border px-4 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-[14px] font-semibold text-foreground">{activeSpec.name}</div>
-              <p className="text-[12px] text-muted-foreground">{activeSpec.description} · {activeTable.rows.length} row{activeTable.rows.length === 1 ? '' : 's'}</p>
-            </div>
-            <ExportButtonGroup onExport={f => exportOne(tab, f)} disabled={activeTable.rows.length === 0} />
-          </div>
-          {/* Inline filter - matches any column, highlights matches below. */}
-          <div className="relative mt-2.5">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-faint-foreground" />
-            <Input value={query} onChange={e => setQuery(e.target.value)} placeholder={`Filter ${activeSpec.name.toLowerCase()}…`} className="h-8 pl-8 pr-20 text-[12px]" />
-            {query.trim() !== '' && (
-              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-subtle-foreground">
-                {filteredRows.length} of {activeTable.rows.length}
-              </span>
-            )}
-          </div>
+      {/* Reports + Recent exports grouped as manila folder tabs */}
+      <div className="mt-5">
+        <div className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {[...REPORT_SPECS.map(s => ({ key: s.key as ReportKey | 'recent', label: TAB_SHORT[s.key] })), { key: 'recent' as const, label: 'Recent exports' }].map(t => {
+            const active = tab === t.key
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setTab(t.key)}
+                className={cn(
+                  'relative -mb-px whitespace-nowrap rounded-t-lg border border-b-0 px-4 py-2.5 text-[13px] font-medium transition-colors',
+                  active
+                    ? 'z-10 border-border bg-card text-foreground'
+                    : 'border-transparent bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+              >
+                {t.label}
+              </button>
+            )
+          })}
         </div>
-        <div className="max-h-[60vh] overflow-auto">
-          {activeTable.rows.length === 0 ? (
-            <p className="px-5 py-12 text-center text-[13px] text-muted-foreground">No data for this report{scope === 'all' ? ' across your instruments' : ''} in this period.</p>
-          ) : filteredRows.length === 0 ? (
-            <p className="px-5 py-12 text-center text-[13px] text-muted-foreground">No rows match “{query.trim()}”.</p>
+
+        {/* Folder body */}
+        <div className="relative rounded-lg rounded-tl-none border border-border bg-card shadow-[var(--shadow-card)]">
+          {isReport && activeSpec != null ? (
+            <>
+              <div className="border-b border-border px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[14px] font-semibold text-foreground">{activeSpec.name}</div>
+                    <p className="text-[12px] text-muted-foreground">{activeSpec.description} · {activeTable.rows.length} row{activeTable.rows.length === 1 ? '' : 's'}</p>
+                  </div>
+                  <ExportButtonGroup onExport={f => exportOne(tab as ReportKey, f)} disabled={activeTable.rows.length === 0} />
+                </div>
+                {/* Inline filter - matches any column, highlights matches below. */}
+                <div className="relative mt-2.5">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-faint-foreground" />
+                  <Input value={query} onChange={e => setQuery(e.target.value)} placeholder={`Filter ${activeSpec.name.toLowerCase()}…`} className="h-8 pl-8 pr-20 text-[12px]" />
+                  {query.trim() !== '' && (
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-subtle-foreground">
+                      {filteredRows.length} of {activeTable.rows.length}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="max-h-[60vh] overflow-auto">
+                {activeTable.rows.length === 0 ? (
+                  <p className="px-5 py-12 text-center text-[13px] text-muted-foreground">No data for this report{scope === 'all' ? ' across your instruments' : ''} in this period.</p>
+                ) : filteredRows.length === 0 ? (
+                  <p className="px-5 py-12 text-center text-[13px] text-muted-foreground">No rows match “{query.trim()}”.</p>
+                ) : (
+                  <table className="w-full border-collapse text-[12px]">
+                    <thead className="sticky top-0 bg-muted/70 backdrop-blur">
+                      <tr>
+                        {activeTable.columns.map(c => (
+                          <th key={c} className="whitespace-nowrap border-b border-border px-3 py-2 text-left font-semibold text-subtle-foreground">{c}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRows.map((row, i) => (
+                        <tr key={i} className="hover:bg-muted/40">
+                          {row.map((cell, j) => (
+                            <td key={j} className={cn('border-b border-separator px-3 py-1.5 align-top text-muted-foreground', j === 0 && 'font-medium text-foreground', isNowrapColumn(activeTable.columns[j] ?? '') && 'whitespace-nowrap')}>
+                              <ReportCell column={activeTable.columns[j] ?? ''} value={cell} query={query.trim()} />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </>
           ) : (
-            <table className="w-full border-collapse text-[12px]">
-              <thead className="sticky top-0 bg-muted/70 backdrop-blur">
-                <tr>
-                  {activeTable.columns.map(c => (
-                    <th key={c} className="whitespace-nowrap border-b border-border px-3 py-2 text-left font-semibold text-subtle-foreground">{c}</th>
+            <div className="p-4">
+              {history.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-[12.5px] text-muted-foreground">
+                  No exports yet. Export a report above and it will be logged here.
+                </p>
+              ) : (
+                <div className="overflow-hidden rounded-lg border border-border">
+                  <div className="grid grid-cols-[1.6fr_70px_60px_1fr_72px] items-center border-b border-border bg-muted/40 px-3 py-2 text-[10.5px] font-medium uppercase tracking-wide text-subtle-foreground">
+                    <div>Report</div><div>Format</div><div className="text-right">Rows</div><div className="text-right">Created</div><div className="text-right">Actions</div>
+                  </div>
+                  {history.map(h => (
+                    <div key={h.id} className="grid grid-cols-[1.6fr_70px_60px_1fr_72px] items-center border-t border-separator px-3 py-2 text-[12.5px]">
+                      <div className="truncate font-medium text-foreground">{h.reportName}</div>
+                      <div><span className="rounded bg-muted px-1.5 py-0.5 text-[10.5px] font-semibold text-muted-foreground">{FORMAT_LABEL[h.format]}</span></div>
+                      <div className="text-right tabular text-muted-foreground">{h.rowCount}</div>
+                      <div className="truncate text-right text-[11.5px] text-subtle-foreground">{fmtDateTime(h.createdAt)}</div>
+                      <div className="flex justify-end gap-1">
+                        <button
+                          type="button"
+                          aria-label="Download"
+                          onClick={() => { if (h.bundle) downloadAllBundle(h.format); else downloadOne(h.reportKey as ReportKey, h.format) }}
+                          className="grid size-7 place-items-center rounded border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          <Download className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Delete"
+                          onClick={() => removeExport(h.id)}
+                          className="grid size-7 place-items-center rounded border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    </div>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRows.map((row, i) => (
-                  <tr key={i} className="hover:bg-muted/40">
-                    {row.map((cell, j) => (
-                      <td key={j} className={cn('border-b border-separator px-3 py-1.5 align-top text-muted-foreground', j === 0 && 'font-medium text-foreground', isNowrapColumn(activeTable.columns[j] ?? '') && 'whitespace-nowrap')}>
-                        <ReportCell column={activeTable.columns[j] ?? ''} value={cell} query={query.trim()} />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
-
-      {/* Recent exports - prepared exports are downloaded from here. */}
-      <div className="mt-5 rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
-        <div className="mb-3 text-[14px] font-semibold text-foreground">Recent exports</div>
-        {history.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-[12.5px] text-muted-foreground">
-            No exports yet. Export a report above and it will be logged here.
-          </p>
-        ) : (
-          <div className="overflow-hidden rounded-lg border border-border">
-            <div className="grid grid-cols-[1.6fr_70px_60px_1fr_72px] items-center border-b border-border bg-muted/40 px-3 py-2 text-[10.5px] font-medium uppercase tracking-wide text-subtle-foreground">
-              <div>Report</div><div>Format</div><div className="text-right">Rows</div><div className="text-right">Created</div><div className="text-right">Actions</div>
-            </div>
-            {history.map(h => (
-              <div key={h.id} className="grid grid-cols-[1.6fr_70px_60px_1fr_72px] items-center border-t border-separator px-3 py-2 text-[12.5px]">
-                <div className="truncate font-medium text-foreground">{h.reportName}</div>
-                <div><span className="rounded bg-muted px-1.5 py-0.5 text-[10.5px] font-semibold text-muted-foreground">{FORMAT_LABEL[h.format]}</span></div>
-                <div className="text-right tabular text-muted-foreground">{h.rowCount}</div>
-                <div className="truncate text-right text-[11.5px] text-subtle-foreground">{fmtDateTime(h.createdAt)}</div>
-                <div className="flex justify-end gap-1">
-                  <button
-                    type="button"
-                    aria-label="Download"
-                    onClick={() => { if (h.bundle) downloadAllBundle(h.format); else downloadOne(h.reportKey as ReportKey, h.format) }}
-                    className="grid size-7 place-items-center rounded border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  >
-                    <Download className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Delete"
-                    onClick={() => removeExport(h.id)}
-                    className="grid size-7 place-items-center rounded border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   )
+}
+
+const TAB_SHORT: Record<ReportKey, string> = {
+  summary: 'Summary',
+  ledger: 'Ledger',
+  composition: 'Reserves',
+  attestations: 'Attestations',
+  redemptions: 'Redemptions',
+  screening: 'Screening',
+  reconciliation: 'Reconciliation',
 }
 
 const fmtDateTime = (iso: string): string => {
