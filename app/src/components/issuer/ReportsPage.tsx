@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Search, Download, Trash2 } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
@@ -16,7 +16,8 @@ import { exportReport, exportBundle, FORMAT_LABEL, type ReportTable, type Export
 import { logExport, removeExport, useExportHistory } from '../../lib/exportHistory'
 import { YearSelect, availableYears } from './YearSelect'
 import { ExportButtonGroup } from './ExportButtonGroup'
-import { Select } from '../ui/select'
+import { PopoverSelect } from './PopoverSelect'
+import { ReportCell, isNowrapColumn } from './ReportCell'
 import { Input } from '../ui/input'
 import { cn } from '@/lib/utils'
 
@@ -180,15 +181,16 @@ export default function ReportsPage() {
 
       {/* Scope + period + download-all controls */}
       <div className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-[var(--shadow-card)]">
-        <Select value={scope} onChange={e => setScope(e.target.value)} className="h-9 w-auto text-[13px]">
-          <option value="all">All instruments</option>
-          {assets.map(a => <option key={a.assetId} value={a.assetId}>{a.label}</option>)}
-        </Select>
-        <Select value={periodMode} onChange={e => setPeriodMode(e.target.value as PeriodMode)} className="h-9 w-auto text-[13px]">
-          <option value="all">All time</option>
-          <option value="year">By year</option>
-          <option value="range">Custom range</option>
-        </Select>
+        <PopoverSelect
+          value={scope}
+          onChange={setScope}
+          options={[{ value: 'all', label: 'All instruments' }, ...assets.map(a => ({ value: a.assetId, label: a.label }))]}
+        />
+        <PopoverSelect
+          value={periodMode}
+          onChange={setPeriodMode}
+          options={[{ value: 'all', label: 'All time' }, { value: 'year', label: 'By year' }, { value: 'range', label: 'Custom range' }]}
+        />
         {periodMode === 'year' && <YearSelect value={year} years={years.length > 0 ? years : [year]} onChange={y => setYear(y === 'all' ? new Date().getFullYear() : y)} />}
         {periodMode === 'range' && (
           <div className="flex items-center gap-1.5">
@@ -260,8 +262,8 @@ export default function ReportsPage() {
                 {filteredRows.map((row, i) => (
                   <tr key={i} className="hover:bg-muted/40">
                     {row.map((cell, j) => (
-                      <td key={j} className={cn('border-b border-separator px-3 py-1.5 align-top', j === 0 && 'font-medium text-foreground', activeTable.columns[j]?.toLowerCase().includes('hash') || activeTable.columns[j] === 'Badge ID' ? 'font-mono text-[11px] text-subtle-foreground' : 'text-muted-foreground')}>
-                        <Highlight text={cell} query={query.trim()} />
+                      <td key={j} className={cn('border-b border-separator px-3 py-1.5 align-top text-muted-foreground', j === 0 && 'font-medium text-foreground', isNowrapColumn(activeTable.columns[j] ?? '') && 'whitespace-nowrap')}>
+                        <ReportCell column={activeTable.columns[j] ?? ''} value={cell} query={query.trim()} />
                       </td>
                     ))}
                   </tr>
@@ -320,24 +322,6 @@ export default function ReportsPage() {
 const fmtDateTime = (iso: string): string => {
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-}
-
-/** Render `text`, wrapping case-insensitive matches of `query` in a highlight. */
-function Highlight({ text, query }: { text: string; query: string }) {
-  const q = query.toLowerCase()
-  if (q === '' || !text.toLowerCase().includes(q)) return <>{text}</>
-  const lower = text.toLowerCase()
-  const parts: ReactNode[] = []
-  let from = 0
-  let n = 0
-  for (;;) {
-    const at = lower.indexOf(q, from)
-    if (at === -1) { parts.push(text.slice(from)); break }
-    if (at > from) parts.push(text.slice(from, at))
-    parts.push(<mark key={n++} className="rounded-sm bg-warning/40 px-0.5 text-foreground">{text.slice(at, at + q.length)}</mark>)
-    from = at + q.length
-  }
-  return <>{parts}</>
 }
 
 function Header() {

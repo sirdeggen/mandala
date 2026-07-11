@@ -1,4 +1,4 @@
-import { Select } from '../ui/select'
+import { PopoverSelect, type SelectOption } from './PopoverSelect'
 
 /** Distinct calendar years present in a set of ISO date strings, newest first. */
 export function availableYears(isos: (string | undefined)[]): number[] {
@@ -18,14 +18,9 @@ export function YearSelect({ value, years, onChange, className }: {
   onChange: (v: number | 'all') => void
   className?: string
 }) {
-  return (
-    <Select
-      value={value === 'all' ? 'all' : String(value)}
-      onChange={e => onChange(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-      className={className ?? 'h-9 w-auto rounded-md text-[13px]'}
-    >
-      <option value="all">All years</option>
-      {years.map(y => <option key={y} value={y}>{y}</option>)}
-    </Select>
-  )
+  const options: SelectOption<number | 'all'>[] = [
+    { value: 'all', label: 'All years' },
+    ...years.map(y => ({ value: y, label: String(y) })),
+  ]
+  return <PopoverSelect value={value} options={options} onChange={onChange} className={className ?? 'w-auto'} />
 }

@@ -1,6 +1,7 @@
 import { FileText, Sheet, FileType } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { ExportFormat } from '../../lib/exports'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 const ITEMS: { format: ExportFormat; Icon: LucideIcon; title: string }[] = [
@@ -19,22 +20,25 @@ export function ExportButtonGroup({ onExport, disabled, primary }: {
   return (
     <div className={cn('inline-flex divide-x divide-border overflow-hidden rounded-md border border-border', primary && 'shadow-[var(--shadow-card)]')}>
       {ITEMS.map(({ format, Icon, title }) => (
-        <button
-          key={format}
-          type="button"
-          title={title}
-          aria-label={title}
-          disabled={disabled}
-          onClick={() => onExport(format)}
-          className={cn(
-            'grid size-8 place-items-center transition-colors disabled:opacity-40',
-            primary
-              ? 'bg-card text-foreground hover:bg-muted'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-          )}
-        >
-          <Icon className="size-4" strokeWidth={2} />
-        </button>
+        <Tooltip key={format}>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={title}
+              disabled={disabled}
+              onClick={() => onExport(format)}
+              className={cn(
+                'grid size-8 place-items-center transition-colors disabled:opacity-40',
+                primary
+                  ? 'bg-card text-foreground hover:bg-muted'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              )}
+            >
+              <Icon className="size-4" strokeWidth={2} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{title}</TooltipContent>
+        </Tooltip>
       ))}
     </div>
   )

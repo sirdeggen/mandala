@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { ExportButtonGroup } from './ExportButtonGroup'
+import { ReportCell, isNowrapColumn } from './ReportCell'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useOverlayActivity } from '../../hooks/useOverlayActivity'
 import { useAdminSummary } from '../../hooks/useAdminHistory'
@@ -243,8 +244,8 @@ function PreviewModal({ report, onClose, onExport }: {
                 {report.table.rows.map((row, i) => (
                   <tr key={i} className="hover:bg-muted/40">
                     {row.map((cell, j) => (
-                      <td key={j} className={cn('border-b border-separator px-3 py-1.5 align-top', j === 0 && 'font-medium text-foreground', report.table.columns[j]?.toLowerCase().includes('hash') || report.table.columns[j] === 'Badge ID' ? 'font-mono text-[11px] text-subtle-foreground' : 'text-muted-foreground')}>
-                        {cell}
+                      <td key={j} className={cn('border-b border-separator px-3 py-1.5 align-top text-muted-foreground', j === 0 && 'font-medium text-foreground', isNowrapColumn(report.table.columns[j] ?? '') && 'whitespace-nowrap')}>
+                        <ReportCell column={report.table.columns[j] ?? ''} value={cell} />
                       </td>
                     ))}
                   </tr>
