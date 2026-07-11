@@ -55,10 +55,22 @@ function tickerOf(asset: AdminAsset): string {
   return String(asset.metadata?.ticker ?? asset.label.slice(0, 3)).toUpperCase()
 }
 
-/** Compact unit count for a sidebar badge, e.g. 1_000 -> "1K", 100_000 -> "100K". */
+/** Compact unit count, e.g. 1_000 -> "1K", 100_000 -> "100K". */
 function compactUnits(amount: number, decimals: number): string {
   const human = amount / 10 ** decimals
   return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(human)
+}
+
+/** Circulation/issuance pair for the sidebar badge. When both share the same
+ *  magnitude suffix (K, M…) it is written once, e.g. 10K & 10K -> "10/10K". */
+function compactPair(circulation: number, issued: number, decimals: number): string {
+  const a = compactUnits(circulation, decimals)
+  const b = compactUnits(issued, decimals)
+  const suffix = (s: string) => s.match(/[^\d.,]+$/)?.[0] ?? ''
+  const sa = suffix(a)
+  const sb = suffix(b)
+  const left = sa !== '' && sa === sb ? a.slice(0, a.length - sa.length) : a
+  return `${left}/${b}`
 }
 
 /** One instrument row in the sidebar list. Renders the expanded photo row (with
@@ -109,7 +121,7 @@ function InstrumentNavItem({ asset: a, active, onOpen }: {
               className="tabular shrink-0 rounded-full border border-white/45 px-1.5 py-0.5 text-[10px] font-medium leading-none text-white/90"
               title={`${circulation.toLocaleString()} in circulation of ${issued.toLocaleString()} issued`}
             >
-              {compactUnits(circulation, decimals)} / {compactUnits(issued, decimals)}
+              {compactPair(circulation, issued, decimals)}
             </span>
           )}
         </div>
