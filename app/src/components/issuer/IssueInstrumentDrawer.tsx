@@ -13,8 +13,13 @@ import { Spinner } from '../ui/spinner'
 import { Sheet, SheetContent, SheetClose } from '../ui/sheet'
 import { Popover, PopoverTrigger, PopoverContent } from '../ui/popover'
 import { CURRENCY_TICKERS } from '@/content/currencyTickers'
+import { INSTRUMENT_TEMPLATES } from '@/content/instrumentTemplates'
+import { Check } from 'lucide-react'
+
+const CUSTOM_TEMPLATE = INSTRUMENT_TEMPLATES.find(t => t.id === 'custom') ?? INSTRUMENT_TEMPLATES[INSTRUMENT_TEMPLATES.length - 1]
 
 export interface IssuePrefill {
+  templateId?: string
   label?: string
   ticker?: string
   decimals?: number
@@ -46,15 +51,29 @@ export default function IssueInstrumentDrawer({
   const [label, setLabel] = useState('')
   const [ticker, setTicker] = useState('')
   const [decimals, setDecimals] = useState('2')
+  const [templateId, setTemplateId] = useState('custom')
+  const [tplOpen, setTplOpen] = useState(false)
   const startedRef = useRef(false)
 
-  // Apply the template each time the drawer opens (fresh values per open).
+  // Apply the template each time the drawer opens (fresh values per open); with
+  // no template it falls back to Custom.
   useEffect(() => {
     if (!open) return
+    setTemplateId(prefill?.templateId ?? 'custom')
     setLabel(prefill?.label ?? '')
     setTicker(prefill?.ticker ?? '')
     setDecimals(prefill?.decimals != null ? String(prefill.decimals) : '2')
   }, [open, prefill])
+
+  const selectedTemplate = INSTRUMENT_TEMPLATES.find(t => t.id === templateId) ?? CUSTOM_TEMPLATE
+
+  const applyTemplate = (t: typeof INSTRUMENT_TEMPLATES[number]) => {
+    setTemplateId(t.id)
+    setLabel(t.name)
+    setTicker(t.ticker)
+    setDecimals(String(t.decimals))
+    setTplOpen(false)
+  }
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -95,6 +114,36 @@ export default function IssueInstrumentDrawer({
 
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
           <div className="flex-1 space-y-4 overflow-y-auto px-6 py-6">
+            {/* Selected starter template - switch via the popover. */}
+            <Popover open={tplOpen} onOpenChange={setTplOpen}>
+              <PopoverTrigger className="flex w-full items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60">
+                <img src={selectedTemplate.image} alt="" className="size-9 shrink-0 rounded-md object-cover" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-faint-foreground">Starter template</div>
+                  <div className="truncate text-[13.5px] font-semibold text-foreground">{selectedTemplate.name || 'Custom instrument'}</div>
+                </div>
+                <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+              </PopoverTrigger>
+              <PopoverContent align="start" className="max-h-80 w-[380px] overflow-y-auto p-1">
+                <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-faint-foreground">Start from a template</p>
+                {INSTRUMENT_TEMPLATES.map(t => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => applyTemplate(t)}
+                    className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent"
+                  >
+                    <img src={t.image} alt="" className="size-7 shrink-0 rounded object-cover" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[12.5px] font-medium text-foreground">{t.name || 'Custom instrument'}</span>
+                      <span className="block truncate text-[11px] text-subtle-foreground">{t.category}{t.ticker ? ` · ${t.ticker}` : ''}</span>
+                    </span>
+                    {t.id === templateId && <Check className="size-3.5 shrink-0 text-success" />}
+                  </button>
+                ))}
+              </PopoverContent>
+            </Popover>
+
             {/* Instructional intro - what registering does, a link to the full
                 guide, and a slot for a short tutorial video. Sits above the
                 inputs so first-time issuers get oriented before filling them in. */}

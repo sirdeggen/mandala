@@ -32,7 +32,7 @@ export default function IssuerHome({ assets, onReload, onOpenInstrument }: {
   )
 
   const useTemplate = (t: InstrumentTemplate) => {
-    setPrefill({ label: t.name, ticker: t.ticker, decimals: t.decimals })
+    setPrefill({ templateId: t.id, label: t.name, ticker: t.ticker, decimals: t.decimals })
     setDrawerOpen(true)
   }
 
