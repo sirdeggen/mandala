@@ -76,6 +76,9 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   const [newAccessMode, setNewAccessMode] = useState<'denylist' | 'allowlist'>('denylist')
   // Admin operations start collapsed - they're advanced/dangerous controls.
   const [opsOpen, setOpsOpen] = useState(false)
+  // When embedded (Restrictions tab), the whole block is a collapsible section
+  // with a state summary in the heading, mirroring the compliance dashboard.
+  const [sectionOpen, setSectionOpen] = useState(false)
   // Action picker: popover on desktop, bottom sheet on mobile.
   const [pickerOpen, setPickerOpen] = useState(false)
   const isMobile = useIsMobile()
@@ -435,17 +438,35 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     ? undefined
     : { background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }
 
+  // Collapsed-heading summary of the current on-chain control state.
+  const sectionSummary = state == null
+    ? 'Loading current state…'
+    : `${isPaused ? 'Paused' : 'Active'} · ${state.accessMode ?? 'denylist'} · ${state.blockedIdentities.length} banned · ${state.frozenOutpoints.length} frozen`
+
+  const bodyVisible = !embedded || sectionOpen
+
   return (
     <div className="max-w-3xl space-y-[14px]">
-      {/* Page heading row - slim section label when embedded in Operations */}
-      <div className="flex items-start justify-between gap-4">
-        {embedded ? (
-          <div className="pt-[6px]">
-            <div className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase">
+      {/* Page heading row - collapsible section header when embedded */}
+      {embedded ? (
+        <button
+          type="button"
+          onClick={() => setSectionOpen(o => !o)}
+          aria-expanded={sectionOpen}
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
+          <span className="min-w-0">
+            <span className="block text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase">
               Sanctions &amp; access control
-            </div>
-          </div>
-        ) : (
+            </span>
+            {!sectionOpen && (
+              <span className="mt-1 block truncate text-[12.5px] text-muted-foreground capitalize">{sectionSummary}</span>
+            )}
+          </span>
+          <ChevronDown className={cn('size-4 shrink-0 text-muted-foreground transition-transform', sectionOpen && 'rotate-180')} />
+        </button>
+      ) : (
+        <div className="flex items-start justify-between gap-4">
           <div>
             <h1 style={{ fontSize: 27, fontWeight: 600, letterSpacing: '-0.5px', lineHeight: '1.2' }}>
               Regulatory controls
@@ -455,25 +476,27 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
               {asset != null ? ` for ${asset.label}` : ''}
             </p>
           </div>
-        )}
-        {/* Asset selector chip - suppressed in controlled mode */}
-        {controlledAssetId == null && (
-          <div className="shrink-0 flex flex-col gap-[4px]">
-            <label className="text-[10.5px] text-subtle-foreground font-medium">Asset</label>
-            <Select
-              value={selectedAssetId}
-              onChange={e => { setSelectedAssetId(e.target.value) }}
-              className="bg-card border border-border rounded px-3 py-[7px] text-[12px] font-medium"
-            >
-              <option value="">Select asset…</option>
-              {assets.map(a => (
-                <option key={a.assetId} value={a.assetId}>{a.label}</option>
-              ))}
-            </Select>
-          </div>
-        )}
-      </div>
+          {/* Asset selector chip - suppressed in controlled mode */}
+          {controlledAssetId == null && (
+            <div className="shrink-0 flex flex-col gap-[4px]">
+              <label className="text-[10.5px] text-subtle-foreground font-medium">Asset</label>
+              <Select
+                value={selectedAssetId}
+                onChange={e => { setSelectedAssetId(e.target.value) }}
+                className="bg-card border border-border rounded px-3 py-[7px] text-[12px] font-medium"
+              >
+                <option value="">Select asset…</option>
+                {assets.map(a => (
+                  <option key={a.assetId} value={a.assetId}>{a.label}</option>
+                ))}
+              </Select>
+            </div>
+          )}
+        </div>
+      )}
 
+      {bodyVisible && (
+      <>
       {/* Sanctioned Badge IDs - the list of identities banned from this
           instrument, with one-click lift. Adding a ban is done via
           Admin operations → "Ban a Badge ID" below. */}
@@ -877,6 +900,8 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
         </div>
         )}
       </div>
+      )}
+      </>
       )}
     </div>
   )
