@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Building2, ClipboardCheck, UserRound, ArrowRight, ShieldCheck, ChevronsUpDown, MapPin } from 'lucide-react'
+import { Building2, ClipboardCheck, UserRound, ArrowRight, ShieldCheck, ChevronsUpDown, MapPin, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -150,8 +150,14 @@ export default function OnboardingWizard() {
           <BrandMark size="md" wordmark />
         </div>
         <div className="relative z-10 space-y-5">
-          <nav className="flex flex-col items-start gap-1.5 text-[14px] text-muted-foreground">
-            <Link to="/help/getting-started" className="rounded px-1 py-0.5 transition-colors hover:text-foreground">Guides</Link>
+          <nav className="flex flex-col items-start gap-1.5">
+            <Link
+              to="/help/getting-started"
+              className="flex h-8 w-full items-center gap-2 rounded-md p-2 text-sm text-sidebar-foreground outline-none ring-sidebar-ring transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2"
+            >
+              <BookOpen className="size-4 shrink-0" strokeWidth={1.9} />
+              <span>Guides</span>
+            </Link>
           </nav>
           <AccountChip name={name} identityKey={identityKey} role={role} />
         </div>
