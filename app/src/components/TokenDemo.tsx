@@ -10,6 +10,7 @@ import ContactsPage from './holder/ContactsPage'
 import type { HolderAction } from './holder/HolderHome'
 import OnboardingWizard from './onboarding/OnboardingWizard'
 import { HelpHome, HelpCollectionView, HelpArticleView } from './help/HelpCenter'
+import TransparencyPage from './TransparencyPage'
 import { useOnboarding } from '../lib/onboarding'
 
 // ─── Routing model ──────────────────────────────────────────────────────────
@@ -121,6 +122,12 @@ export default function TokenDemo() {
         <Route path="*" element={<Navigate to="/help" replace />} />
       </Routes>
     )
+  }
+
+  // ── Public proof-of-reserves page - no wallet required, so it short-circuits
+  //    the wallet/onboarding/role gates below. Anyone can verify backing. ──
+  if (location.pathname.startsWith('/transparency')) {
+    return <TransparencyPage />
   }
 
   // ── Loading state ──

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import {
   ShieldCheck, ClipboardCheck, HandCoins, ShieldAlert, GitPullRequestArrow,
-  Check, X, ArrowRight, Plus, Flag, Signature, TriangleAlert,
+  Check, X, ArrowRight, ArrowUpRight, Plus, Flag, Signature, TriangleAlert,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
@@ -55,13 +55,23 @@ export default function ComplianceOverview({ onOpenInstrument }: {
 
   return (
     <div className="w-full max-w-4xl">
-      <div className="mb-6">
-        <h1 className="font-heading text-[26px] font-medium tracking-[-0.02em] text-foreground">Compliance</h1>
-        <p className="mt-1 text-[15px] text-muted-foreground">
-          {isAuditor
-            ? 'Verification signals across every instrument, and the attestations awaiting your signature.'
-            : 'Backing, redemptions, screening and approvals across every instrument.'}
-        </p>
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="font-heading text-[26px] font-medium tracking-[-0.02em] text-foreground">Compliance</h1>
+          <p className="mt-1 text-[15px] text-muted-foreground">
+            {isAuditor
+              ? 'Verification signals across every instrument, and the attestations awaiting your signature.'
+              : 'Backing, redemptions, screening and approvals across every instrument.'}
+          </p>
+        </div>
+        <a
+          href="/transparency"
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          <ShieldCheck className="size-3.5 text-success" /> Public transparency page <ArrowUpRight className="size-3.5" />
+        </a>
       </div>
 
       {/* Summary tiles - inset on a light panel */}
