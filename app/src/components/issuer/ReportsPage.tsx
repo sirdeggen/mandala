@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Search, Trash2 } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
@@ -16,7 +16,7 @@ import { exportReport, exportBundle, FORMAT_LABEL, type ReportTable, type Export
 import { logExport, removeExport, useExportHistory } from '../../lib/exportHistory'
 import { YearSelect, availableYears } from './YearSelect'
 import { ExportFormatPicker } from './ExportFormatPicker'
-import { DownloadSignoffButton } from './DownloadSignoffButton'
+import { DownloadSignoffButton, DownloadEventRows } from './DownloadSignoffButton'
 import { PopoverSelect } from './PopoverSelect'
 import { ReportCell, isNowrapColumn } from './ReportCell'
 import { Input } from '../ui/input'
@@ -297,7 +297,8 @@ export default function ReportsPage() {
                     <div>Report</div><div>Files</div><div className="text-right">Rows</div><div className="text-right">Created</div><div className="text-right">Actions</div>
                   </div>
                   {history.map(h => (
-                    <div key={h.id} className="grid grid-cols-[1.6fr_120px_60px_1fr_72px] items-center border-t border-separator px-3 py-2 text-[12.5px]">
+                    <Fragment key={h.id}>
+                    <div className="grid grid-cols-[1.6fr_120px_60px_1fr_72px] items-center border-t border-separator px-3 py-2 text-[12.5px]">
                       <div className="truncate font-medium text-foreground">{h.reportName}</div>
                       <div className="flex flex-wrap gap-1">
                         {h.formats.map(f => (
@@ -321,6 +322,8 @@ export default function ReportsPage() {
                         </button>
                       </div>
                     </div>
+                    <DownloadEventRows record={h} />
+                    </Fragment>
                   ))}
                 </div>
               )}

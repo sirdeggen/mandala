@@ -55,15 +55,16 @@ export default function IssuerHome({ assets, onReload, onOpenInstrument }: {
       </div>
 
       {/* Category tabs */}
-      <div className="mt-8 flex items-center gap-6 overflow-x-auto border-b border-border [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="mt-8 flex gap-5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TEMPLATE_CATEGORIES.map(c => (
           <button
             key={c}
             type="button"
             onClick={() => setActive(c)}
             className={cn(
-              '-mb-px whitespace-nowrap border-b-2 pb-3 pt-1 text-[14px] transition-colors',
-              active === c ? 'border-foreground font-medium text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+              'relative whitespace-nowrap pb-3 pt-2 text-[14px] font-medium transition-colors',
+              'after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:rounded-full after:bg-foreground after:transition-opacity',
+              active === c ? 'text-foreground after:opacity-100' : 'text-muted-foreground hover:text-foreground after:opacity-0'
             )}
           >
             {c}

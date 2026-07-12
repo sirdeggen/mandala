@@ -8,6 +8,37 @@ import { anchorOnChain } from '../../lib/onchainAnchor'
 import { recordDownloadAuth, type ExportRecord } from '../../lib/exportHistory'
 import { FORMAT_LABEL } from '../../lib/exports'
 
+const fmtEvent = (iso: string): string => {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+/** Signed download events for a record, shown as sub-rows under it in the
+ *  recent-exports list - each authorisation is a distinct, on-chain-anchored
+ *  audit event. */
+export function DownloadEventRows({ record }: { record: ExportRecord }) {
+  if (record.downloads == null || record.downloads.length === 0) return null
+  return (
+    <>
+      {record.downloads.map((d, i) => (
+        <div key={`${d.txid}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-separator/60 bg-muted/20 px-3 py-1.5 pl-7 text-[11px] text-subtle-foreground">
+          <FileSignature className="size-3 shrink-0 text-success" />
+          <span className="font-medium text-foreground">Signed download</span>
+          <span>· {fmtEvent(d.at)}</span>
+          <a
+            href={`https://whatsonchain.com/tx/${d.txid}`}
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto inline-flex items-center gap-1 text-primary hover:underline"
+          >
+            <ShieldCheck className="size-3" /> anchored · {d.txid.slice(0, 10)}…
+          </a>
+        </div>
+      ))}
+    </>
+  )
+}
+
 /**
  * Download control for a recent export. Downloading exported compliance records
  * is itself a controlled action: the user must sign off with their wallet, which
