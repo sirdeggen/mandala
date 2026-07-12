@@ -4,11 +4,12 @@
  * gets a read-only view. Links through to the own-organisation manager in
  * Relationships for members & permissions.
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Building2, Lock, ArrowRight, Users } from 'lucide-react'
+import { Building2, Lock, ArrowRight, Users, Plus, Camera } from 'lucide-react'
 import { useOnboarding, updateProfile, isReviewerRole } from '../../lib/onboarding'
+import { useCompanyLogo, setCompanyLogo } from '../../lib/companyLogo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,10 +23,23 @@ export default function CompanySettings() {
   const { entity, role } = useOnboarding()
   const navigate = useNavigate()
   const isAdmin = !isReviewerRole(role)
+  const logo = useCompanyLogo()
+  const logoRef = useRef<HTMLInputElement>(null)
 
   const [legalName, setLegalName] = useState(entity?.legalName ?? '')
   const [country, setCountry] = useState(entity?.country ?? '')
   const [address, setAddress] = useState(entity?.address ?? '')
+
+  function pickLogo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (file == null) return
+    if (!file.type.startsWith('image/')) { toast.error('Choose an image file.'); return }
+    const reader = new FileReader()
+    reader.onload = () => { setCompanyLogo(String(reader.result)); toast.success('Logo updated') }
+    reader.onerror = () => toast.error('Could not read that image.')
+    reader.readAsDataURL(file)
+  }
 
   const dirty =
     legalName.trim() !== (entity?.legalName ?? '') ||
@@ -57,6 +71,42 @@ export default function CompanySettings() {
 
       {/* Company details */}
       <form onSubmit={save} className="space-y-6">
+        <div className="space-y-2">
+          <Label>Company logo</Label>
+          <div className="flex items-center gap-4">
+            <div className="group relative size-16 shrink-0">
+              <span className="grid size-16 place-items-center overflow-hidden rounded-xl border border-border bg-card">
+                {logo != null
+                  ? <img src={logo} alt="" className="h-[70%] w-[70%] object-contain" />
+                  : <Building2 className="size-6 text-muted-foreground" />}
+              </span>
+              {isAdmin && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => logoRef.current?.click()}
+                    aria-label="Upload a company logo"
+                    className="absolute inset-0 grid place-items-center rounded-xl bg-black/0 text-transparent transition-colors group-hover:bg-black/40 group-hover:text-white focus-visible:bg-black/40 focus-visible:text-white focus-visible:outline-none"
+                  >
+                    <Camera className="size-5" />
+                  </button>
+                  <span className="pointer-events-none absolute -bottom-1 -right-1 grid size-5 place-items-center rounded-full border-2 border-card bg-primary text-primary-foreground">
+                    <Plus className="size-3" strokeWidth={3} />
+                  </span>
+                  <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={pickLogo} />
+                </>
+              )}
+            </div>
+            <p className="text-[13px] text-muted-foreground">
+              {!isAdmin
+                ? 'Your company logo.'
+                : logo != null
+                  ? <>Shown on your organisation across the platform. <button type="button" onClick={() => { setCompanyLogo(null); toast.success('Logo removed') }} className="font-medium text-primary hover:underline">Remove</button></>
+                  : 'Click the tile to upload your company logo.'}
+            </p>
+          </div>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="co-legal">Legal entity name</Label>
           <Input id="co-legal" placeholder="Acme Digital Money Ltd" autoComplete="off" value={legalName} onChange={e => setLegalName(e.target.value)} disabled={!isAdmin} />

@@ -21,6 +21,7 @@ import {
   type Entity, type Person, type EntityType, type EntityStatus,
   type SystemRole, type PersonStatus,
 } from '../../lib/entities'
+import { useCompanyLogo } from '../../lib/companyLogo'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Sheet, SheetContent, SheetTitle } from '../ui/sheet'
@@ -43,9 +44,10 @@ const fmtActive = (iso: string): string => {
   const dd = Math.round(h / 24); return dd < 30 ? `${dd}d ago` : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-function Monogram({ entity, size = 40 }: { entity: Pick<Entity, 'id' | 'monogram' | 'color'>; size?: number }) {
+function Monogram({ entity, size = 40 }: { entity: Pick<Entity, 'id' | 'monogram' | 'color' | 'own'>; size?: number }) {
   const [broken, setBroken] = useState(false)
-  const logo = entityLogo(entity.id)
+  const companyLogo = useCompanyLogo()
+  const logo = entity.own ? companyLogo : entityLogo(entity.id)
   const showLogo = logo != null && !broken
   return (
     <span
