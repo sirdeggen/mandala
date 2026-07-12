@@ -17,12 +17,17 @@ import { useAdminAssets } from '../../hooks/useAdminAssets'
 import { useIsMobile } from '../../hooks/use-mobile'
 import { useTour, markTourStep, markTourAutoOpened, dismissTour } from '../../lib/onboardingTour'
 import { TOUR_PATHS, resolveRoute, type TourStep } from '../../lib/onboardingTourContent'
+import { INSTRUMENT_TEMPLATES } from '../../content/instrumentTemplates'
 import { TourHighlight } from './TourHighlight'
 import { cn } from '@/lib/utils'
 
+// A stablecoin template still, used as the tour's ambient footer image.
+const TOUR_MEDIA: string | undefined =
+  (INSTRUMENT_TEMPLATES.find(t => t.id === 'chf-stablecoin') ?? INSTRUMENT_TEMPLATES[0])?.image
+
 export default function OnboardingTour() {
   const onboarding = useOnboarding()
-  const { isInitialized } = useWallet()
+  const { isInitialized, identityKey } = useWallet()
   const tour = useTour()
   const location = useLocation()
   const navigate = useNavigate()
@@ -69,7 +74,11 @@ export default function OnboardingTour() {
   const navRef = useRef<string>('')
   function activateStep(step: TourStep) {
     setHighlight(step.highlight ?? null)
-    const route = resolveRoute(step, assetId)
+    let route = resolveRoute(step, assetId)
+    // Issuers previewing transparency land on their own entity page.
+    if (route === '/transparency' && role === 'issuer' && identityKey != null) {
+      route = `/transparency/${encodeURIComponent(identityKey)}`
+    }
     if (route != null) {
       const currentPath = location.pathname + location.search
       if (route !== currentPath && route !== navRef.current) {
@@ -153,17 +162,6 @@ export default function OnboardingTour() {
           {/* Body */}
           {open && (
             <div className="flex min-h-0 flex-1 flex-col border-t border-border">
-              {/* Placeholder walkthrough video (ambient), like the issue-instrument panel */}
-              <div className="shrink-0 p-2 pb-0">
-                <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-muted">
-                  <video className="absolute inset-0 h-full w-full object-cover" src="/video/intro.mov" autoPlay loop muted playsInline aria-hidden />
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
-                  <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 p-3">
-                    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-white/90 text-neutral-900"><PlayCircle className="size-3.5" strokeWidth={2} /></span>
-                    <span className="text-[12px] font-semibold text-white drop-shadow">{path.title}</span>
-                  </div>
-                </div>
-              </div>
               <p className="shrink-0 px-4 pt-3 text-[13.5px] leading-snug text-muted-foreground text-balance">{path.intro}</p>
               <div className="min-h-0 flex-1 overflow-y-auto p-2">
                 {steps.map((step, i) => {
@@ -215,6 +213,20 @@ export default function OnboardingTour() {
                   )
                 })}
               </div>
+
+              {/* Ambient still, docked at the bottom below the last step */}
+              {TOUR_MEDIA != null && (
+                <div className="shrink-0 px-2 pt-0">
+                  <div className="relative aspect-[16/9] w-full overflow-hidden rounded-lg border border-border bg-muted">
+                    <img src={TOUR_MEDIA} alt="" aria-hidden className="animate-kenburns absolute inset-0 h-full w-full object-cover" />
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 p-3">
+                      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-white/90 text-neutral-900"><PlayCircle className="size-3.5" strokeWidth={2} /></span>
+                      <span className="text-[12px] font-semibold text-white drop-shadow">{path.title}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="shrink-0 border-t border-border p-2">
                 <button

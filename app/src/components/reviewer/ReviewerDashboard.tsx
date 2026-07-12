@@ -183,8 +183,8 @@ function DiscoverPanel({ onOpen }: { onOpen: (id: string) => void }) {
     <div className="mx-auto w-full max-w-3xl">
       <h1 className="font-heading text-[28px] font-medium tracking-[-0.02em] text-foreground">Discover instruments</h1>
       <p className="mt-1.5 text-[15px] leading-relaxed text-muted-foreground">
-        Every instrument live on the overlay, grouped by its issuing entity. Watch the ones you audit or
-        follow, and they appear in your sidebar.
+        Every issued instrument in circulation, grouped by its issuing institution. Add the ones you audit
+        or hold to your watchlist and they stay to hand in the sidebar.
       </p>
 
       {isLoading ? (
@@ -267,6 +267,7 @@ const ITABS: { id: ITab; label: string }[] = [
 function ReviewerInstrument({ assetId }: { assetId: string; onOpen: (id: string) => void }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const meta = useAssetMetadata(assetId)
+  const discovery = useDiscoverInstruments().data
   const watchlist = useWatchlist()
   const watched = watchlist.includes(assetId)
 
@@ -282,6 +283,8 @@ function ReviewerInstrument({ assetId }: { assetId: string; onOpen: (id: string)
   const ticker = String(meta.data?.ticker ?? '').toUpperCase()
   const decimals = Number(meta.data?.decimals ?? 0) || 0
   const asset = publicAsset(assetId, meta.data ?? null)
+  const issuerKey = discovery?.instruments.find(i => i.assetId === assetId)?.issuerKey ?? ''
+  const publicHref = issuerKey !== '' ? `/transparency/${encodeURIComponent(issuerKey)}/${encodeURIComponent(assetId)}` : null
 
   return (
     <div className="mx-auto w-full max-w-3xl">
@@ -295,10 +298,12 @@ function ReviewerInstrument({ assetId }: { assetId: string; onOpen: (id: string)
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <a href={`/transparency/${encodeURIComponent(assetId)}`} target="_blank" rel="noreferrer"
-             className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-muted">
-            <ExternalLink className="size-3.5" /> Public page
-          </a>
+          {publicHref != null && (
+            <a href={publicHref} target="_blank" rel="noreferrer"
+               className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-muted">
+              <ExternalLink className="size-3.5" /> Public page
+            </a>
+          )}
           <button type="button" onClick={() => toggleWatch(assetId)} aria-pressed={watched}
             className={cn('inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[12.5px] font-medium transition-colors',
               watched ? 'border-border text-foreground hover:bg-muted' : 'border-primary bg-primary text-primary-foreground hover:bg-primary/90')}>

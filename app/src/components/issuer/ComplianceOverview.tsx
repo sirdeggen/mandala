@@ -40,11 +40,13 @@ export default function ComplianceOverview({ onOpenInstrument }: {
   onOpenInstrument: (assetId: string, tab?: string) => void
 }) {
   const { data } = useAdminAssets()
+  const { identityKey } = useWallet()
   const assets: AdminAsset[] = data ?? []
   const snap = useComplianceSnapshot()
   const governance = useGovernance()
   const { role, name } = useOnboarding()
   const isAuditor = isReviewerRole(role)
+  const transparencyHref = identityKey != null ? `/transparency/${encodeURIComponent(identityKey)}` : '/transparency'
 
   const summaries = useAdminSummaries(assets.map(a => a.assetId))
   const rows = assets.map(a => compliance(a, snap.buckets[a.assetId], snap, summaries[a.assetId] ?? null))
@@ -78,7 +80,7 @@ export default function ComplianceOverview({ onOpenInstrument }: {
           </p>
         </div>
         <a
-          href="/transparency"
+          href={transparencyHref}
           target="_blank"
           rel="noreferrer"
           className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-muted"
