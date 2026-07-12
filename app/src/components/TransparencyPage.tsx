@@ -136,17 +136,34 @@ function DirectoryCard({ issuerKey, query }: { issuerKey: string; query: string 
   )
 }
 
-/** A row of fiat-currency flags for an entity's stablecoins, falling back to the
- *  short identity key. */
+/** An instrument facepile, a divider, then the fiat-currency flags of the
+ *  entity's stablecoins. Falls back to the short entity id. */
 function EntityFlags({ issuerKey }: { issuerKey: string }) {
   const { data } = useDiscoverInstruments()
   const instruments = data?.entities.find(e => (e.issuerKey || 'unknown') === issuerKey)?.instruments ?? []
   if (instruments.length === 0) {
     return <div className="truncate text-[12px] text-muted-foreground">{issuerKey.slice(0, 12)}…{issuerKey.slice(-6)}</div>
   }
+  const faces = instruments.slice(0, 6)
+  const extra = instruments.length - faces.length
   return (
-    <div className="mt-0.5 flex items-center gap-1.5">
-      {instruments.slice(0, 8).map(i => <AssetFlag key={i.assetId} assetId={i.assetId} />)}
+    <div className="mt-1 flex items-center gap-2">
+      {/* Instrument facepile */}
+      <div className="flex items-center">
+        {faces.map((i, idx) => (
+          <div key={i.assetId} className={cn('rounded-md ring-2 ring-card', idx > 0 && '-ml-1.5')}>
+            <InstrumentIcon assetId={i.assetId} size={20} className="rounded-md" />
+          </div>
+        ))}
+        {extra > 0 && (
+          <span className="-ml-1.5 grid size-5 place-items-center rounded-md bg-muted text-[9px] font-semibold text-muted-foreground ring-2 ring-card">+{extra}</span>
+        )}
+      </div>
+      <span className="h-4 w-px shrink-0 bg-separator" />
+      {/* Currency flags */}
+      <div className="flex items-center gap-1">
+        {instruments.slice(0, 8).map(i => <AssetFlag key={i.assetId} assetId={i.assetId} />)}
+      </div>
     </div>
   )
 }
