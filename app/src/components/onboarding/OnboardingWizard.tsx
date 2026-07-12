@@ -135,9 +135,21 @@ export default function OnboardingWizard() {
   return (
     <div className="flex min-h-screen w-full bg-muted text-foreground">
       {/* Left rail - brand up top, signed-in account down in the bottom-left */}
-      <aside className="sticky top-0 hidden h-screen w-[268px] shrink-0 flex-col justify-between px-7 py-7 lg:flex">
-        <BrandMark size="md" wordmark />
-        <div className="space-y-5">
+      <aside className="sticky top-0 hidden h-screen w-[268px] shrink-0 flex-col justify-between overflow-hidden px-7 py-7 lg:flex">
+        {/* Ambient looping video, superimposed semi-transparently on the rail */}
+        <video
+          className="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover opacity-[0.18]"
+          src="/video/intro.mov"
+          autoPlay
+          loop
+          muted
+          playsInline
+          aria-hidden="true"
+        />
+        <div className="relative z-10">
+          <BrandMark size="md" wordmark />
+        </div>
+        <div className="relative z-10 space-y-5">
           <nav className="flex flex-col items-start gap-1.5 text-[14px] text-muted-foreground">
             <Link to="/help/getting-started" className="rounded px-1 py-0.5 transition-colors hover:text-foreground">Guides</Link>
           </nav>
