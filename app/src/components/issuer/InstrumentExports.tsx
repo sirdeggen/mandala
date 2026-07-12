@@ -130,12 +130,14 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
                 <p className="mt-0.5 text-balance text-[12px] leading-snug text-muted-foreground">{r.description}</p>
               </div>
             </div>
-            <div className="mt-3 space-y-2">
+            <div className="mt-3">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-faint-foreground">{r.table.rows.length} row{r.table.rows.length === 1 ? '' : 's'}</span>
                 <ActionBtn Icon={Eye} label="View" onClick={() => setPreview(r)} />
               </div>
-              <ExportFormatPicker onExport={f => runReport(r, f)} disabled={r.table.rows.length === 0} />
+              <div className="mt-2.5 flex justify-end border-t border-separator pt-2.5">
+                <ExportFormatPicker onExport={f => runReport(r, f)} disabled={r.table.rows.length === 0} />
+              </div>
             </div>
           </div>
         ))}
