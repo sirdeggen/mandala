@@ -135,6 +135,8 @@ export default function DevModeToggle() {
           </button>
         </div>
 
+        <div className="my-1 h-px bg-border" />
+
         {/* Reset tour */}
         <button
           type="button"
