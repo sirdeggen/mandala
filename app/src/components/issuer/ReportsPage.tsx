@@ -206,31 +206,36 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* Reports + Recent exports grouped as manila folder tabs */}
+      {/* Reports + Recent exports grouped as manila folder tabs. The folder's
+          top-edge line sits behind the tabs (absolute, so it survives the
+          horizontal scroll container) and the active tab paints over it. */}
       <div className="mt-5">
-        <div className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {[...REPORT_SPECS.map(s => ({ key: s.key as ReportKey | 'recent', label: TAB_SHORT[s.key] })), { key: 'recent' as const, label: 'Recent exports' }].map(t => {
-            const active = tab === t.key
-            return (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTab(t.key)}
-                className={cn(
-                  'relative -mb-px whitespace-nowrap rounded-t-lg border border-b-0 px-4 py-2.5 text-[13px] font-medium transition-colors',
-                  active
-                    ? 'z-10 border-border bg-card text-foreground'
-                    : 'border-transparent bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground'
-                )}
-              >
-                {t.label}
-              </button>
-            )
-          })}
+        <div className="relative">
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-border" />
+          <div className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {[...REPORT_SPECS.map(s => ({ key: s.key as ReportKey | 'recent', label: TAB_SHORT[s.key] })), { key: 'recent' as const, label: 'Recent exports' }].map(t => {
+              const active = tab === t.key
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setTab(t.key)}
+                  className={cn(
+                    'relative shrink-0 whitespace-nowrap rounded-t-lg border border-b-0 px-3.5 py-2.5 text-[13px] font-medium transition-colors',
+                    active
+                      ? 'border-border bg-card text-foreground'
+                      : 'border-transparent bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
+                  )}
+                >
+                  {t.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
-        {/* Folder body */}
-        <div className="relative rounded-lg rounded-tl-none border border-border bg-card shadow-[var(--shadow-card)]">
+        {/* Folder body - no top border; the baseline above serves as its edge. */}
+        <div className="relative rounded-b-xl rounded-tr-xl border border-t-0 border-border bg-card shadow-[var(--shadow-card)]">
           {isReport && activeSpec != null ? (
             <>
               <div className="border-b border-border px-4 py-3">
