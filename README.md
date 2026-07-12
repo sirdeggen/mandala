@@ -1,71 +1,166 @@
 # Underwrite
 
+### The regulated-stablecoin platform where every token is *provable*, not promised.
+
 A stablecoin is a promise: every token in circulation is backed, one-for-one, by
-real money in a real account. Yet most of the market runs on that promise alone —
-holders, auditors and regulators take the backing on faith, reconciling reserves
+real money in a real account. Most of the market runs on that promise alone —
+holders, auditors and regulators take the backing on faith and reconcile reserves
 in spreadsheets weeks after the fact, if at all. When a peg slips, everyone finds
 out too late.
 
-So you're a regulated firm that wants to issue a stablecoin your holders, your
-auditors and your regulator can actually *verify* — every unit, in real time,
-against the cash that backs it? Then this is for you. In this guide you'll spin up
-your own regulated-stablecoin issuance platform — running on your laptop in two
-minutes, then live for your own institution — where every token issued, redeemed
-and transferred is provable on-chain, and every unit is continuously reconciled
-against your reserve account. No black box. No "trust us." Let's go. 🏦
+**Underwrite closes that gap.** It is a source-available, self-hosted platform for
+issuing and administering **regulated, fully-reserved stablecoins, tokenised
+deposits and e-money** — where issuance, transfer and redemption settle on a public
+chain, every unit of supply is independently verifiable in real time, and the rules
+you are legally accountable for are enforced by your own infrastructure, not a
+vendor's black box. Reserve attestations, redemption-at-par confirmations and
+sensitive control actions are **cryptographically signed and anchored on-chain**,
+giving your auditors and regulator a tamper-evident trail from every token back to
+the cash that backs it — without ever taking the issuer's word for it.
 
-A source-available platform for issuing and administering **regulated,
-fully-reserved stablecoins** on the BSV blockchain, with BRC-100 wallet identity,
-per-transaction key-linkage proofs, and a built-in reserve-reconciliation and
-audit layer. Issue any asset (an EUR- or USD-pegged token, a tokenised deposit),
-move it under full regulatory control, and give auditors a continuously
-reconciled view of on-chain supply against bank balances and reserves.
+You own the deployment, the data and the brand. There is no per-seat SaaS licence,
+no custody lock-in, and no minimum. A full instance runs on a single VPS for the
+price of a team lunch — or on the public network at production scale.
 
-An **operator** is whoever runs an instance — a licensed e-money institution, a
-bank, a payments firm, a fund administrator, or a fintech — hosting the platform
-to issue and govern its own stablecoin. Every operator runs this one shared
-codebase against a shared on-chain data standard, so tokens, identities, linkage
-proofs and audit trails stay interoperable across instances and across
-jurisdictions.
+> **For evaluators:** Underwrite is designed to satisfy a MiCA / GENIUS-Act-style
+> mandate end to end — licensed issuance, eligible-reserve rules, redemption at par,
+> sanctions and travel-rule controls, independent audit, and continuous
+> proof-of-reserves — on infrastructure you host and control. Sections below map
+> directly to typical tender requirements.
 
-**Why? (the problem)** Stablecoin issuers carry a compliance burden that
-off-the-shelf token tooling ignores: they must prove reserves, screen
-counterparties, freeze and recover funds under legal order, and hand auditors a
-clean, verifiable trail from every issued token back to the cash that backs it.
-Today that means bespoke back-office systems and manual reconciliation — slow,
-error-prone, and impossible for an outsider to independently verify.
+---
 
-**Why? (the solution)** Settling issuance, transfer and redemption on-chain makes
-every unit of supply publicly verifiable, while a self-hosted overlay enforces the
-rules an issuer is legally accountable for — supply conservation, sanctions
-screening, pause, allow/deny lists, freeze, and supply-conserving reissue. A
-banking layer reconciles on-chain supply against reserve and bank balances
-continuously, so *"is every token backed?"* has a live, provable answer — and
-auditors get everything they need without taking the issuer's word for it.
+## Capabilities
 
-**What?** A complete, rebrandable issuance platform — an **issuer console**
-(register, issue, redeem, treasury, regulatory controls, activity feed), a
-**holder wallet**, and a **banking / reserve reconciliation and audit** view —
-that any regulated firm can deploy for its own stablecoin. Role-gated by wallet
-identity: the token authority gets the issuer console, auditors get a read-only
-reconciliation and audit view, and everyone else gets the holder wallet.
+**Issuance & token lifecycle.** Register any instrument (EUR/USD/CHF-pegged token,
+tokenised deposit, e-money) in one genesis transaction, then issue, transfer,
+receive and redeem. Every movement settles on-chain with a per-transaction
+**key-linkage proof** binding each output to a controlling identity, so supply and
+counterparties are provable — not asserted. Multiple instruments per operator, each
+independently governed.
 
-**How?** Built with **React 19, Vite 6, TypeScript and Tailwind CSS v4** on the
-frontend; a self-hosted **overlay service** (TypeScript, with a Go port) running
-the `tm_mandala` topic manager over **MongoDB + SQLite**; and the **`@bsv/mandala`**
-token client on **@bsv/sdk, @bsv/templates and @bsv/overlay**, with **BRC-100
-(MetaNet)** wallet identity and **MessageBox** peer handoff. It runs entirely on
-your laptop via Docker Compose for local issuance and demos (scripts-only
-validation, wallet as sole broadcaster); point it at an Arcade node to become a
-full network participant with on-chain broadcast and SPV. A local instance costs
-nothing beyond your machine; a hosted single-VPS deployment runs roughly
-€10–25/month, scaling with traffic and storage.
+**Reserves & continuous proof-of-reserves.** Record reserve composition by asset
+class with the compliance fields an auditor expects (custodian, jurisdiction,
+maturity, ISIN). Eligibility rules encode regulatory constraints — e.g. the
+**93-day residual-maturity cap** — so only qualifying assets count toward backing.
+A live reconciliation compares on-chain supply against reserve and bank balances
+and flags any drift, giving *"is every token backed?"* a continuous, provable
+answer.
+
+**Reserve attestations & independent audit.** Auditors sign period attestations
+with their own wallet key; the signature is a canonical, tamper-evident digest of
+exactly what was attested and is **anchored on-chain**. Sign-with-exceptions,
+evidence attachments and verification badges are built in. Alter any signed figure
+and verification fails.
+
+**Redemption at par.** A published redemption policy (settlement window, minimum,
+terms) plus a redemption register where each settlement is confirmed **at par**
+with a signed, anchored auditor confirmation — the core holder-protection
+obligation under MiCA and the GENIUS Act.
+
+**Regulatory controls, enforced server-side.** Pause, freeze/unfreeze, block/allow
+identities, allow-list vs deny-list access modes, and **supply-conserving reissue**
+from a frozen output (recover funds to the rightful owner without changing net
+supply). Controls are enforced by the overlay at admission — not merely hidden in
+the UI — and sensitive actions carry auditor sign-off anchored on-chain. A
+developer mode lets you *prove* enforcement is server-side.
+
+**Screening, sanctions governance & travel rule.** Holder KYC/sanctions/PEP/risk
+screening, per-instrument and org-wide **sanction-list governance** (OFAC, EU, UN,
+UK OFSI, Swiss SECO) with inherited or custom policies and an incoming-updates feed,
+and a configurable travel-rule threshold — all designed as clean **integration
+points** for your production KYC, screening and analytics providers.
+
+**Reporting & signed export.** Preview and export every compliance surface
+(composition, attestations, redemptions, screening, reconciliation, control
+actions, ledger) as CSV, spreadsheet or PDF. Taking data out is itself a controlled
+action: downloads require a **wallet signature anchored on-chain**, so there is an
+audit trail of who exported what, and when.
+
+**Relationships & role-based access.** A directory-driven relationship manager for
+the institutions you work with — reserve banks, custodians, market makers,
+exchanges, auditors, regulators — each with named people who hold platform access
+under a system role (Administrator / Approver / Operator / Auditor / Viewer) and
+granular permissions. You manage your own organisation's members; counterparties
+manage theirs.
+
+**Licensing & authorisation.** Category whitelisting (which instrument types a Badge
+may issue) is granted by an external licensing authority (e.g. FINMA, an EU MiCA
+authority) and merely *reflected* in-app — never self-assigned — with a request
+flow for additional categories.
+
+**Integrations hub.** A connections surface modelling how the platform wires to the
+external services a regulated issuer depends on — KYC, sanctions feeds, blockchain
+analytics, banking & custody, SSO, attestation, regulatory reporting and licensing
+— with environments, scopes, key rotation and webhooks.
+
+**White-label & multi-tenant by design.** Rebrandable issuer console, holder wallet
+and auditor view. Every operator runs one shared codebase against a shared on-chain
+data standard, so tokens, identities, linkage proofs and audit trails stay
+interoperable across instances and jurisdictions.
+
+---
+
+## Benefits
+
+- **Provable backing, in real time.** Supply is verifiable on a public ledger and
+  reconciled continuously against reserves — replacing after-the-fact spreadsheet
+  reconciliation with a live, independently checkable answer.
+- **Regulator-grade enforcement.** The rules you are accountable for (conservation,
+  sanctions, freeze, access mode) are enforced by your infrastructure at the point
+  of settlement, and demonstrably so.
+- **Tamper-evident audit.** Attestations, redemptions and control actions are
+  cryptographically signed and anchored on-chain — non-repudiable and impossible to
+  quietly backdate or edit.
+- **Data sovereignty, no lock-in.** Self-hosted and source-available. You hold the
+  keys, the data and the deployment; no custodian sits between you and your reserves,
+  and no vendor can switch you off.
+- **Low total cost of ownership.** No per-seat licence. A local instance costs
+  nothing; a hosted single-VPS deployment runs roughly **€10–25/month**, and
+  on-chain settlement fees are sub-cent on a high-throughput public network.
+- **Fast to stand up.** Running end-to-end on a laptop in minutes via Docker
+  Compose; the same codebase goes to production by pointing at a network node.
+- **Audit-ready on day one.** Auditors get their own verifiable, exportable view
+  instead of a data dump — shortening review cycles and reducing audit cost.
+- **Interoperable.** A shared standard means holders, counterparties and auditors
+  can verify across operators and borders.
+
+---
+
+## How Underwrite is different
+
+Most commercial stablecoin offerings are **custodial issuance-as-a-service**: a
+vendor mints on your behalf, holds or brokers your reserves, runs the compliance
+stack in their cloud, and hands you a dashboard and an API. That is fast to start
+and a poor fit for an institution that must *own* its regulatory posture. Underwrite
+takes the opposite stance.
+
+| | Typical commercial platform | **Underwrite** |
+|---|---|---|
+| **Deployment** | Vendor SaaS / managed custody | **Self-hosted**, source-available; you run it |
+| **Custody of reserves & keys** | Vendor or partner custodian | **You hold the keys**; connect your own bank/custodian |
+| **Backing verification** | Vendor attestation / periodic report | **On-chain, real-time**, independently verifiable |
+| **Rule enforcement** | In the vendor's backend | **In your overlay**, at settlement — provably server-side |
+| **Audit trail** | Exportable logs you must trust | **Cryptographically signed & on-chain-anchored** |
+| **Auditor experience** | Read access to a dashboard | **Independent, verifiable, exportable** sign-off workflow |
+| **Recovery of funds** | Vendor-mediated | **Supply-conserving reissue** you control |
+| **Commercials** | Per-seat / volume SaaS + custody fees | **No licence fee**; ~€10–25/mo hosting, sub-cent settlement |
+| **Lock-in** | Proprietary rails & data | **Open standard**; interoperable across operators |
+| **Identity & access** | Vendor accounts & passwords | **Wallet-native identity** + role-based access |
+
+**In short:** commercial platforms ask you to trust their infrastructure;
+Underwrite lets your holders, auditors and regulator trust *mathematics and a public
+ledger* — while you keep custody, control and your brand.
+
+---
 
 Operating this platform is your responsibility. The software is provided "as is"
 with no warranty, and the author's liability is excluded to the fullest extent
 permitted by law; **you alone are responsible for your deployment's legal and
-regulatory compliance** — e-money and stablecoin regulation (e.g. MiCA),
-securities law, AML/KYC, sanctions screening, and GDPR. Prospective issuers should
+regulatory compliance** — e-money and stablecoin regulation (e.g. MiCA), securities
+law, AML/KYC, sanctions screening, and GDPR. The KYC, sanctions, banking, custody,
+licensing and analytics integrations ship as clearly-marked integration points to
+be wired to your production providers before go-live. Prospective issuers should
 take their own legal advice before issuing a regulated instrument to the public.
 
 **Built on:** @bsv/sdk v2.1.6, @bsv/templates v1.9.0, @bsv/overlay-topics
