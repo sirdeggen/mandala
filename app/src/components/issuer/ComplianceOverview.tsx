@@ -63,8 +63,8 @@ export default function ComplianceOverview({ onOpenInstrument }: {
         </p>
       </div>
 
-      {/* Summary tiles */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+      {/* Summary tiles - inset on a light panel */}
+      <div className="grid grid-cols-2 gap-3 rounded-xl bg-sidebar p-3 lg:grid-cols-3">
         <Tile Icon={Layers} label="Instruments" value={String(assets.length)} />
         <Tile Icon={ShieldCheck} label="Fully backed" value={`${backedCount}/${assets.length}`} tone={assets.length > 0 && backedCount === assets.length ? 'success' : 'warning'} />
         <Tile Icon={ClipboardCheck} label="Attestations to sign" value={String(pendingAtt.length)} tone={pendingAtt.length > 0 ? 'warning' : undefined} />
@@ -119,9 +119,14 @@ export default function ComplianceOverview({ onOpenInstrument }: {
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[14px] font-medium text-foreground">{r.asset.label}</div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                    <MiniPill label={r.backing != null ? `${fmt(r.backing)}% backed` : 'Not yet issued'} tone={r.fullyBacked ? 'success' : 'warning'} />
+                    {r.latestAtt?.status === 'signed' && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[10.5px] font-medium text-success">
+                        <Check className="size-3" strokeWidth={3} /> Compliant
+                      </span>
+                    )}
+                    <MiniPill label={r.backing != null ? `${fmt(r.backing)}% backed` : 'Not yet issued'} tone={r.backing == null ? 'muted' : r.fullyBacked ? 'success' : 'warning'} />
                     <MiniPill label={attLabel(r.latestAtt)} tone={r.latestAtt?.status === 'signed' ? 'success' : r.latestAtt?.status === 'flagged' ? 'destructive' : 'muted'} />
-                    {r.openRedemptions > 0 && <MiniPill label={`${r.openRedemptions} redemption${r.openRedemptions === 1 ? '' : 's'}`} tone="warning" />}
+                    {r.openRedemptions > 0 && <MiniPill label={`${r.openRedemptions} redemption${r.openRedemptions === 1 ? '' : 's'}`} tone="outline" />}
                   </div>
                 </div>
                 <ArrowRight className="size-4 shrink-0 text-faint-foreground transition-colors group-hover:text-foreground" />
@@ -220,11 +225,12 @@ const TONE = {
   warning: 'text-warning bg-warning/10',
   destructive: 'text-destructive bg-destructive/10',
   muted: 'text-muted-foreground bg-muted',
+  outline: 'text-muted-foreground bg-transparent border border-border',
 } as const
 
 function Tile({ Icon, label, value, tone }: { Icon: LucideIcon; label: string; value: string; tone?: keyof typeof TONE }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+    <div className="rounded-xl border border-border bg-card p-4">
       <span className={cn('grid size-8 place-items-center rounded-lg', tone ? TONE[tone] : 'bg-muted text-muted-foreground')}>
         <Icon className="size-4" strokeWidth={2} />
       </span>

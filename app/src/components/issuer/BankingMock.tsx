@@ -312,9 +312,9 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
                 <span className="text-[13px] text-muted-foreground">Net supply · issued − redeemed</span>
                 <span className="text-[14px] font-semibold tabular-nums">{formatAmount(recon.netSupply, decimals)}</span>
               </div>
-              {/* Drift */}
+              {/* Variance (reconciling difference) */}
               <div className={`flex justify-between items-center ${hasDrift ? 'py-3' : 'pt-3'} ${hasDrift ? 'text-warning' : 'text-success'}`}>
-                <span className="text-[13px] font-semibold">Drift</span>
+                <span className="text-[13px] font-semibold">Variance · bank balance − net supply</span>
                 <span className="text-[14px] font-semibold tabular-nums">
                   {recon.drift > 0 ? '+' : ''}{formatAmount(recon.drift, decimals)}
                 </span>
@@ -322,8 +322,8 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
               {/* Amber callout - how to close the gap, with a link straight to
                   the Issuance & redemption tab where the action is taken. */}
               {hasDrift && (
-                <div className="bg-warning/[0.08] rounded px-[13px] py-[10px] text-[11.5px] text-warning leading-[1.4]">
-                  <span className="font-semibold">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded bg-warning/[0.08] px-[13px] py-[10px] text-[11.5px] leading-[1.4] text-warning">
+                  <span className="min-w-0 flex-1 font-semibold">
                     {recon.drift > 0
                       ? 'Bank reserves exceed on-chain supply - issue tokens to match.'
                       : 'On-chain supply exceeds bank reserves - redeem tokens (or add deposits) to match.'}
@@ -331,7 +331,7 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
                   <button
                     type="button"
                     onClick={goToIssuance}
-                    className="mt-1.5 inline-flex items-center gap-1 font-semibold underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-warning/50 px-2.5 py-1 text-[11px] font-semibold text-warning transition-colors hover:bg-warning/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     Go to Issuance &amp; redemption <ArrowRight size={12} />
                   </button>
