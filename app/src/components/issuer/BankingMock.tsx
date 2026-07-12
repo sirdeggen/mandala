@@ -21,6 +21,24 @@ interface BankingMockProps {
   assetId?: string
 }
 
+/** Plausible institutional counterparties for a regulated reserve feed - banks,
+ *  custodians, clearing houses, market makers and corporate treasuries. Names
+ *  are illustrative and do not denote real relationships. */
+const RESERVE_COUNTERPARTIES = [
+  'Helvetia Kantonalbank AG',
+  'SIX Interbank Clearing AG',
+  'Alpine Custody Services SA',
+  'Lemanic Capital Markets AG',
+  'Zürich Treasury Partners AG',
+  'Basel Correspondent Bank AG',
+  'Nordkap Asset Management AG',
+  'Genève Private Bank SA',
+  'Rhône Liquidity Partners SA',
+  'Matterhorn Market Making AG',
+  'Aare Digital Custody AG',
+  'Léman Clearing House SA',
+]
+
 /**
  * Demo bank feed + reserve reconciliation. Transfers here are fake (persisted
  * in localStorage, deletable/clearable); issuance happens on the Operations
@@ -80,15 +98,18 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
     }, { replace: true })
   }, [setSearchParams])
 
-  // Add a demo transfer - the counterparty is always a synthetic
-  // "Company {letter}" (see makeTransfer); only amount + direction are admin-supplied.
+  // Add a demo transfer. makeTransfer stamps a synthetic "Company {letter}"; we
+  // override it with a plausible institutional counterparty for a regulated
+  // reserve feed (banks, custodians, market makers, corporate treasuries). Names
+  // are illustrative, not real relationships.
   const handleAddTransfer = useCallback(() => {
     const amount = parseAmount(transferAmount, decimals)
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error('Enter a valid transfer amount')
       return
     }
-    const t = makeTransfer(amount, direction, activeAssetId)
+    const originator = RESERVE_COUNTERPARTIES[Math.floor(Math.random() * RESERVE_COUNTERPARTIES.length)]
+    const t = { ...makeTransfer(amount, direction, activeAssetId), originator }
     addMockTransfer(t)
     setTransferAmount('')
     toast.success(`Added ${direction === 'in' ? 'incoming' : 'outgoing'} transfer: ${t.originator} · ${formatAmount(amount, decimals)}`)

@@ -7,6 +7,9 @@ import { AdminAsset } from '@bsv/mandala/assets'
 import { useOnboarding } from '../../lib/onboarding'
 import { useComplianceSnapshot, reservesTotalOf } from '../../lib/compliance'
 import { useAdminSummaries } from '../../hooks/useAdminHistory'
+import { InstrumentIcon } from '@/components/ui/instrument-icon'
+import { IdentitySigil } from '@/components/ui/identity-sigil'
+import { assetImage } from '@/lib/instrumentCategory'
 import { ICON_BY_NAME } from '@/lib/instrumentIcons'
 import { INSTRUMENT_TEMPLATES, TEMPLATE_CATEGORIES, type InstrumentTemplate } from '@/content/instrumentTemplates'
 import IssueInstrumentDrawer, { type IssuePrefill } from './IssueInstrumentDrawer'
@@ -107,7 +110,10 @@ interface Stat {
   tint: string            // tailwind bg for the icon chip
   hint?: string           // small secondary line under the value
   to?: string             // route to navigate to on click
+  face?: { kind: 'instrument' | 'holder'; items: FaceItem[] }  // facepile right of the value
 }
+
+interface FaceItem { id: string; image?: string }
 
 /** Animated count-up driven by requestAnimationFrame (no animation dependency).
  *  Honours prefers-reduced-motion by snapping to the final value. */
@@ -163,6 +169,7 @@ function CirculationStats({ assets }: { assets: AdminAsset[] }) {
       key: 'instruments', value: assets.length, format: n => String(Math.round(n)),
       label: 'Instruments in circulation', Icon: Signature, accent: 'text-indigo-600', tint: 'bg-indigo-500/10',
       to: '/issuer/overview',
+      face: { kind: 'instrument', items: assets.map(a => ({ id: a.assetId, image: assetImage(a) })) },
     },
     {
       key: 'backing', value: agg.backing, format: n => `${Math.round(n)}%`,
@@ -173,6 +180,7 @@ function CirculationStats({ assets }: { assets: AdminAsset[] }) {
       key: 'holders', value: agg.holders, format: n => Math.round(n).toLocaleString('en-US'),
       label: 'Holders', hint: 'Screened, all instruments', Icon: Users, accent: 'text-amber-600', tint: 'bg-amber-500/10',
       to: '/issuer/relationships',
+      face: { kind: 'holder', items: Object.keys(snap.holders).map(id => ({ id })) },
     },
     {
       key: 'circulation', value: agg.circulation, format: n => compact(n),
@@ -214,13 +222,40 @@ function StatCard({ stat, onClick }: { stat: Stat; onClick?: () => void }) {
         {clickable && <ChevronRight className="size-4 text-faint-foreground transition-colors group-hover:text-foreground" />}
       </div>
       <div className="mt-6">
-        <div className="tabular text-[32px] font-semibold leading-none tracking-[-0.02em] text-foreground">
-          {stat.format(n)}
+        <div className="flex items-center justify-between gap-3">
+          <div className="tabular text-[32px] font-semibold leading-none tracking-[-0.02em] text-foreground">
+            {stat.format(n)}
+          </div>
+          {stat.face != null && stat.face.items.length > 0 && <Facepile face={stat.face} />}
         </div>
         <div className="mt-1.5 text-[13px] text-muted-foreground">{stat.label}</div>
         {stat.hint != null && <div className="mt-0.5 text-[11px] text-faint-foreground">{stat.hint}</div>}
       </div>
     </button>
+  )
+}
+
+/** Overlapping avatars for a stat's underlying items - instrument tiles or
+ *  holder sigils - capped at 6 with a "+N" overflow chip (black, white text). */
+function Facepile({ face }: { face: NonNullable<Stat['face']> }) {
+  const MAX = 6
+  const shown = face.items.slice(0, MAX)
+  const extra = face.items.length - shown.length
+  return (
+    <div className="flex shrink-0 items-center">
+      {shown.map((it, i) => (
+        <span key={it.id} className={cn('rounded-full ring-2 ring-card', i > 0 && '-ml-2')} style={{ zIndex: shown.length - i }}>
+          {face.kind === 'instrument'
+            ? <InstrumentIcon assetId={it.id} image={it.image} size={24} className="rounded-full" />
+            : <IdentitySigil value={it.id} size={24} className="rounded-full" />}
+        </span>
+      ))}
+      {extra > 0 && (
+        <span className="-ml-2 grid size-6 place-items-center rounded-full bg-foreground text-[9.5px] font-semibold text-background ring-2 ring-card">
+          +{extra}
+        </span>
+      )}
+    </div>
   )
 }
 
