@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Search, RefreshCw, Check, X, Trash2, ShieldAlert } from 'lucide-react'
+import { Search, RefreshCw, Check, X, Trash2, ShieldAlert, Info } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
 import {
   useHolders, useTravelRule, screenHolder, setKyc, removeHolder, setTravelRule,
@@ -14,6 +14,7 @@ import { Label } from '../ui/label'
 import { RelationshipField } from './RelationshipField'
 import { IdentityKeyPopover } from './IdentityKeyPopover'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
 /**
@@ -75,9 +76,22 @@ export default function HolderScreening({ assetId, asset }: { assetId: string; a
       <div className="relative rounded-lg rounded-tl-none border border-border bg-card p-4 shadow-[var(--shadow-card)]">
         {tab === 'screening' && (
           <div>
-            <p className="text-[12px] text-muted-foreground">
-              Screen a holder against sanctions &amp; PEP lists and record their KYC status. Screening is simulated against a sample watchlist.
-            </p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-[12px] text-muted-foreground">
+                Screen a holder against sanctions &amp; PEP lists and record their KYC status. Screening is simulated against a sample watchlist.
+              </p>
+              <Popover>
+                <PopoverTrigger className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11.5px] font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60">
+                  <Info className="size-3.5" /> How screening works
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80 space-y-2 p-3 text-[12px] leading-relaxed text-muted-foreground">
+                  <p className="text-[12.5px] font-semibold text-foreground">Where these classifications come from</p>
+                  <p><span className="font-medium text-foreground">Sanctions</span> — the holder's name is matched against a bundled sample watchlist, and the demo additionally flags a deterministic subset of Badge IDs so hits are visible. In production this is where real OFAC / EU / UN feeds are wired in.</p>
+                  <p><span className="font-medium text-foreground">PEP</span> &amp; <span className="font-medium text-foreground">Risk</span> — derived deterministically from the Badge ID, so each holder gets a stable, realistic rating standing in for a screening provider's output.</p>
+                  <p><span className="font-medium text-foreground">KYC</span> — not screened; the issuer sets it manually with the actions on each holder row.</p>
+                </PopoverContent>
+              </Popover>
+            </div>
             {!isAuditor && (
               <form onSubmit={screen} className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
                 <Input value={name} onChange={e => setName(e.target.value)} placeholder="Holder name (optional)" className="h-10 text-[13px]" />
