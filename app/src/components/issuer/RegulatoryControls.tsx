@@ -497,12 +497,17 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
 
       {bodyVisible && (
       <>
-      {/* Sanctioned Badge IDs - the list of identities banned from this
+      {/* Sanction lists in force for this instrument, with provider updates */}
+      {asset != null && (
+        <InstrumentSanctionLists assetId={activeAssetId} assetLabel={asset.label} />
+      )}
+
+      {/* Sanctioned entities - the list of identities banned from this
           instrument, with one-click lift. Adding a ban is done via
           Admin operations → "Ban a Badge ID" below. */}
       <div className="bg-card border border-border rounded-md p-[16px_18px]">
         <div className="flex items-center justify-between gap-3">
-          <div className="text-[13.5px] font-semibold">Sanctioned Badge IDs</div>
+          <div className="text-[13.5px] font-semibold">Sanctioned entities</div>
           <span className="text-[11px] font-medium text-subtle-foreground">
             {(state?.blockedIdentities.length ?? 0)} banned
           </span>
@@ -544,11 +549,6 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
           </ul>
         )}
       </div>
-
-      {/* Sanction lists in force for this instrument, with provider updates */}
-      {asset != null && (
-        <InstrumentSanctionLists assetId={activeAssetId} assetLabel={asset.label} />
-      )}
 
       {/* Live state strip */}
       <div className="bg-card border border-border rounded-md px-5 py-[14px] flex items-center gap-0">
