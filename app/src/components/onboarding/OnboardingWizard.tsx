@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { BrandMark } from '@/components/ui/BrandMark'
 import { UserAvatar } from '@/components/ui/user-avatar'
+import { IdentitySigil } from '@/components/ui/identity-sigil'
 import { cn } from '@/lib/utils'
 import { completeOnboarding, type OnboardingRole } from '@/lib/onboarding'
 import { useWallet } from '@/context/WalletContext'
@@ -41,7 +42,8 @@ export default function OnboardingWizard() {
   const [country, setCountry] = useState('')
   const [address, setAddress] = useState('')
 
-  const canContinueRole = role != null && name.trim().length > 0
+  // Individuals just view instruments, so they don't provide a name.
+  const canContinueRole = role != null && (role === 'individual' || name.trim().length > 0)
 
   function complete() {
     completeOnboarding({
@@ -124,7 +126,7 @@ export default function OnboardingWizard() {
                 })}
               </div>
 
-              {role != null && (
+              {role != null && role !== 'individual' && (
                 <div className="animate-in mt-3 space-y-2">
                   <Label htmlFor="ob-name">Your name</Label>
                   <Input
@@ -204,7 +206,7 @@ export default function OnboardingWizard() {
 
         {/* live preview */}
         <div className="w-full max-w-[380px] xl:pt-2">
-          <PreviewCard entityName={previewName} country={country} role={role} />
+          <PreviewCard step={step} entityName={previewName} country={country} role={role} identityKey={identityKey} name={name} />
         </div>
           </div>
         </main>
@@ -240,9 +242,38 @@ function AccountChip({ name, identityKey, role }: {
   )
 }
 
-/** A stand-in asset/reserve card that fills in as the user types - the
- *  Underwrite analogue of Acctual's live invoice preview. */
-function PreviewCard({ entityName, country, role }: { entityName: string, country: string, role: OnboardingRole | null }) {
+/** A stand-in preview that fills in as the user goes. On the first (role) step
+ *  it previews the signed-in user (their identity sigil); once entity details
+ *  are being added it becomes the stablecoin / attestation card. */
+function PreviewCard({ step, entityName, country, role, identityKey, name }: {
+  step: Step
+  entityName: string
+  country: string
+  role: OnboardingRole | null
+  identityKey: string | null
+  name: string
+}) {
+  const roleLabel = role === 'issuer' ? 'Issuer' : role === 'auditor' ? 'Auditor' : role === 'individual' ? 'Individual' : 'Select a role'
+
+  if (step === 'role') {
+    const primary = name.trim() !== '' ? name.trim() : (identityKey != null ? `${identityKey.slice(0, 8)}…${identityKey.slice(-4)}` : 'Your account')
+    return (
+      <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-[1px] text-faint-foreground">User login</span>
+          <ShieldCheck className="h-4 w-4 text-success" />
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <IdentitySigil value={identityKey ?? name ?? 'user'} size={40} className="rounded-full" />
+          <div className="min-w-0">
+            <p className="truncate text-[15px] font-medium text-foreground">{primary}</p>
+            <p className="truncate text-[13px] text-muted-foreground">{roleLabel}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
       <div className="flex items-center justify-between">
