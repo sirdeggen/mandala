@@ -17,6 +17,7 @@ import RegulatoryControls from './RegulatoryControls'
 import OverlayActivity from './OverlayActivity'
 import LedgerView from './LedgerView'
 import BankingMock from './BankingMock'
+import InstrumentTransparencyTab from './InstrumentTransparencyTab'
 import { cn } from '@/lib/utils'
 
 /**
@@ -26,7 +27,7 @@ import { cn } from '@/lib/utils'
  * on the same tab.
  */
 
-type Tab = 'reserves' | 'attestations' | 'banking' | 'operations' | 'ledger' | 'sanctions' | 'exports'
+type Tab = 'reserves' | 'attestations' | 'banking' | 'operations' | 'ledger' | 'sanctions' | 'exports' | 'transparency'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'reserves', label: 'Treasury' },
@@ -36,6 +37,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'ledger', label: 'Ledger' },
   { id: 'sanctions', label: 'Restrictions' },
   { id: 'exports', label: 'Reports' },
+  { id: 'transparency', label: 'Transparency' },
 ]
 
 interface Props {
@@ -202,6 +204,9 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
       )}
       {tab === 'exports' && (
         <InstrumentExports assetId={assetId} asset={asset} />
+      )}
+      {tab === 'transparency' && (
+        <InstrumentTransparencyTab assetId={assetId} asset={asset} />
       )}
     </div>
   )
