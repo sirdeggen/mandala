@@ -43,6 +43,7 @@ type NavItem = {
   section: Section
   label: string
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  issuerOnly?: boolean   // hidden from reviewers (auditor + individual)
 }
 
 // Top-level navigation. The per-instrument sections (Reserves / Operations /
@@ -50,10 +51,10 @@ type NavItem = {
 const TOP_NAV: NavItem[] = [
   { key: 'home',          section: 'home',          label: 'Home',          icon: Home },
   { key: 'instruments',   section: 'overview',      label: 'Instruments',   icon: Signature },
-  { key: 'relationships', section: 'relationships', label: 'Relationships', icon: Building2 },
+  { key: 'relationships', section: 'relationships', label: 'Relationships', icon: Building2, issuerOnly: true },
   { key: 'compliance',    section: 'compliance',    label: 'Compliance',    icon: ShieldCheck },
   { key: 'reports',       section: 'reports',       label: 'Reports',       icon: FileText },
-  { key: 'integrations',  section: 'integrations',  label: 'Integrations',  icon: Blocks },
+  { key: 'integrations',  section: 'integrations',  label: 'Integrations',  icon: Blocks, issuerOnly: true },
 ]
 
 // ── Instrument switcher (sidebar popover) ─────────────────────────────────────
@@ -391,7 +392,7 @@ export default function IssuerDashboard() {
           {/* Top-level */}
           <SidebarGroup className="pb-1">
             <SidebarMenu>
-              {TOP_NAV.map(({ key, section: sec, label, icon: Icon }) => (
+              {TOP_NAV.filter(item => !(item.issuerOnly && isReviewerRole(onboardingRole))).map(({ key, section: sec, label, icon: Icon }) => (
                 <SidebarMenuItem key={key}>
                   <SidebarMenuButton isActive={section === sec} tooltip={label} onClick={() => goSection(sec)}>
                     <Icon strokeWidth={1.9} />
