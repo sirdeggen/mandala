@@ -8,6 +8,7 @@ import { BrandMark } from '@/components/ui/BrandMark'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { IdentitySigil } from '@/components/ui/identity-sigil'
 import { cn } from '@/lib/utils'
+import { CompanyAvatar } from '@/components/ui/company-avatar'
 import { completeOnboarding, type OnboardingRole } from '@/lib/onboarding'
 import { useWallet } from '@/context/WalletContext'
 
@@ -70,7 +71,9 @@ export default function OnboardingWizard() {
     complete()
   }
 
-  const previewName = (legalName.trim() || name.trim()) || 'Your entity'
+  const entityPlaceholder = role === 'auditor' ? 'Alpine Assurance AG' : 'Helvetia Digital Money AG'
+  const previewIsPlaceholder = legalName.trim() === ''
+  const previewName = previewIsPlaceholder ? entityPlaceholder : legalName.trim()
 
   return (
     <div className="flex min-h-screen w-full bg-muted text-foreground">
@@ -206,7 +209,7 @@ export default function OnboardingWizard() {
 
         {/* live preview */}
         <div className="w-full max-w-[380px] xl:pt-2">
-          <PreviewCard step={step} entityName={previewName} country={country} role={role} identityKey={identityKey} name={name} />
+          <PreviewCard step={step} entityName={previewName} placeholder={previewIsPlaceholder} country={country} role={role} identityKey={identityKey} name={name} />
         </div>
           </div>
         </main>
@@ -245,9 +248,10 @@ function AccountChip({ name, identityKey, role }: {
 /** A stand-in preview that fills in as the user goes. On the first (role) step
  *  it previews the signed-in user (their identity sigil); once entity details
  *  are being added it becomes the stablecoin / attestation card. */
-function PreviewCard({ step, entityName, country, role, identityKey, name }: {
+function PreviewCard({ step, entityName, placeholder, country, role, identityKey, name }: {
   step: Step
   entityName: string
+  placeholder: boolean
   country: string
   role: OnboardingRole | null
   identityKey: string | null
@@ -284,11 +288,9 @@ function PreviewCard({ step, entityName, country, role, identityKey, name }: {
       </div>
 
       <div className="mt-4 flex items-center gap-3">
-        <div className="grid h-10 w-10 place-items-center rounded-full bg-muted text-[15px] font-semibold text-muted-foreground">
-          {entityName.trim().charAt(0).toUpperCase() || 'U'}
-        </div>
+        <CompanyAvatar name={entityName} size={40} className="rounded-lg" />
         <div className="min-w-0">
-          <p className="truncate text-[15px] font-medium text-foreground">{entityName}</p>
+          <p className={cn('truncate text-[15px] font-medium', placeholder ? 'text-muted-foreground' : 'text-foreground')}>{entityName}</p>
           {country && <p className="truncate text-[13px] text-muted-foreground">{country}</p>}
         </div>
       </div>
