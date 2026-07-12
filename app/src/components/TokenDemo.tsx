@@ -11,7 +11,7 @@ import ContactsPage from './holder/ContactsPage'
 import type { HolderAction } from './holder/HolderHome'
 import OnboardingWizard from './onboarding/OnboardingWizard'
 import { HelpHome, HelpCollectionView, HelpArticleView } from './help/HelpCenter'
-import { TransparencyOverview, TransparencyInstrument } from './TransparencyPage'
+import { TransparencyOverview, TransparencyOrg, TransparencyInstrument } from './TransparencyPage'
 import { useOnboarding, isReviewerRole } from '../lib/onboarding'
 
 // ─── Routing model ──────────────────────────────────────────────────────────
@@ -131,6 +131,7 @@ export default function TokenDemo() {
     return (
       <Routes>
         <Route path="/transparency" element={<TransparencyOverview />} />
+        <Route path="/transparency/org/:issuer" element={<TransparencyOrg />} />
         <Route path="/transparency/:assetId" element={<TransparencyInstrument />} />
         <Route path="*" element={<Navigate to="/transparency" replace />} />
       </Routes>
