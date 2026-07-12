@@ -52,8 +52,16 @@ export function attestationMessage(att: Pick<Attestation, 'id' | 'assetId' | 'pe
     reservesTotal: att.reservesTotal,
     circulation: att.circulation,
     evidence: att.evidence ?? '',
-    lines: [...att.lines].map(l => ({ c: l.assetClass, a: l.amount })).sort((x, y) => x.c.localeCompare(y.c)),
+    lines: [...att.lines]
+      .map(l => ({ c: l.assetClass, a: l.amount, at: canonicalAttrs(l.attributes) }))
+      .sort((x, y) => x.c.localeCompare(y.c) || (x.a - y.a)),
   })
+}
+
+/** Attributes as a key-sorted array so the digest is order-independent. */
+function canonicalAttrs(attrs?: Record<string, string>): [string, string][] {
+  if (attrs == null) return []
+  return Object.keys(attrs).sort().map(k => [k, attrs[k]] as [string, string])
 }
 
 export async function signAttestation(wallet: WalletClient, att: Attestation): Promise<string> {

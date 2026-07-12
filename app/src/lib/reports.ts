@@ -11,7 +11,7 @@ import { formatAmount } from '@bsv/mandala/amount'
 import type { ReserveBucket, Attestation, HolderRecord, RedemptionRequest, ControlAction } from './compliance'
 import { reservesTotalOf } from './compliance'
 import type { ReconLink } from './reconciliation'
-import { RESERVE_CLASS_BY_KEY } from '@/content/reserveClasses'
+import { RESERVE_CLASS_BY_KEY, isReserveLineEligible } from '@/content/reserveClasses'
 import { bankForRef } from '@/content/banks'
 import type { ReportTable } from './exports'
 
@@ -90,12 +90,19 @@ export function buildReport(key: ReportKey, ctx: ReportCtx): ReportTable {
       ]),
     }
     case 'composition': return {
-      columns: ['Reserve class', 'Eligible', 'Amount'],
-      rows: ctx.bucket.composition.map(l => [
-        RESERVE_CLASS_BY_KEY[l.assetClass]?.label ?? l.assetClass,
-        RESERVE_CLASS_BY_KEY[l.assetClass]?.eligible === false ? 'No' : 'Yes',
-        l.amount.toLocaleString('en-US'),
-      ]),
+      columns: ['Reserve class', 'Amount', 'Eligible', 'Custodian', 'Maturity (days)', 'Reference'],
+      rows: ctx.bucket.composition.map(l => {
+        const a = l.attributes ?? {}
+        const reference = a.issuer || a.fundName || a.counterparty || a.description || a.isin || a.jurisdiction || ''
+        return [
+          RESERVE_CLASS_BY_KEY[l.assetClass]?.label ?? l.assetClass,
+          l.amount.toLocaleString('en-US'),
+          isReserveLineEligible(l.assetClass, l.attributes) ? 'Yes' : 'No',
+          a.custodian ?? '',
+          a.maturityDays ?? '',
+          reference,
+        ]
+      }),
     }
     case 'attestations': return {
       columns: ['Period', 'Status', 'Reserves', 'Circulation', 'Backing %', 'Evidence', 'Auditor', 'Auditor Badge ID', 'Exceptions', 'Reviewed', 'Anchor'],

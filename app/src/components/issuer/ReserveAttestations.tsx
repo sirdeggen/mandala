@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { ShieldCheck, Plus, Trash2, AlertTriangle, BadgeCheck, Check, Flag, FileCheck2 } from 'lucide-react'
+import { ShieldCheck, Plus, Trash2, AlertTriangle, BadgeCheck, Check, Flag, FileCheck2, ChevronDown } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
 import { useWallet } from '../../context/WalletContext'
@@ -12,12 +12,12 @@ import {
 } from '../../lib/compliance'
 import { signAttestation, verifyAttestationSignature, attestationMessage } from '../../lib/complianceSignature'
 import { anchorOnChain } from '../../lib/onchainAnchor'
-import { RESERVE_CLASSES, RESERVE_CLASS_BY_KEY } from '@/content/reserveClasses'
+import { RESERVE_CLASSES, RESERVE_CLASS_BY_KEY, isReserveLineEligible, missingReserveFields, type ReserveClass } from '@/content/reserveClasses'
 import { IdentitySigil } from '@/components/ui/identity-sigil'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import TabHeader from './TabHeader'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-import { Select } from '../ui/select'
 import { cn } from '@/lib/utils'
 
 /**
@@ -43,7 +43,7 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
   const circ = summary != null ? (summary.totalIssued - summary.totalRedeemed) / 10 ** decimals : null
   const backing = circ != null && circ > 0 ? (reserves / circ) * 100 : (circ === 0 && reserves > 0 ? 100 : null)
   const fullyBacked = backing != null && backing >= 100
-  const hasIneligible = bucket.composition.some(l => RESERVE_CLASS_BY_KEY[l.assetClass]?.eligible === false)
+  const hasIneligible = bucket.composition.some(l => !isReserveLineEligible(l.assetClass, l.attributes))
 
   const latestSigned = attestations.find(a => a.status === 'signed')
 
@@ -53,6 +53,13 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
 
   function create() {
     if (bucket.composition.length === 0) { toast.error('Add at least one reserve line first.'); return }
+    // Every reserve line must carry the compliance fields its class requires.
+    const incomplete = bucket.composition.find(l => missingReserveFields(l.assetClass, l.attributes).length > 0)
+    if (incomplete != null) {
+      const cls = RESERVE_CLASS_BY_KEY[incomplete.assetClass]
+      toast.error(`Complete the required fields for "${cls?.label ?? 'a reserve line'}" before submitting.`)
+      return
+    }
     createAttestation(assetId, currency, circ ?? 0, evidence)
     setEvidence('')
     toast.success('Attestation submitted for audit')
@@ -124,43 +131,10 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
             No reserves recorded yet.
           </div>
         ) : (
-          <div className="space-y-2">
-            {bucket.composition.map(line => {
-              const cls = RESERVE_CLASS_BY_KEY[line.assetClass]
-              const ineligible = cls?.eligible === false
-              return (
-                <div key={line.id} className="flex items-center gap-2">
-                  <Select
-                    value={line.assetClass}
-                    disabled={isAuditor}
-                    onChange={e => updateReserveLine(assetId, line.id, { assetClass: e.target.value })}
-                    className={cn('h-10 flex-1 text-[13px]', ineligible && 'border-warning/50')}
-                  >
-                    {RESERVE_CLASSES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
-                  </Select>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="any"
-                    disabled={isAuditor}
-                    value={line.amount !== 0 ? String(line.amount) : ''}
-                    placeholder="0"
-                    onChange={e => updateReserveLine(assetId, line.id, { amount: Number(e.target.value) || 0 })}
-                    className="tabular h-10 w-36 text-[13px]"
-                  />
-                  {!isAuditor && (
-                    <button
-                      type="button"
-                      onClick={() => removeReserveLine(assetId, line.id)}
-                      aria-label="Remove reserve line"
-                      className="grid size-9 shrink-0 place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  )}
-                </div>
-              )
-            })}
+          <div className="space-y-2.5">
+            {bucket.composition.map(line => (
+              <ReserveLineRow key={line.id} assetId={assetId} line={line} readOnly={isAuditor} currency={currency} />
+            ))}
           </div>
         )}
 
@@ -168,7 +142,7 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
           <div className="mt-3 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
             <p className="text-[12px] leading-snug text-muted-foreground">
-              Some reserves sit in a class that isn't a permitted reserve under MiCA / the GENIUS Act. Move them into an eligible class or they won't count toward full backing.
+              Some reserves aren't permitted or exceed the 93-day maturity cap (MiCA / the GENIUS Act), so they don't count toward full backing. Move them to an eligible class or shorten the maturity.
             </p>
           </div>
         )}
@@ -223,6 +197,104 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── Reserve line row (class picker + per-class compliance fields) ─────────────
+
+function ReserveLineRow({ assetId, line, readOnly, currency }: {
+  assetId: string
+  line: { id: string; assetClass: string; amount: number; attributes?: Record<string, string> }
+  readOnly: boolean
+  currency: string
+}) {
+  const [open, setOpen] = useState(false)
+  const cls: ReserveClass | undefined = RESERVE_CLASS_BY_KEY[line.assetClass]
+  const eligible = isReserveLineEligible(line.assetClass, line.attributes)
+  const setAttr = (key: string, value: string) =>
+    updateReserveLine(assetId, line.id, { attributes: { ...line.attributes, [key]: value } })
+
+  return (
+    <div className={cn('rounded-lg border p-3', eligible ? 'border-border' : 'border-warning/50 bg-warning/5')}>
+      <div className="flex items-center gap-2">
+        {/* Class picker popover */}
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger
+            disabled={readOnly}
+            className="inline-flex h-10 flex-1 items-center justify-between gap-2 rounded-md border border-input-border bg-input px-3 text-left text-[13px] text-foreground outline-none transition-colors hover:border-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-60"
+          >
+            <span className="truncate">{cls?.label ?? line.assetClass}</span>
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-[340px] p-1">
+            {RESERVE_CLASSES.map(c => (
+              <button
+                key={c.key}
+                type="button"
+                onClick={() => { updateReserveLine(assetId, line.id, { assetClass: c.key }); setOpen(false) }}
+                className={cn('flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent', c.key === line.assetClass && 'bg-accent')}
+              >
+                <Check className={cn('mt-0.5 size-3.5 shrink-0', c.key === line.assetClass ? 'opacity-100' : 'opacity-0')} />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-foreground">
+                    {c.label}
+                    {!c.eligible && <span className="rounded bg-warning/15 px-1 py-0.5 text-[9px] font-semibold uppercase text-warning">Ineligible</span>}
+                  </span>
+                  <span className="block text-[11px] leading-snug text-subtle-foreground">{c.note}</span>
+                </span>
+              </button>
+            ))}
+          </PopoverContent>
+        </Popover>
+
+        <Input
+          type="number"
+          min="0"
+          step="any"
+          disabled={readOnly}
+          value={line.amount !== 0 ? String(line.amount) : ''}
+          placeholder={`0 ${currency}`}
+          onChange={e => updateReserveLine(assetId, line.id, { amount: Number(e.target.value) || 0 })}
+          className="tabular h-10 w-36 text-[13px]"
+        />
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={() => removeReserveLine(assetId, line.id)}
+            aria-label="Remove reserve line"
+            className="grid size-9 shrink-0 place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+          >
+            <Trash2 className="size-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Per-class required compliance fields */}
+      {cls != null && cls.fields.length > 0 && (
+        <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {cls.fields.map(f => (
+            <div key={f.key} className="space-y-1">
+              <label className="text-[10.5px] font-medium text-muted-foreground">{f.label}</label>
+              <Input
+                type={f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}
+                min={f.type === 'number' ? '0' : undefined}
+                disabled={readOnly}
+                value={line.attributes?.[f.key] ?? ''}
+                placeholder={f.placeholder}
+                onChange={e => setAttr(f.key, e.target.value)}
+                className={cn('h-9 text-[12.5px]', f.maturity && !eligible && (line.attributes?.[f.key] ?? '') !== '' && 'border-warning/60')}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!eligible && (
+        <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-warning">
+          <AlertTriangle className="size-3.5" /> Doesn't count toward backing{cls?.fields.some(f => f.maturity) ? ' - maturity must be 1-93 days' : ''}
+        </p>
+      )}
     </div>
   )
 }

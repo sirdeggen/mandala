@@ -14,6 +14,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { SANCTIONS_WATCHLIST } from '@/content/sanctionsWatchlist'
+import { isReserveLineEligible } from '@/content/reserveClasses'
 
 const KEY = 'underwrite.compliance.v1'
 
@@ -21,6 +22,8 @@ export interface ReserveLine {
   id: string
   assetClass: string   // key from RESERVE_CLASSES
   amount: number
+  /** Per-class compliance attributes (custodian, maturity, jurisdiction …). */
+  attributes?: Record<string, string>
 }
 
 export type AttestationStatus = 'submitted' | 'signed' | 'flagged'
@@ -239,8 +242,13 @@ function bucketOf(assetId: string): ReserveBucket {
   return current.buckets[assetId] ?? { composition: [], circulation: 0 }
 }
 
+/** Total reserves that count toward full backing: only eligible lines (permitted
+ *  class, and within the short-dated maturity cap where it applies). */
 export function reservesTotalOf(bucket: ReserveBucket): number {
-  return bucket.composition.reduce((sum, l) => sum + (Number.isFinite(l.amount) ? l.amount : 0), 0)
+  return bucket.composition.reduce(
+    (sum, l) => sum + (Number.isFinite(l.amount) && isReserveLineEligible(l.assetClass, l.attributes) ? l.amount : 0),
+    0,
+  )
 }
 
 // ── Composition mutations ─────────────────────────────────────────────────────
