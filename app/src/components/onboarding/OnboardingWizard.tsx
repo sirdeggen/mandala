@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { Building2, ClipboardCheck, UserRound, ArrowRight, ShieldCheck, ChevronsUpDown } from 'lucide-react'
+import { Building2, ClipboardCheck, UserRound, ArrowRight, ShieldCheck, ChevronsUpDown, MapPin } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -28,6 +28,43 @@ const COUNTRIES = [
   'Spain', 'Italy', 'Belgium', 'Austria', 'United Kingdom', 'United States', 'Other'
 ]
 
+/**
+ * Mock postal-code -> street/city lookup. A production build would call an
+ * address-autocomplete provider (Loqate, Google, national post APIs); for the
+ * demo we infer plausible values so the issuer only types a postal code.
+ * Exact matches come from the table; anything else falls back to a deterministic
+ * street on the selected country's principal city.
+ */
+const POSTAL_DB: Record<string, { street: string; city: string }> = {
+  '8001': { street: 'Bahnhofstrasse 45', city: 'Zürich' },
+  '8002': { street: 'Seestrasse 12', city: 'Zürich' },
+  '3011': { street: 'Marktgasse 28', city: 'Bern' },
+  '1204': { street: 'Rue du Rhône 65', city: 'Genève' },
+  '4051': { street: 'Freie Strasse 30', city: 'Basel' },
+  '10115': { street: 'Invalidenstraße 112', city: 'Berlin' },
+  '60311': { street: 'Zeil 90', city: 'Frankfurt am Main' },
+  '75001': { street: 'Rue de Rivoli 15', city: 'Paris' },
+  '1011': { street: 'Damrak 70', city: 'Amsterdam' },
+  '1050': { street: 'Avenue Louise 250', city: 'Brussels' },
+}
+
+const CITY_BY_COUNTRY: Record<string, string> = {
+  Switzerland: 'Zürich', Germany: 'Berlin', France: 'Paris', Netherlands: 'Amsterdam',
+  Ireland: 'Dublin', Luxembourg: 'Luxembourg', Spain: 'Madrid', Italy: 'Milan',
+  Belgium: 'Brussels', Austria: 'Vienna', 'United Kingdom': 'London', 'United States': 'New York',
+}
+const STREETS = ['High Street', 'Market Square', 'Central Avenue', 'Kirchgasse', 'Hauptstrasse', 'Parkway']
+
+function inferAddress(country: string, postal: string): { street: string; city: string } {
+  const exact = POSTAL_DB[postal.toUpperCase()]
+  if (exact) return exact
+  const hash = [...postal].reduce((h, c) => h + c.charCodeAt(0), 0)
+  return {
+    street: `${STREETS[hash % STREETS.length]} ${(hash % 80) + 1}`,
+    city: CITY_BY_COUNTRY[country] ?? 'City centre',
+  }
+}
+
 const ROLES: { id: OnboardingRole, title: string, blurb: string, Icon: typeof Building2 }[] = [
   { id: 'issuer', title: 'Issuer', blurb: 'Licensed company or entity', Icon: Building2 },
   { id: 'auditor', title: 'Auditor', blurb: 'Licensed auditing professional', Icon: ClipboardCheck },
@@ -41,7 +78,13 @@ export default function OnboardingWizard() {
   const [name, setName] = useState('')
   const [legalName, setLegalName] = useState('')
   const [country, setCountry] = useState('')
-  const [address, setAddress] = useState('')
+  const [postalCode, setPostalCode] = useState('')
+
+  // Auto-infer street + city from the postal code (mock lookup for the demo).
+  const inferred = useMemo(
+    () => (postalCode.trim().length >= 4 ? inferAddress(country, postalCode.trim()) : null),
+    [country, postalCode],
+  )
 
   // Individuals just view instruments, so they don't provide a name.
   const canContinueRole = role != null && (role === 'individual' || name.trim().length > 0)
@@ -53,7 +96,7 @@ export default function OnboardingWizard() {
       email: '',
       title: '',
       entity: role === 'issuer'
-        ? { legalName: legalName.trim() || name.trim(), country, address: address.trim() }
+        ? { legalName: legalName.trim() || name.trim(), country, address: inferred ? `${inferred.street}, ${inferred.city} ${postalCode.trim()}` : postalCode.trim() }
         : null
     })
   }
@@ -189,14 +232,20 @@ export default function OnboardingWizard() {
 
                 {role === 'issuer' && (
                   <div className="space-y-2">
-                    <Label htmlFor="ob-address">Registered address</Label>
+                    <Label htmlFor="ob-postal">Postal code</Label>
                     <Input
-                      id="ob-address"
+                      id="ob-postal"
                       autoComplete="off"
-                      placeholder="Street, city, postal code"
-                      value={address}
-                      onChange={e => setAddress(e.target.value)}
+                      placeholder="e.g. 8001"
+                      value={postalCode}
+                      onChange={e => setPostalCode(e.target.value)}
                     />
+                    {inferred && (
+                      <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-[13px] text-muted-foreground">
+                        <MapPin className="h-3.5 w-3.5 shrink-0 text-success" />
+                        <span className="truncate">{inferred.street}, {inferred.city}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
