@@ -337,7 +337,7 @@ function PreviewCard({ step, entityName, placeholder, country, role, identityKey
     <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-[1px] text-faint-foreground">
-          {role === 'auditor' ? 'Reserve attestation' : 'Stablecoin'}
+          {role === 'auditor' ? 'Stablecoin auditor' : 'Stablecoin issuer'}
         </span>
         <ShieldCheck className="h-4 w-4 text-success" />
       </div>
