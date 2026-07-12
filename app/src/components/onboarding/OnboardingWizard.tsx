@@ -243,6 +243,7 @@ export default function OnboardingWizard() {
                   <Input
                     id="ob-legal"
                     autoComplete="off"
+                    autoFocus
                     placeholder="Your Organisation"
                     value={legalName}
                     onChange={e => setLegalName(e.target.value)}
