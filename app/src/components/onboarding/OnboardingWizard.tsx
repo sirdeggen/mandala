@@ -257,7 +257,11 @@ export default function OnboardingWizard() {
         </div>
 
         {/* live preview */}
-        <div className="w-full max-w-[380px] xl:pt-2">
+        <div className="relative w-full max-w-[380px] xl:pt-2">
+          {/* ambient blurred oval behind the card */}
+          <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 flex items-center justify-center">
+            <div className="h-[118%] w-[68%] rounded-[50%] bg-muted-foreground/25 blur-3xl" />
+          </div>
           <PreviewCard step={step} entityName={previewName} placeholder={previewIsPlaceholder} country={country} role={role} identityKey={identityKey} name={name} />
         </div>
           </div>
