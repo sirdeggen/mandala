@@ -227,10 +227,11 @@ function AccountMenuItem({ icon: Icon, label, onClick, danger }: {
 }
 
 /** Issuer identity + account actions - the footer button opens a popover menu. */
-function AccountMenu({ seed, displayName, verified, onSettings, onCompany }: {
+function AccountMenu({ seed, displayName, verified, showCompany, onSettings, onCompany }: {
   seed: string
   displayName: string
   verified: boolean
+  showCompany: boolean
   onSettings: () => void
   onCompany: () => void
 }) {
@@ -262,7 +263,7 @@ function AccountMenu({ seed, displayName, verified, onSettings, onCompany }: {
         </div>
         {/* Actions */}
         <div className="border-t border-border p-1.5">
-          <AccountMenuItem icon={Building2} label="Company" onClick={onCompany} />
+          {showCompany && <AccountMenuItem icon={Building2} label="Company" onClick={onCompany} />}
           <AccountMenuItem icon={Settings} label="Account settings" onClick={onSettings} />
           <AccountMenuItem icon={LogOut} label="Sign out" danger onClick={() => toast.info('Disconnect in your wallet to sign out.')} />
         </div>
@@ -426,7 +427,7 @@ export default function IssuerDashboard() {
           </SidebarMenu>
 
           {/* Issuer identity + account menu */}
-          <AccountMenu seed={identityKey ?? 'issuer'} displayName={displayName} verified={verified} onSettings={() => goSection('settings')} onCompany={() => goSection('company')} />
+          <AccountMenu seed={identityKey ?? 'issuer'} displayName={displayName} verified={verified} showCompany={onboardingRole !== 'individual'} onSettings={() => goSection('settings')} onCompany={() => goSection('company')} />
         </SidebarFooter>
 
         <SidebarRail />

@@ -135,7 +135,8 @@ export default function CompanySettings() {
         {isAdmin && <Button type="submit" disabled={!dirty}>Update</Button>}
       </form>
 
-      {/* Link to the org manager in Relationships */}
+      {/* Link to the org manager in Relationships - issuers only */}
+      {isAdmin && (
       <div className="mt-10 rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
         <div className="flex items-start gap-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
@@ -157,6 +158,7 @@ export default function CompanySettings() {
           <ArrowRight className="size-3.5" />
         </button>
       </div>
+      )}
     </div>
   )
 }
