@@ -22,6 +22,8 @@ import { useWallet } from '@/context/WalletContext'
  */
 
 type Step = 'role' | 'details'
+/** Stages of the closing animation once the user commits their details. */
+type SealPhase = null | 'calloutIn' | 'calloutOut' | 'cardOut'
 
 const COUNTRIES = [
   'Switzerland', 'Germany', 'France', 'Netherlands', 'Ireland', 'Luxembourg',
@@ -79,6 +81,10 @@ export default function OnboardingWizard() {
   const [legalName, setLegalName] = useState('')
   const [country, setCountry] = useState('')
   const [postalCode, setPostalCode] = useState('')
+  // Outro choreography after "Enter Underwrite": the form fades out, the
+  // assurance callout animates into the preview card, then it and the whole
+  // card fade away before we drop into the app.
+  const [seal, setSeal] = useState<SealPhase>(null)
 
   // Auto-infer street + city from the postal code (mock lookup for the demo).
   const inferred = useMemo(
@@ -111,7 +117,15 @@ export default function OnboardingWizard() {
 
   function finish(e: React.FormEvent) {
     e.preventDefault()
-    complete()
+    if (seal != null) return
+    const reduced = typeof window !== 'undefined'
+      && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (reduced) { complete(); return }
+    // Sequence: callout in -> callout out -> card out -> enter the app.
+    setSeal('calloutIn')
+    window.setTimeout(() => setSeal('calloutOut'), 1100)
+    window.setTimeout(() => setSeal('cardOut'), 1550)
+    window.setTimeout(() => complete(), 1950)
   }
 
   const entityPlaceholder = 'Your Organisation'
@@ -193,7 +207,7 @@ export default function OnboardingWizard() {
           )}
 
           {step === 'details' && (
-            <form onSubmit={finish} className="animate-in">
+            <form onSubmit={finish} className={cn('animate-in', seal != null && 'animate-out')}>
               <div className="mb-6 space-y-1.5">
                 <h1 className="display text-3xl font-medium leading-none">
                   {role === 'issuer' ? 'Make it yours' : 'Your firm'}
@@ -250,8 +264,8 @@ export default function OnboardingWizard() {
                 )}
               </div>
 
-              <Button type="submit" className="mt-6 w-full">Enter Underwrite</Button>
-              <Button type="button" variant="ghost" className="mt-2 w-full" onClick={() => setStep('role')}>Back</Button>
+              <Button type="submit" className="mt-6 w-full" disabled={seal != null}>Enter Underwrite</Button>
+              <Button type="button" variant="ghost" className="mt-2 w-full" onClick={() => setStep('role')} disabled={seal != null}>Back</Button>
             </form>
           )}
         </div>
@@ -263,7 +277,7 @@ export default function OnboardingWizard() {
             <div className="h-[118%] w-[68%] rounded-[50%] bg-muted-foreground/25 blur-3xl" />
           </div>
           <div className="relative z-10">
-            <PreviewCard step={step} entityName={previewName} placeholder={previewIsPlaceholder} country={country} role={role} identityKey={identityKey} name={name} />
+            <PreviewCard step={step} seal={seal} entityName={previewName} placeholder={previewIsPlaceholder} country={country} role={role} identityKey={identityKey} name={name} />
           </div>
         </div>
           </div>
@@ -303,8 +317,9 @@ function AccountChip({ name, identityKey, role }: {
 /** A stand-in preview that fills in as the user goes. On the first (role) step
  *  it previews the signed-in user (their identity sigil); once entity details
  *  are being added it becomes the stablecoin / attestation card. */
-function PreviewCard({ step, entityName, placeholder, country, role, identityKey, name }: {
+function PreviewCard({ step, seal, entityName, placeholder, country, role, identityKey, name }: {
   step: Step
+  seal: SealPhase
   entityName: string
   placeholder: boolean
   country: string
@@ -317,7 +332,7 @@ function PreviewCard({ step, entityName, placeholder, country, role, identityKey
   if (step === 'role') {
     const primary = name.trim() !== '' ? name.trim() : (identityKey != null ? `${identityKey.slice(0, 8)}…${identityKey.slice(-4)}` : 'Your account')
     return (
-      <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
+      <div key="role" className="animate-in rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-semibold uppercase tracking-[1px] text-faint-foreground">User login</span>
           <ShieldCheck className="h-4 w-4 text-success" />
@@ -334,7 +349,7 @@ function PreviewCard({ step, entityName, placeholder, country, role, identityKey
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
+    <div key="details" className={cn('animate-in rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]', seal === 'cardOut' && 'animate-out')}>
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-[1px] text-faint-foreground">
           {role === 'auditor' ? 'Stablecoin auditor' : 'Stablecoin issuer'}
@@ -350,16 +365,20 @@ function PreviewCard({ step, entityName, placeholder, country, role, identityKey
         </div>
       </div>
 
-      <div className="mt-5 flex items-center gap-2 rounded-lg border border-border px-3 py-2.5">
-        <ShieldCheck className="h-4 w-4 shrink-0 text-success" />
-        <p className="text-[12px] leading-snug text-balance text-muted-foreground">
-          {role === 'auditor'
-            ? 'Verify every issued unit against on-chain reserves, in real time.'
-            : role === 'issuer'
-              ? 'Every unit you issue is reconciled on-chain against reserves, auditor-ready from day one.'
-              : 'On-chain settlement reconciled against reserves, auditor-ready from day one.'}
-        </p>
-      </div>
+      {/* Assurance callout only appears once details are committed, then fades. */}
+      {seal != null && (
+        <div className={cn('mt-5 flex items-center gap-2 rounded-lg border border-border px-3 py-2.5',
+          seal === 'calloutIn' ? 'animate-in' : 'animate-out')}>
+          <ShieldCheck className="h-4 w-4 shrink-0 text-success" />
+          <p className="text-[12px] leading-snug text-balance text-muted-foreground">
+            {role === 'auditor'
+              ? 'Verify every issued unit against on-chain reserves, in real time.'
+              : role === 'issuer'
+                ? 'Every unit you issue is reconciled on-chain against reserves, auditor-ready from day one.'
+                : 'On-chain settlement reconciled against reserves, auditor-ready from day one.'}
+          </p>
+        </div>
+      )}
     </div>
   )
 }
