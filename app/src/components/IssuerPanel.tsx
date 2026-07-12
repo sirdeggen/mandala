@@ -7,6 +7,7 @@ import { useIssuerMutations } from '../hooks/useIssuerMutations'
 import { useHolderData } from '../hooks/useHolderData'
 import { useOnboarding, isReviewerRole } from '../lib/onboarding'
 import { useReserveBucket, reservesTotalOf } from '../lib/compliance'
+import { useFullReserve } from '../lib/fullReserveMode'
 import { useMockTransfers } from '../lib/mandala/mockBankStore'
 import TabHeader from './issuer/TabHeader'
 import { guardIssueSubmit, guardRedeemSubmit } from '@bsv/mandala/submitGuards'
@@ -35,8 +36,9 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
   // UI-only state (not passed to any core function)
   const [issueRef, setIssueRef] = useState('')
   const [redeemNote, setRedeemNote] = useState('')
-  // Full-reserve enforcement: on by default so issuance can never exceed reserves.
-  const [fullReserve, setFullReserve] = useState(true)
+  // Full-reserve enforcement is a global setting (on by default), controlled
+  // from the Developer panel rather than per issue.
+  const fullReserve = useFullReserve()
 
   // Shared cached admin-asset list; mutations invalidate it on settle.
   const { data } = useAdminAssets()
@@ -240,34 +242,16 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
                 </div>
               </div>
 
-              {/* Full-reserve enforcement - issuance can't exceed available reserves. */}
-              <div className={cn('flex items-start gap-3 rounded-lg border px-3 py-2.5', exceedsReserve ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-muted/40')}>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={fullReserve}
-                  aria-label="Full-reserve enforcement"
-                  onClick={() => setFullReserve(v => !v)}
-                  className={cn('relative mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60', fullReserve ? 'bg-primary' : 'bg-muted-foreground/40')}
-                >
-                  <span className={cn('inline-block size-4 transform rounded-full bg-white shadow transition-transform', fullReserve ? 'translate-x-[18px]' : 'translate-x-[2px]')} />
-                </button>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-foreground">
-                    <ShieldCheck className="size-3.5 text-success" /> Full-reserve enforcement
-                  </div>
-                  <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">
-                    {fullReserve
-                      ? <>Issuance is capped at the available reserve balance (<span className="tabular font-medium text-foreground">{availableReserve.toLocaleString('en-US')}</span>), keeping every unit fully backed.</>
-                      : 'Allow issuance beyond current reserves. Only disable to pre-issue against incoming settlement.'}
-                  </p>
-                  {exceedsReserve && (
-                    <p className="mt-1 text-[11.5px] font-medium text-destructive">
-                      Issuance exceeds available reserves. Add reserves or reduce the amount.
-                    </p>
-                  )}
+              {/* Full-reserve enforcement (global setting): issuance can't exceed
+                  the available reserve balance. */}
+              {fullReserve && (
+                <div className={cn('flex items-start gap-2 rounded-lg border px-3 py-2.5 text-[11.5px] leading-snug', exceedsReserve ? 'border-destructive/40 bg-destructive/5 text-destructive' : 'border-border bg-muted/40 text-muted-foreground')}>
+                  <ShieldCheck className={cn('mt-0.5 size-3.5 shrink-0', exceedsReserve ? 'text-destructive' : 'text-success')} />
+                  {exceedsReserve
+                    ? <span className="font-medium">Issuance exceeds available reserves ({availableReserve.toLocaleString('en-US')}). Add reserves or reduce the amount.</span>
+                    : <span>Full-reserve enforcement is on. Issuance is capped at the available reserve balance (<span className="tabular font-medium text-foreground">{availableReserve.toLocaleString('en-US')}</span>).</span>}
                 </div>
-              </div>
+              )}
 
               <Button
                 onClick={handleIssue}

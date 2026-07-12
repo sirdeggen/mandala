@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import {
   ShieldCheck, ClipboardCheck, HandCoins, ShieldAlert, GitPullRequestArrow,
-  Check, X, ArrowRight, ArrowUpRight, Plus, Flag, Signature, TriangleAlert,
+  Check, X, ArrowRight, ArrowUpRight, Plus, Flag, Signature, TriangleAlert, ChevronDown,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
@@ -24,6 +24,8 @@ import { InstrumentIcon } from '@/components/ui/instrument-icon'
 import { assetImage } from '@/lib/instrumentCategory'
 import { GlobalSanctionLists } from './SanctionLists'
 import { TransactionMonitoring } from './TransactionMonitoring'
+import { useAlerts } from '../../lib/monitoring'
+import { useGlobalLists, useListUpdates } from '../../lib/sanctionsPolicy'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { cn } from '@/lib/utils'
@@ -53,6 +55,16 @@ export default function ComplianceOverview({ onOpenInstrument }: {
   const pendingProposals = snap.proposals.filter(p => p.status === 'pending')
   const controlActions = useControlActions()
   const pendingActions = controlActions.filter(a => a.status === 'pending')
+
+  // Collapsed-section summaries.
+  const alerts = useAlerts()
+  const openAlerts = alerts.filter(a => a.status === 'open' || a.status === 'investigating' || a.status === 'escalated').length
+  const activeLists = useGlobalLists().length
+  const pendingListUpdates = useListUpdates().filter(u => u.status === 'pending').length
+  const monitoringSummary = openAlerts > 0 ? `${openAlerts} open alert${openAlerts === 1 ? '' : 's'}` : 'No open alerts'
+  const sanctionsSummary = `${activeLists} lists active${pendingListUpdates > 0 ? ` · ${pendingListUpdates} update${pendingListUpdates === 1 ? '' : 's'} pending` : ''}`
+  const instrumentsSummary = `${rows.length} instrument${rows.length === 1 ? '' : 's'} · ${backedCount} fully backed`
+  const governanceSummary = `${pendingProposals.length} pending approval${pendingProposals.length === 1 ? '' : 's'} · dual control ${governance.dualControl ? 'on' : 'off'}`
 
   return (
     <div className="w-full max-w-4xl">
@@ -92,13 +104,13 @@ export default function ComplianceOverview({ onOpenInstrument }: {
       </div>
 
       {/* Transaction monitoring - alert feed + case workflow. */}
-      <Section title="Transaction monitoring">
+      <Section title="Transaction monitoring" summary={monitoringSummary} defaultOpen>
         <TransactionMonitoring />
       </Section>
 
       {/* Control actions - sensitive admin operations, with auditor sign-off. */}
       {controlActions.length > 0 && (
-        <Section title="Control actions">
+        <Section title="Control actions" summary={`${pendingActions.length} awaiting sign-off`} defaultOpen>
           <div className="space-y-2">
             {controlActions.slice(0, 12).map(a => (
               <ControlActionRow key={a.id} action={a} assetLabel={labelOf(assets, a.assetId)} isAuditor={isAuditor} auditorName={name.trim() || 'Auditor'} />
@@ -109,7 +121,7 @@ export default function ComplianceOverview({ onOpenInstrument }: {
 
       {/* Auditor: attestations to sign */}
       {isAuditor && (
-        <Section title="Attestations awaiting signature">
+        <Section title="Attestations awaiting signature" summary={`${pendingAtt.length} awaiting your signature`} defaultOpen>
           {pendingAtt.length === 0 ? (
             <Empty>No attestations are awaiting your signature.</Empty>
           ) : (
@@ -123,12 +135,12 @@ export default function ComplianceOverview({ onOpenInstrument }: {
       )}
 
       {/* Sanction lists - org-wide policy + incoming provider updates */}
-      <Section title="Sanction lists">
+      <Section title="Sanction lists" summary={sanctionsSummary}>
         <GlobalSanctionLists />
       </Section>
 
       {/* Per-instrument compliance */}
-      <Section title="By instrument">
+      <Section title="By instrument" summary={instrumentsSummary}>
         {rows.length === 0 ? (
           <Empty>No instruments yet.</Empty>
         ) : (
@@ -162,7 +174,7 @@ export default function ComplianceOverview({ onOpenInstrument }: {
       </Section>
 
       {/* Governance / approvals */}
-      <Section title="Governance & approvals">
+      <Section title="Governance & approvals" summary={governanceSummary}>
         <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -267,11 +279,18 @@ function Tile({ Icon, label, value, tone }: { Icon: LucideIcon; label: string; v
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, summary, defaultOpen = false, children }: { title: string; summary?: React.ReactNode; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="mt-8">
-      <h2 className="mb-3 text-[15px] font-semibold text-foreground">{title}</h2>
-      {children}
+      <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} className="mb-3 flex w-full items-center justify-between gap-3 text-left">
+        <span className="min-w-0">
+          <span className="block text-[15px] font-semibold text-foreground">{title}</span>
+          {!open && summary != null && <span className="mt-0.5 block truncate text-[12.5px] text-muted-foreground">{summary}</span>}
+        </span>
+        <ChevronDown className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && children}
     </div>
   )
 }

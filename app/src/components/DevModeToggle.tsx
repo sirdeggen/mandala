@@ -1,6 +1,7 @@
 import { Wrench, RotateCcw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useDevMode, toggleDevMode } from '../lib/devMode'
+import { useFullReserve, toggleFullReserve } from '../lib/fullReserveMode'
 import { useOnboarding, updateProfile, resetOnboarding, type OnboardingRole } from '../lib/onboarding'
 import { cn } from '@/lib/utils'
 
@@ -13,6 +14,7 @@ import { cn } from '@/lib/utils'
  */
 export default function DevModeToggle() {
   const dev = useDevMode()
+  const fullReserve = useFullReserve()
   const { role } = useOnboarding()
   const navigate = useNavigate()
 
@@ -60,6 +62,29 @@ export default function DevModeToggle() {
               className={cn(
                 'inline-block size-4 transform rounded-full bg-white shadow transition-transform',
                 isAuditor ? 'translate-x-[18px]' : 'translate-x-[2px]'
+              )}
+            />
+          </button>
+        </div>
+
+        {/* Full-reserve enforcement (global; on by default) */}
+        <div className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5">
+          <span className="text-[13px] font-medium text-foreground">Full-reserve enforcement</span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={fullReserve}
+            aria-label="Toggle full-reserve enforcement"
+            onClick={() => toggleFullReserve()}
+            className={cn(
+              'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+              fullReserve ? 'bg-primary' : 'bg-muted-foreground/40'
+            )}
+          >
+            <span
+              className={cn(
+                'inline-block size-4 transform rounded-full bg-white shadow transition-transform',
+                fullReserve ? 'translate-x-[18px]' : 'translate-x-[2px]'
               )}
             />
           </button>
