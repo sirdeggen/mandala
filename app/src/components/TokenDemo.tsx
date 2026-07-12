@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate, useSearchParams, useLocation } fr
 import { useWallet } from '../context/WalletContext'
 import { Spinner } from './ui/spinner'
 import IssuerDashboard from './issuer/IssuerDashboard'
+import ReviewerDashboard from './reviewer/ReviewerDashboard'
 import TokenWallet from './TokenWallet'
 import SendTokens from './SendTokens'
 import ReceiveTokens from './ReceiveTokens'
@@ -11,7 +12,7 @@ import type { HolderAction } from './holder/HolderHome'
 import OnboardingWizard from './onboarding/OnboardingWizard'
 import { HelpHome, HelpCollectionView, HelpArticleView } from './help/HelpCenter'
 import { TransparencyOverview, TransparencyInstrument } from './TransparencyPage'
-import { useOnboarding } from '../lib/onboarding'
+import { useOnboarding, isReviewerRole } from '../lib/onboarding'
 
 // ─── Routing model ──────────────────────────────────────────────────────────
 // The full app state lives in the URL so a browser reload restores it:
@@ -166,6 +167,18 @@ export default function TokenDemo() {
   // ── First run: one-time onboarding (localStorage-gated) ──
   if (!onboarding.completed) {
     return <OnboardingWizard />
+  }
+
+  // ── Reviewer (auditor / individual): dedicated console driven by public
+  //    overlay data + a personal watchlist, so it works with any identity key
+  //    (they sign in with a different key than the issuer). ──
+  if (isReviewerRole(onboarding.role)) {
+    return (
+      <Routes>
+        <Route path="/reviewer/:section" element={<ReviewerDashboard />} />
+        <Route path="*" element={<Navigate to="/reviewer/discover" replace />} />
+      </Routes>
+    )
   }
 
   // ── Issuer: full-viewport console, section in the path ──

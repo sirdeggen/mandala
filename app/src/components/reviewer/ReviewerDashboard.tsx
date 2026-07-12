@@ -1,0 +1,329 @@
+/**
+ * Reviewer console for auditors and individuals. Unlike the issuer console
+ * (driven by the connected wallet's own admin assets), this is built for a
+ * *different* identity: it discovers instruments across all issuers from the
+ * overlay's public feed, lets the reviewer watch the ones they care about, and
+ * opens each in a read-only view fed entirely by public data. Signing an
+ * attestation still uses the reviewer's own wallet.
+ */
+import { useEffect } from 'react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { Compass, Eye, ShieldCheck, BookOpen, Plus, Check, ExternalLink } from 'lucide-react'
+import type { AdminAsset } from '@bsv/mandala/assets'
+import { useWallet } from '../../context/WalletContext'
+import { useOnboarding } from '../../lib/onboarding'
+import { useUserAvatar } from '../../lib/userAvatar'
+import { useWatchlist, toggleWatch } from '../../lib/watchlist'
+import { useDiscoverInstruments, type DiscoveredEntity } from '../../hooks/useDiscoverInstruments'
+import { useAssetMetadata } from '../../hooks/usePublicInstrument'
+import { useAdminSummary } from '../../hooks/useAdminHistory'
+import {
+  SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
+  SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuItem, SidebarMenuButton,
+  SidebarInset, SidebarTrigger, SidebarRail,
+} from '@/components/ui/sidebar'
+import { UserAvatar } from '@/components/ui/user-avatar'
+import { CompanyAvatar } from '@/components/ui/company-avatar'
+import { Spinner } from '../ui/spinner'
+import ReserveAttestations from '../issuer/ReserveAttestations'
+import OverlayActivity from '../issuer/OverlayActivity'
+import RegulatoryControls from '../issuer/RegulatoryControls'
+import InstrumentExports from '../issuer/InstrumentExports'
+import AccountSettings from '../settings/AccountSettings'
+import { InstrumentTransparencyView } from '../transparency/InstrumentTransparencyView'
+import { cn } from '@/lib/utils'
+
+type Section = 'discover' | 'instrument' | 'settings'
+const VALID: Section[] = ['discover', 'instrument', 'settings']
+
+const compact = (n: number) => Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n)
+const shortKey = (k: string) => (k.length > 14 ? `${k.slice(0, 8)}…${k.slice(-4)}` : k)
+
+/** Minimal AdminAsset synthesised from public metadata for read-only reuse. */
+function publicAsset(assetId: string, meta: { label?: string; ticker?: unknown; decimals?: unknown } | null): AdminAsset {
+  return {
+    assetId,
+    label: meta?.label ?? 'Instrument',
+    metadata: { ticker: meta?.ticker, decimals: meta?.decimals },
+  } as unknown as AdminAsset
+}
+
+export default function ReviewerDashboard() {
+  const params = useParams()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const { identityKey } = useWallet()
+  const { name, role } = useOnboarding()
+  const avatar = useUserAvatar()
+  const watchlist = useWatchlist()
+
+  const section: Section = VALID.includes(params.section as Section) ? (params.section as Section) : 'discover'
+  const assetId = searchParams.get('asset') ?? ''
+
+  // Redirect bare/unknown sections to discover.
+  useEffect(() => {
+    if (params.section != null && !VALID.includes(params.section as Section)) {
+      navigate('/reviewer/discover', { replace: true })
+    }
+  }, [params.section, navigate])
+
+  const go = (s: Section) => navigate(`/reviewer/${s}`)
+  const openInstrument = (id: string) => navigate(`/reviewer/instrument?asset=${encodeURIComponent(id)}`)
+
+  const roleLabel = role === 'individual' ? 'VIEWER' : 'AUDITOR'
+  const displayName = name.trim() !== '' ? name.trim() : (identityKey != null ? `${identityKey.slice(0, 10)}…` : 'Reviewer')
+
+  return (
+    <SidebarProvider className="h-screen overflow-hidden bg-sidebar">
+      <Sidebar collapsible="icon">
+        <SidebarHeader>
+          <div className="flex items-center gap-2 px-1 py-1.5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+            <img src="/icon-192.png" alt="" aria-hidden className="size-8 shrink-0 rounded-md object-contain group-data-[collapsible=icon]:hidden" />
+            <div className="grid flex-1 group-data-[collapsible=icon]:hidden">
+              <span className="font-handwritten text-[22px] font-bold leading-none tracking-[-0.2px]">Underwrite</span>
+              <span className="mt-[3px] text-[9px] font-medium leading-none tracking-[1px] text-sidebar-foreground/60">{roleLabel}</span>
+            </div>
+            <SidebarTrigger className="size-8 shrink-0 text-muted-foreground hover:text-foreground" />
+          </div>
+        </SidebarHeader>
+
+        <SidebarContent className="overflow-hidden">
+          <SidebarGroup className="pb-1">
+            <SidebarMenu>
+              <SidebarMenuItem data-tour-id="nav-discover">
+                <SidebarMenuButton isActive={section === 'discover'} tooltip="Discover" onClick={() => go('discover')}>
+                  <Compass strokeWidth={1.9} />
+                  <span>Discover</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
+
+          <SidebarGroup className="min-h-0 flex-1 overflow-y-auto">
+            <SidebarGroupLabel>Watching</SidebarGroupLabel>
+            <SidebarMenu data-tour-id="watchlist">
+              {watchlist.length === 0 ? (
+                <p className="px-2 py-1.5 text-[12px] leading-snug text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
+                  Nothing watched yet. Find instruments under Discover.
+                </p>
+              ) : watchlist.map(id => (
+                <WatchedNavItem
+                  key={id}
+                  assetId={id}
+                  active={section === 'instrument' && assetId === id}
+                  onOpen={() => openInstrument(id)}
+                />
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        </SidebarContent>
+
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Transparency" onClick={() => window.open('/transparency', '_blank')}>
+                <ShieldCheck strokeWidth={1.9} />
+                <span>Transparency</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Guides" onClick={() => navigate('/help/getting-started')}>
+                <BookOpen strokeWidth={1.9} />
+                <span>Guides</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Account" onClick={() => go('settings')} isActive={section === 'settings'}>
+                <UserAvatar seed={identityKey ?? 'reviewer'} src={avatar} size={22} />
+                <span className="truncate">{displayName}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
+
+      <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
+        <div className="sticky top-0 z-20 flex h-12 shrink-0 items-center border-b border-border bg-card px-3 md:hidden">
+          <SidebarTrigger />
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="p-5 lg:p-8">
+            {section === 'discover' && <DiscoverPanel onOpen={openInstrument} />}
+            {section === 'instrument' && <ReviewerInstrument assetId={assetId} onOpen={openInstrument} />}
+            {section === 'settings' && <div className="mx-auto w-full max-w-2xl"><AccountSettings /></div>}
+          </div>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
+  )
+}
+
+// ── Sidebar watched item ────────────────────────────────────────────────────
+
+function WatchedNavItem({ assetId, active, onOpen }: { assetId: string; active: boolean; onOpen: () => void }) {
+  const meta = useAssetMetadata(assetId)
+  const label = meta.data?.label ?? 'Instrument'
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton isActive={active} tooltip={label} onClick={onOpen}>
+        <CompanyAvatar name={label} size={20} className="rounded" />
+        <span className="truncate">{label}</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  )
+}
+
+// ── Discover ────────────────────────────────────────────────────────────────
+
+function DiscoverPanel({ onOpen }: { onOpen: (id: string) => void }) {
+  const { data, isLoading, isError } = useDiscoverInstruments()
+
+  return (
+    <div className="mx-auto w-full max-w-3xl">
+      <h1 className="font-heading text-[28px] font-medium tracking-[-0.02em] text-foreground">Discover instruments</h1>
+      <p className="mt-1.5 text-[15px] leading-relaxed text-muted-foreground">
+        Every instrument live on the overlay, grouped by its issuing entity. Watch the ones you audit or
+        follow, and they appear in your sidebar.
+      </p>
+
+      {isLoading ? (
+        <div className="mt-10 flex items-center gap-2 text-[13px] text-muted-foreground"><Spinner size="sm" tone="brand" /> Loading instruments…</div>
+      ) : isError || data == null ? (
+        <p className="mt-10 rounded-xl border border-dashed border-border px-4 py-12 text-center text-[13.5px] text-muted-foreground">Couldn’t reach the overlay feed.</p>
+      ) : data.entities.length === 0 ? (
+        <p className="mt-10 rounded-xl border border-dashed border-border px-4 py-12 text-center text-[13.5px] text-muted-foreground">No instruments found on the overlay yet.</p>
+      ) : (
+        <div className="mt-8 space-y-8">
+          {data.entities.map(entity => <EntityGroup key={entity.issuerKey} entity={entity} onOpen={onOpen} />)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EntityGroup({ entity, onOpen }: { entity: DiscoveredEntity; onOpen: (id: string) => void }) {
+  const entityName = entity.issuerKey === 'unknown' || entity.issuerKey === '' ? 'Unknown issuer' : `Issuer ${shortKey(entity.issuerKey)}`
+  return (
+    <div>
+      <div className="mb-2 flex items-center gap-2">
+        <CompanyAvatar name={entity.issuerKey || 'unknown'} size={24} className="rounded-md" />
+        <span className="text-[13px] font-semibold text-foreground">{entityName}</span>
+        <span className="text-[12px] text-muted-foreground">· {entity.instruments.length} instrument{entity.instruments.length === 1 ? '' : 's'}</span>
+      </div>
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        {entity.instruments.map((inst, i) => (
+          <DiscoverRow key={inst.assetId} assetId={inst.assetId} first={i === 0} onOpen={() => onOpen(inst.assetId)} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function DiscoverRow({ assetId, first, onOpen }: { assetId: string; first: boolean; onOpen: () => void }) {
+  const meta = useAssetMetadata(assetId)
+  const summary = useAdminSummary(assetId).data
+  const watchlist = useWatchlist()
+  const watched = watchlist.includes(assetId)
+
+  const label = meta.data?.label ?? 'Instrument'
+  const ticker = String(meta.data?.ticker ?? '').toUpperCase()
+  const decimals = Number(meta.data?.decimals ?? 0) || 0
+  const circulation = summary != null ? (summary.totalIssued - summary.totalRedeemed) / 10 ** decimals : 0
+
+  return (
+    <div className={cn('flex items-center gap-3 px-4 py-3', !first && 'border-t border-separator')}>
+      <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <CompanyAvatar name={label} size={36} className="rounded-lg" />
+        <div className="min-w-0">
+          <div className="truncate text-[14px] font-medium text-foreground">{label}</div>
+          <div className="text-[12px] text-muted-foreground">{compact(circulation)} {ticker} in circulation</div>
+        </div>
+      </button>
+      <button
+        type="button"
+        onClick={() => toggleWatch(assetId)}
+        aria-pressed={watched}
+        className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors',
+          watched ? 'border-border bg-card text-foreground hover:bg-muted' : 'border-primary bg-primary text-primary-foreground hover:bg-primary/90')}
+      >
+        {watched ? <><Check className="size-3.5" strokeWidth={3} /> Watching</> : <><Plus className="size-3.5" strokeWidth={2.4} /> Watch</>}
+      </button>
+    </div>
+  )
+}
+
+// ── Read-only instrument view ────────────────────────────────────────────────
+
+type ITab = 'overview' | 'attestations' | 'activity' | 'restrictions' | 'reports'
+const ITABS: { id: ITab; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'attestations', label: 'Attestations' },
+  { id: 'activity', label: 'Activity' },
+  { id: 'restrictions', label: 'Restrictions' },
+  { id: 'reports', label: 'Reports' },
+]
+
+function ReviewerInstrument({ assetId }: { assetId: string; onOpen: (id: string) => void }) {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const meta = useAssetMetadata(assetId)
+  const watchlist = useWatchlist()
+  const watched = watchlist.includes(assetId)
+
+  const paramTab = searchParams.get('tab')
+  const tab: ITab = ITABS.some(t => t.id === paramTab) ? (paramTab as ITab) : 'overview'
+  const setTab = (id: ITab) => setSearchParams(prev => { const n = new URLSearchParams(prev); n.set('tab', id); return n }, { replace: true })
+
+  if (assetId === '') {
+    return <p className="mx-auto max-w-3xl rounded-xl border border-dashed border-border px-4 py-12 text-center text-[13.5px] text-muted-foreground">Select an instrument from Discover or your watchlist.</p>
+  }
+
+  const label = meta.data?.label ?? 'Instrument'
+  const ticker = String(meta.data?.ticker ?? '').toUpperCase()
+  const decimals = Number(meta.data?.decimals ?? 0) || 0
+  const asset = publicAsset(assetId, meta.data ?? null)
+
+  return (
+    <div className="mx-auto w-full max-w-3xl">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <CompanyAvatar name={label} size={44} className="rounded-xl" />
+          <div>
+            <h1 className="text-[22px] font-semibold tracking-[-0.01em] text-foreground">{label}</h1>
+            {ticker !== '' && <div className="text-[13px] font-medium text-muted-foreground">{ticker}</div>}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <a href={`/transparency/${encodeURIComponent(assetId)}`} target="_blank" rel="noreferrer"
+             className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-muted">
+            <ExternalLink className="size-3.5" /> Public page
+          </a>
+          <button type="button" onClick={() => toggleWatch(assetId)} aria-pressed={watched}
+            className={cn('inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[12.5px] font-medium transition-colors',
+              watched ? 'border-border text-foreground hover:bg-muted' : 'border-primary bg-primary text-primary-foreground hover:bg-primary/90')}>
+            {watched ? <><Eye className="size-3.5" /> Watching</> : <><Plus className="size-3.5" strokeWidth={2.4} /> Watch</>}
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div data-tour-id="instrument-tabs" className="mb-6 mt-6 flex gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {ITABS.map(({ id, label: l }) => (
+          <button key={id} type="button" onClick={() => setTab(id)}
+            className={cn('relative whitespace-nowrap pb-3 pt-1 text-[14px] font-medium transition-colors',
+              'after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:rounded-full after:bg-foreground after:transition-opacity',
+              tab === id ? 'text-foreground after:opacity-100' : 'text-muted-foreground hover:text-foreground after:opacity-0')}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'overview' && <InstrumentTransparencyView assetId={assetId} asset={asset} />}
+      {tab === 'attestations' && <ReserveAttestations assetId={assetId} asset={asset} />}
+      {tab === 'activity' && <div className="rounded-xl border border-border bg-card p-4"><OverlayActivity assetId={assetId} decimals={decimals} standalone /></div>}
+      {tab === 'restrictions' && <RegulatoryControls assets={[asset]} assetId={assetId} embedded />}
+      {tab === 'reports' && <InstrumentExports assetId={assetId} asset={asset} />}
+    </div>
+  )
+}

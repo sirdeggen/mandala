@@ -202,7 +202,7 @@ function TourPanel() {
   const navigate = useNavigate()
   const restart = () => {
     resetTour()
-    navigate('/issuer/home')
+    navigate('/')
     toast.success('Product tour restarted')
   }
   return (
