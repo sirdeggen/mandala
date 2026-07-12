@@ -101,7 +101,7 @@ export function DownloadSignoffButton({ record, onDownload }: {
           <div className="min-w-0">
             <div className="text-[13px] font-semibold text-foreground">Sign off to download</div>
             <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">
-              Taking compliance records out is a controlled action. Sign with your wallet to authorise this download; the authorisation is timestamped on-chain for the audit trail.
+              Taking compliance records out is a controlled action. Sign with your wallet to authorise this download.
             </p>
           </div>
         </div>

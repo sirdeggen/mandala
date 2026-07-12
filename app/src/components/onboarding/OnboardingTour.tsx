@@ -10,7 +10,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { ChevronDown, ChevronUp, ChevronRight, Check, X, CircleDot } from 'lucide-react'
+import { ChevronDown, ChevronUp, ChevronRight, Check, X, CircleDot, PlayCircle } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { useOnboarding } from '../../lib/onboarding'
 import { useAdminAssets } from '../../hooks/useAdminAssets'
@@ -153,7 +153,18 @@ export default function OnboardingTour() {
           {/* Body */}
           {open && (
             <div className="flex min-h-0 flex-1 flex-col border-t border-border">
-              <p className="shrink-0 px-4 pt-3 text-[12px] leading-snug text-muted-foreground text-balance">{path.intro}</p>
+              {/* Placeholder walkthrough video (ambient), like the issue-instrument panel */}
+              <div className="shrink-0 p-2 pb-0">
+                <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-muted">
+                  <video className="absolute inset-0 h-full w-full object-cover" src="/video/intro.mov" autoPlay loop muted playsInline aria-hidden />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+                  <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 p-3">
+                    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-white/90 text-neutral-900"><PlayCircle className="size-3.5" strokeWidth={2} /></span>
+                    <span className="text-[12px] font-semibold text-white drop-shadow">{path.title}</span>
+                  </div>
+                </div>
+              </div>
+              <p className="shrink-0 px-4 pt-3 text-[13.5px] leading-snug text-muted-foreground text-balance">{path.intro}</p>
               <div className="min-h-0 flex-1 overflow-y-auto p-2">
                 {steps.map((step, i) => {
                   const isExpanded = expandedId === step.id

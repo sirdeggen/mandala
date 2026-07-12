@@ -11,9 +11,17 @@ import { useAssetMetadata } from '../../hooks/usePublicInstrument'
 import { usePublicReserve } from '../../lib/publicReserve'
 import { useComplianceSnapshot } from '../../lib/compliance'
 import { CompanyAvatar } from '@/components/ui/company-avatar'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 const compact = (n: number) => Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n)
+
+/** Last day of the current month, as a monthly attestation cadence stand-in. */
+function nextAttestationDue(): string {
+  const now = new Date()
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  return end.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 
 export function InstrumentTransparencyView({ assetId, asset }: { assetId: string; asset?: AdminAsset | null }) {
   const summary = useAdminSummary(assetId).data
@@ -35,7 +43,14 @@ export function InstrumentTransparencyView({ assetId, asset }: { assetId: string
     .filter(x => x.assetId === assetId)
     .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))[0]
 
+  const backingHint = backing == null
+    ? 'No tokens are in circulation yet, so there is nothing to back.'
+    : fullyBacked
+      ? 'Reserves on record cover 100% or more of every token in circulation, redeemable one-for-one.'
+      : 'Reserves on record are currently less than the tokens in circulation.'
+
   return (
+    <TooltipProvider delayDuration={120}>
     <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -45,10 +60,15 @@ export function InstrumentTransparencyView({ assetId, asset }: { assetId: string
             {ticker !== '' && <div className="text-[12.5px] font-medium text-subtle-foreground">{ticker}</div>}
           </div>
         </div>
-        <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold',
-          backing == null ? 'bg-muted text-muted-foreground' : fullyBacked ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning')}>
-          {backing == null ? 'Not yet issued' : fullyBacked ? <><ShieldCheck className="size-3.5" /> Fully backed</> : <><TriangleAlert className="size-3.5" /> Under-reserved</>}
-        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span tabIndex={0} className={cn('inline-flex cursor-help items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+              backing == null ? 'bg-muted text-muted-foreground' : fullyBacked ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning')}>
+              {backing == null ? 'Not yet issued' : fullyBacked ? <><ShieldCheck className="size-3.5" /> Fully backed</> : <><TriangleAlert className="size-3.5" /> Under-reserved</>}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-64 text-center">{backingHint}</TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Figures */}
@@ -92,7 +112,7 @@ export function InstrumentTransparencyView({ assetId, asset }: { assetId: string
             Attested {att.period} by <span className="font-medium text-foreground">{att.auditorName ?? 'auditor'}</span>
           </span>
         ) : (
-          <span className="text-muted-foreground">Attestation pending</span>
+          <span className="text-muted-foreground">Attestation pending · next due {nextAttestationDue()}</span>
         )}
         {att?.anchorTxid != null && (
           <a href={`https://whatsonchain.com/tx/${att.anchorTxid}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
@@ -103,10 +123,11 @@ export function InstrumentTransparencyView({ assetId, asset }: { assetId: string
       </div>
 
       <p className="mt-4 text-[11.5px] leading-relaxed text-subtle-foreground">
-        Circulation is read live from the public overlay. Reserve figures are
-        {reserve.source === 'issuer' ? ' as recorded by the issuer' : ' illustrative until connected to a production reserve feed'}.
+        Tokens in circulation are counted directly from the public blockchain, in real time. Reserves shown are
+        {reserve.source === 'issuer' ? ' the balances reported by the issuer' : ' an illustrative full-reserve position'}, held to redeem every token one-for-one.
       </p>
     </div>
+    </TooltipProvider>
   )
 }
 

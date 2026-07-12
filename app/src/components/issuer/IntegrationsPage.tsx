@@ -423,7 +423,7 @@ function EmptyState({ onConnect, onBrowseAll }: { onConnect: (p: Provider) => vo
                 </div>
               </div>
               <p className="mt-2 line-clamp-2 flex-1 text-[11.5px] leading-snug text-muted-foreground">{p.blurb}</p>
-              <Button variant="outline" onClick={() => onConnect(p)} className="mt-3 h-8 w-full gap-1.5 text-[12.5px]">
+              <Button variant="outline" onClick={() => onConnect(p)} className="mt-3 h-8 w-full gap-1.5 text-[12.5px] transition-all duration-200 hover:-translate-y-0.5 hover:bg-card hover:shadow-[0_10px_24px_-12px_rgba(16,24,40,0.25)]">
                 <Plus className="size-3.5" /> Connect
               </Button>
             </div>

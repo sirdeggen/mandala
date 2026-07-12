@@ -9,6 +9,7 @@ import { useActiveIntegration } from '../../lib/integrations'
 import { useUserAvatar, setUserAvatar } from '../../lib/userAvatar'
 import {
   SYSTEM_ROLE_LABEL, PERMISSION_LABEL, PERMISSION_DESCRIPTION, ROLE_DEFAULT_PERMISSIONS, ALL_PERMISSIONS,
+  type SystemRole,
 } from '../../lib/entities'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { IdentitySigil } from '@/components/ui/identity-sigil'
@@ -84,7 +85,8 @@ function ProfilePanel() {
   // The user's access within their organisation, derived from their role and
   // assigned by a company admin (read-only here).
   const isAdmin = !isReviewerRole(role)
-  const systemRole = isAdmin ? 'admin' : 'auditor'
+  const isIndividual = role === 'individual'
+  const systemRole: SystemRole = isAdmin ? 'admin' : isIndividual ? 'viewer' : 'auditor'
   const permissions = ROLE_DEFAULT_PERMISSIONS[systemRole]
   const licensing = useActiveIntegration('licensing')
 
@@ -118,25 +120,31 @@ function ProfilePanel() {
         <div className="flex items-center gap-4">
           <div className="group relative size-14 shrink-0">
             <UserAvatar seed={seed} src={avatar} size={56} />
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              aria-label="Upload a profile photo"
-              className="absolute inset-0 grid place-items-center rounded-full bg-black/0 text-transparent transition-colors group-hover:bg-black/40 group-hover:text-white focus-visible:bg-black/40 focus-visible:text-white focus-visible:outline-none"
-            >
-              <Camera className="size-5" />
-            </button>
-            <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 grid size-5 place-items-center rounded-full border-2 border-card bg-primary text-primary-foreground">
-              <Plus className="size-3" strokeWidth={3} />
-            </span>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickPhoto} />
+            {!isIndividual && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  aria-label="Upload a profile photo"
+                  className="absolute inset-0 grid place-items-center rounded-full bg-black/0 text-transparent transition-colors group-hover:bg-black/40 group-hover:text-white focus-visible:bg-black/40 focus-visible:text-white focus-visible:outline-none"
+                >
+                  <Camera className="size-5" />
+                </button>
+                <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 grid size-5 place-items-center rounded-full border-2 border-card bg-primary text-primary-foreground">
+                  <Plus className="size-3" strokeWidth={3} />
+                </span>
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={pickPhoto} />
+              </>
+            )}
           </div>
           <div className="min-w-0">
             <p className="truncate text-[15px] font-medium text-foreground">{nameDraft.trim() || 'Your account'}</p>
             <p className="text-[13px] text-muted-foreground">
-              {avatar != null
-                ? <>Custom photo · <button type="button" onClick={() => { setUserAvatar(null); toast.success('Photo removed') }} className="font-medium text-primary hover:underline">Remove</button></>
-                : 'Click your avatar to upload a photo.'}
+              {isIndividual
+                ? 'Your identicon is derived from your identity key.'
+                : avatar != null
+                  ? <>Custom photo · <button type="button" onClick={() => { setUserAvatar(null); toast.success('Photo removed') }} className="font-medium text-primary hover:underline">Remove</button></>
+                  : 'Click your avatar to upload a photo.'}
             </p>
           </div>
         </div>
@@ -146,15 +154,19 @@ function ProfilePanel() {
           <Input id="set-name" placeholder="Your name" autoComplete="off" value={nameDraft} onChange={e => setNameDraft(e.target.value)} />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="set-title">Job title</Label>
-          <Input id="set-title" placeholder="e.g. Head of Issuance" autoComplete="off" value={titleDraft} onChange={e => setTitleDraft(e.target.value)} />
-        </div>
+        {!isIndividual && (
+          <div className="space-y-2">
+            <Label htmlFor="set-title">Job title</Label>
+            <Input id="set-title" placeholder="e.g. Head of Issuance" autoComplete="off" value={titleDraft} onChange={e => setTitleDraft(e.target.value)} />
+          </div>
+        )}
 
-        <div className="space-y-2">
-          <Label htmlFor="set-email">Email <span className="font-normal text-muted-foreground">· private</span></Label>
-          <Input id="set-email" type="email" placeholder="you@company.com" autoComplete="off" value={emailDraft} onChange={e => setEmailDraft(e.target.value)} />
-        </div>
+        {!isIndividual && (
+          <div className="space-y-2">
+            <Label htmlFor="set-email">Email <span className="font-normal text-muted-foreground">· private</span></Label>
+            <Input id="set-email" type="email" placeholder="you@company.com" autoComplete="off" value={emailDraft} onChange={e => setEmailDraft(e.target.value)} />
+          </div>
+        )}
 
         <Button type="submit" disabled={!dirty}>Update</Button>
       </form>
@@ -163,30 +175,39 @@ function ProfilePanel() {
       {/* Access - role, status & permissions within the organisation (read-only) */}
       <Disclosure title="Access" summary={accessSummary}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11.5px] font-medium text-primary">{SYSTEM_ROLE_LABEL[systemRole]}</span>
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11.5px] font-medium text-primary">{isIndividual ? 'Individual' : SYSTEM_ROLE_LABEL[systemRole]}</span>
           <span className="inline-flex items-center gap-1 text-[11.5px] font-medium text-success"><span className="size-1.5 rounded-full bg-current" /> Active</span>
         </div>
-        <div className="space-y-0.5">
-          {ALL_PERMISSIONS.map(perm => {
-            const on = permissions.includes(perm)
-            return (
-              <div key={perm} className="flex items-start gap-2.5 py-1.5">
-                <span className={cn('mt-0.5 grid size-[18px] shrink-0 place-items-center rounded-[5px] border', on ? 'border-primary bg-primary text-primary-foreground' : 'border-input-border bg-input')}>
-                  {on && <Check className="size-3" strokeWidth={3} />}
-                </span>
-                <span className={cn('min-w-0', !on && 'opacity-50')}>
-                  <span className="block text-[13px] font-medium text-foreground">{PERMISSION_LABEL[perm]}</span>
-                  <span className="block text-[11.5px] leading-snug text-muted-foreground">{PERMISSION_DESCRIPTION[perm]}</span>
-                </span>
-              </div>
-            )
-          })}
-        </div>
-        <p className="text-[11.5px] text-faint-foreground">Your role and permissions are assigned by your company administrator.</p>
+        {isIndividual ? (
+          <p className="text-[13px] leading-relaxed text-muted-foreground">
+            You have read-only access to public instrument and reserve data. Individual accounts are not
+            part of an issuing organisation and hold no administrative permissions.
+          </p>
+        ) : (
+          <>
+            <div className="space-y-0.5">
+              {ALL_PERMISSIONS.map(perm => {
+                const on = permissions.includes(perm)
+                return (
+                  <div key={perm} className="flex items-start gap-2.5 py-1.5">
+                    <span className={cn('mt-0.5 grid size-[18px] shrink-0 place-items-center rounded-[5px] border', on ? 'border-primary bg-primary text-primary-foreground' : 'border-input-border bg-input')}>
+                      {on && <Check className="size-3" strokeWidth={3} />}
+                    </span>
+                    <span className={cn('min-w-0', !on && 'opacity-50')}>
+                      <span className="block text-[13px] font-medium text-foreground">{PERMISSION_LABEL[perm]}</span>
+                      <span className="block text-[11.5px] leading-snug text-muted-foreground">{PERMISSION_DESCRIPTION[perm]}</span>
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+            <p className="text-[11.5px] text-faint-foreground">Your role and permissions are assigned by your company administrator.</p>
+          </>
+        )}
       </Disclosure>
 
       <Disclosure title="Badge & authorisation" summary={badgeSummary}>
-        <BadgePanel identityKey={identityKey} />
+        <BadgePanel identityKey={identityKey} isIndividual={isIndividual} />
       </Disclosure>
 
       <Disclosure title="Product tour" summary="Replay the guided walkthrough">
@@ -222,7 +243,7 @@ function shortKey(key: string): string {
   return key.length <= 12 ? key : `${key.slice(0, 5)}…${key.slice(-5)}`
 }
 
-function BadgePanel({ identityKey }: { identityKey: string | null }) {
+function BadgePanel({ identityKey, isIndividual = false }: { identityKey: string | null; isIndividual?: boolean }) {
   const [copied, setCopied] = useState(false)
   const licensing = useActiveIntegration('licensing')
   const navigate = useNavigate()
@@ -269,6 +290,11 @@ function BadgePanel({ identityKey }: { identityKey: string | null }) {
         </p>
       </div>
 
+      {isIndividual ? (
+        <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+          Individual accounts do not issue instruments, so there are no issuance whitelists or licensing connectors to manage.
+        </p>
+      ) : (<>
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
           <Label>Whitelisted for issuing</Label>
@@ -323,6 +349,7 @@ function BadgePanel({ identityKey }: { identityKey: string | null }) {
       </div>
 
       <RequestCategoriesSheet open={requestOpen} authority={licensing?.providerName ?? ''} onClose={() => setRequestOpen(false)} />
+      </>)}
     </div>
   )
 }

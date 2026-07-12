@@ -7,14 +7,20 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Copy, Check, ExternalLink, Eye, Globe } from 'lucide-react'
 import type { AdminAsset } from '@bsv/mandala/assets'
+import { useWallet } from '../../context/WalletContext'
+import { signStatement } from '../../lib/complianceSignature'
+import { anchorOnChain } from '../../lib/onchainAnchor'
 import { useTransparencyPublished, setTransparencyPublished } from '../../lib/transparencySettings'
 import { InstrumentTransparencyView } from '../transparency/InstrumentTransparencyView'
+import { Spinner } from '../ui/spinner'
 import TabHeader from './TabHeader'
 import { cn } from '@/lib/utils'
 
 export default function InstrumentTransparencyTab({ assetId, asset }: { assetId: string; asset: AdminAsset | null }) {
+  const { wallet, identityKey } = useWallet()
   const published = useTransparencyPublished(assetId)
   const [copied, setCopied] = useState(false)
+  const [signing, setSigning] = useState(false)
 
   const relPath = `/transparency/${encodeURIComponent(assetId)}`
   const url = typeof window !== 'undefined' ? `${window.location.origin}${relPath}` : relPath
@@ -27,9 +33,26 @@ export default function InstrumentTransparencyTab({ assetId, asset }: { assetId:
     } catch { toast.error('Could not copy the link.') }
   }
 
-  const toggle = () => {
-    setTransparencyPublished(assetId, !published)
-    toast.success(published ? 'Transparency page unpublished' : 'Transparency page published')
+  // Publishing / unpublishing is a controlled action: the issuer signs with
+  // their wallet and the authorisation is anchored on-chain, like a signed
+  // report download.
+  const toggle = async () => {
+    if (signing) return
+    if (wallet == null || identityKey == null) { toast.error('Connect a wallet to authorise this change.'); return }
+    const next = !published
+    setSigning(true)
+    try {
+      const at = new Date().toISOString()
+      const message = JSON.stringify({ kind: 'transparency-publish', assetId, published: next, signerKey: identityKey, at })
+      const signature = await signStatement(wallet, `transparency:${assetId}:${at}`, message)
+      await anchorOnChain(wallet, `transparency:${assetId}:${at}`, { message, signature, signerKey: identityKey }, `transparency ${next ? 'publish' : 'unpublish'}`)
+      setTransparencyPublished(assetId, next)
+      toast.success(next ? 'Transparency page published and anchored on-chain' : 'Transparency page unpublished and anchored on-chain')
+    } catch {
+      toast.error('Could not authorise the change')
+    } finally {
+      setSigning(false)
+    }
   }
 
   return (
@@ -51,25 +74,31 @@ export default function InstrumentTransparencyTab({ assetId, asset }: { assetId:
                 {published ? 'Published' : 'Not published'}
               </div>
               <p className="mt-0.5 text-[12.5px] leading-snug text-muted-foreground">
-                {published
-                  ? 'The public page is live. Preview it below or share the link.'
-                  : 'Preview the page below, then publish when you are ready to share it.'}
+                {signing
+                  ? 'Awaiting your wallet signature…'
+                  : published
+                    ? 'The public page is live. Preview it below or share the link.'
+                    : 'Publishing is signed with your wallet and anchored on-chain. Preview below, then publish when ready.'}
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={published}
-            aria-label="Toggle public transparency page"
-            onClick={toggle}
-            className={cn(
-              'relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
-              published ? 'bg-primary' : 'bg-muted-foreground/40',
-            )}
-          >
-            <span className={cn('inline-block size-5 transform rounded-full bg-white shadow transition-transform', published ? 'translate-x-[22px]' : 'translate-x-[2px]')} />
-          </button>
+          <div className="mt-0.5 flex shrink-0 items-center gap-2">
+            {signing && <Spinner size="sm" tone="brand" />}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={published}
+              aria-label="Toggle public transparency page"
+              onClick={toggle}
+              disabled={signing}
+              className={cn(
+                'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-60',
+                published ? 'bg-primary' : 'bg-muted-foreground/40',
+              )}
+            >
+              <span className={cn('inline-block size-5 transform rounded-full bg-white shadow transition-transform', published ? 'translate-x-[22px]' : 'translate-x-[2px]')} />
+            </button>
+          </div>
         </div>
 
         {/* Public URL */}

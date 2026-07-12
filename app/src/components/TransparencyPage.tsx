@@ -45,6 +45,12 @@ function Chrome({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-5 py-8 sm:px-8">{children}</main>
+      <footer className="border-t border-border py-6">
+        <a href="/" className="mx-auto flex w-fit items-center gap-2 text-[12.5px] font-medium text-muted-foreground transition-colors hover:text-foreground">
+          <img src="/icon-192.png" alt="" aria-hidden className="size-5 rounded" />
+          Powered by <span className="font-handwritten text-[17px] font-bold leading-none text-foreground">Underwrite</span>
+        </a>
+      </footer>
     </div>
   )
 }
@@ -88,8 +94,8 @@ export function TransparencyOverview() {
       )}
 
       <p className="mt-8 text-[12px] leading-relaxed text-subtle-foreground">
-        Supply figures are read live from the public ledger. This is a demonstration deployment; reserve
-        and attestation data are illustrative until connected to production reserve and audit feeds.
+        Tokens in circulation are counted from the public blockchain in real time. Open an instrument to
+        see its reserve backing and latest attestation.
       </p>
 
       <Link to="/" className="mt-6 inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground">
