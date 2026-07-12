@@ -11,7 +11,7 @@ import { useAdminAssets } from '../../hooks/useAdminAssets'
 import { useAdminSummaries } from '../../hooks/useAdminHistory'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
 import { useWallet } from '../../context/WalletContext'
-import { signAttestation } from '../../lib/attestationSignature'
+import { signAttestation } from '../../lib/complianceSignature'
 import {
   useComplianceSnapshot, reservesTotalOf, useGovernance, setGovernance,
   approveProposal, rejectProposal, proposeGeneric, reviewAttestation,
@@ -248,8 +248,8 @@ function AttestationSignRow({ att, assetLabel, auditorName, onOpen }: {
     if (wallet == null || identityKey == null) { toast.error('Connect a wallet to sign this attestation.'); return }
     setSigning(true)
     try {
-      const sig = await signAttestation(wallet, att, identityKey)
-      reviewAttestation(att.id, { status: 'signed', auditorName, note: note.trim() || undefined, auditorKey: sig.auditorKey, signature: sig.signature })
+      const signature = await signAttestation(wallet, att)
+      reviewAttestation(att.id, { status: 'signed', auditorName, note: note.trim() || undefined, auditorKey: identityKey, signature })
       toast.success('Attestation cryptographically signed')
     } catch {
       toast.error('Could not sign the attestation')

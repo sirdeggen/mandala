@@ -8,9 +8,10 @@ import { useAdminSummary } from '../../hooks/useAdminHistory'
 import {
   useReserveBucket, useAttestations, reservesTotalOf,
   addReserveLine, updateReserveLine, removeReserveLine,
-  createAttestation, reviewAttestation, type Attestation,
+  createAttestation, reviewAttestation, setAttestationAnchor, type Attestation,
 } from '../../lib/compliance'
-import { signAttestation, verifyAttestationSignature } from '../../lib/attestationSignature'
+import { signAttestation, verifyAttestationSignature, attestationMessage } from '../../lib/complianceSignature'
+import { anchorOnChain } from '../../lib/onchainAnchor'
 import { RESERVE_CLASSES, RESERVE_CLASS_BY_KEY } from '@/content/reserveClasses'
 import { IdentitySigil } from '@/components/ui/identity-sigil'
 import TabHeader from './TabHeader'
@@ -48,9 +49,12 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
 
   const fmt = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 })
 
+  const [evidence, setEvidence] = useState('')
+
   function create() {
     if (bucket.composition.length === 0) { toast.error('Add at least one reserve line first.'); return }
-    createAttestation(assetId, currency, circ ?? 0)
+    createAttestation(assetId, currency, circ ?? 0, evidence)
+    setEvidence('')
     toast.success('Attestation submitted for audit')
   }
 
@@ -189,12 +193,19 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
       <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="text-[14px] font-semibold text-foreground">Attestations</div>
-          {!isAuditor && (
+        </div>
+
+        {!isAuditor && (
+          <div className="mb-3 flex flex-wrap items-end gap-2 rounded-lg border border-border bg-muted/40 p-3">
+            <div className="min-w-[200px] flex-1 space-y-1">
+              <label htmlFor="att-evidence" className="text-[11px] font-medium text-muted-foreground">Evidence reference (bank / custody confirmation)</label>
+              <Input id="att-evidence" value={evidence} onChange={e => setEvidence(e.target.value)} placeholder="e.g. Custodian statement 2026-Q3 · confirmation #4471" className="h-9 text-[12.5px]" />
+            </div>
             <Button onClick={create} className="h-9 gap-1.5 px-3 text-[13px]">
               <FileCheck2 className="size-4" /> Create attestation
             </Button>
-          )}
-        </div>
+          </div>
+        )}
 
         {attestations.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-[12.5px] text-muted-foreground">
@@ -229,25 +240,43 @@ function AttestationRow({ att, isAuditor, auditorName, fmt }: {
   const { wallet, identityKey } = useWallet()
   const [note, setNote] = useState('')
   const [signing, setSigning] = useState(false)
+  const [anchoring, setAnchoring] = useState(false)
   const backing = att.circulation > 0 ? (att.reservesTotal / att.circulation) * 100 : (att.reservesTotal > 0 ? 100 : null)
   const status = STATUS_STYLE[att.status]
 
-  async function review(kind: 'signed' | 'flagged') {
-    if (kind === 'flagged') {
-      reviewAttestation(att.id, { status: 'flagged', auditorName, note: note.trim() || undefined })
-      toast.success('Attestation flagged')
-      return
-    }
+  async function sign(exceptions: boolean) {
     if (wallet == null || identityKey == null) { toast.error('Connect a wallet to sign this attestation.'); return }
     setSigning(true)
     try {
-      const sig = await signAttestation(wallet, att, identityKey)
-      reviewAttestation(att.id, { status: 'signed', auditorName, note: note.trim() || undefined, auditorKey: sig.auditorKey, signature: sig.signature })
-      toast.success('Attestation cryptographically signed')
+      const signature = await signAttestation(wallet, att)
+      reviewAttestation(att.id, { status: 'signed', auditorName, note: note.trim() || undefined, auditorKey: identityKey, signature, exceptions })
+      toast.success(exceptions ? 'Signed with exceptions' : 'Attestation cryptographically signed')
     } catch {
       toast.error('Could not sign the attestation')
     } finally {
       setSigning(false)
+    }
+  }
+
+  function flag() {
+    if (note.trim() === '') { toast.error('Add a note explaining the flag.'); return }
+    reviewAttestation(att.id, { status: 'flagged', auditorName, note: note.trim() })
+    toast.success('Attestation flagged')
+  }
+
+  async function anchor() {
+    if (wallet == null || att.signature == null || att.auditorKey == null) return
+    setAnchoring(true)
+    try {
+      const txid = await anchorOnChain(wallet, `attestation:${att.id}`, {
+        digest: attestationMessage(att), signature: att.signature, auditorKey: att.auditorKey, period: att.period,
+      }, `attestation ${att.period}`)
+      setAttestationAnchor(att.id, txid)
+      toast.success('Attestation anchored on-chain')
+    } catch {
+      toast.error('Could not anchor on-chain')
+    } finally {
+      setAnchoring(false)
     }
   }
 
@@ -278,14 +307,34 @@ function AttestationRow({ att, isAuditor, auditorName, fmt }: {
         </div>
       </div>
 
+      {att.evidence != null && (
+        <div className="mt-2 flex items-start gap-1.5 text-[11.5px] text-muted-foreground">
+          <FileCheck2 className="mt-0.5 size-3.5 shrink-0 text-faint-foreground" />
+          <span>Evidence: <span className="text-foreground">{att.evidence}</span></span>
+        </div>
+      )}
+
       {att.auditorName != null && att.status !== 'submitted' && (
         <div className="mt-2.5 border-t border-border pt-2 text-[12px] text-muted-foreground">
           <span className={att.status === 'signed' ? 'text-success' : 'text-destructive'}>
-            {att.status === 'signed' ? 'Signed' : 'Flagged'} by {att.auditorName}
+            {att.status === 'signed' ? (att.exceptions ? 'Signed with exceptions' : 'Signed') : 'Flagged'} by {att.auditorName}
           </span>{' '}· {formatDate(att.reviewedAt)}
           {att.auditorNote && <span className="mt-0.5 block text-muted-foreground">“{att.auditorNote}”</span>}
           {att.status === 'signed' && att.signature != null && att.auditorKey != null && (
-            <SignatureBadge att={att} />
+            <>
+              <SignatureBadge att={att} />
+              <div className="mt-1.5">
+                {att.anchorTxid != null ? (
+                  <a href={`https://whatsonchain.com/tx/${att.anchorTxid}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline">
+                    <ShieldCheck className="size-3.5" /> Anchored on-chain · {att.anchorTxid.slice(0, 10)}…
+                  </a>
+                ) : !isAuditor ? (
+                  <Button onClick={anchor} loading={anchoring} loadingText="Anchoring…" variant="ghost" className="h-7 gap-1.5 px-2 text-[11.5px]">
+                    <ShieldCheck className="size-3.5" /> Anchor on-chain
+                  </Button>
+                ) : null}
+              </div>
+            </>
           )}
         </div>
       )}
@@ -295,16 +344,24 @@ function AttestationRow({ att, isAuditor, auditorName, fmt }: {
           <Input
             value={note}
             onChange={e => setNote(e.target.value)}
-            placeholder="Add a note (optional)"
+            placeholder="Add a note (required to flag or note exceptions)"
             className="h-9 text-[12.5px]"
           />
-          <div className="mt-2 flex gap-2">
-            <Button onClick={() => review('signed')} loading={signing} loadingText="Signing…" className="h-8 gap-1.5 px-3 text-[12.5px]">
-              <Check className="size-4" /> Sign attestation
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button onClick={() => sign(false)} loading={signing} loadingText="Signing…" className="h-8 gap-1.5 px-3 text-[12.5px]">
+              <Check className="size-4" /> Sign clean
             </Button>
             <button
               type="button"
-              onClick={() => review('flagged')}
+              disabled={signing}
+              onClick={() => sign(true)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-warning/50 px-3 text-[12.5px] font-medium text-warning transition-colors hover:bg-warning/5 disabled:opacity-50"
+            >
+              <AlertTriangle className="size-4" /> Sign with exceptions
+            </button>
+            <button
+              type="button"
+              onClick={flag}
               className="inline-flex h-8 items-center gap-1.5 rounded-md border border-destructive/40 px-3 text-[12.5px] font-medium text-destructive transition-colors hover:bg-destructive/5"
             >
               <Flag className="size-4" /> Flag

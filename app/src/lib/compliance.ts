@@ -42,6 +42,12 @@ export interface Attestation {
    *  over the attestation digest - present on cryptographically signed ones. */
   auditorKey?: string
   signature?: string
+  /** Reference to the evidence backing the figures (bank/custody confirmation). */
+  evidence?: string
+  /** Signed with exceptions (a qualified opinion) rather than clean. */
+  exceptions?: boolean
+  /** Txid anchoring the signed attestation on-chain, if published. */
+  anchorTxid?: string
 }
 
 /** An issuer's working reserve composition for one instrument. */
@@ -86,6 +92,11 @@ export interface RedemptionRequest {
   status: RedemptionStatus
   note?: string           // rejection reason / settlement note
   processedAt?: string    // ISO
+  /** Auditor confirmation that this redemption was honoured at par. */
+  auditorName?: string
+  auditorKey?: string
+  auditorSignature?: string
+  attestedAt?: string     // ISO
 }
 
 // ── KYC / sanctions screening ─────────────────────────────────────────────────
@@ -140,6 +151,31 @@ export interface Proposal {
   note?: string
 }
 
+// ── Control actions (sensitive admin operations needing auditor sign-off) ─────
+
+export type ControlActionKind =
+  | 'freeze' | 'unfreeze' | 'reissue' | 'blockIdentity' | 'unblockIdentity'
+  | 'pause' | 'accessMode' | 'redemptionPolicy' | 'other'
+
+/** A sensitive control action an issuer performed, logged for an auditor to
+ *  acknowledge and cryptographically sign off. */
+export interface ControlAction {
+  id: string
+  assetId: string
+  kind: ControlActionKind
+  detail: string
+  reason: string
+  actorKey: string        // issuer identity key that performed it
+  actorName?: string
+  createdAt: string       // ISO
+  status: 'pending' | 'acknowledged'
+  auditorName?: string
+  auditorKey?: string
+  signature?: string
+  auditorNote?: string
+  reviewedAt?: string     // ISO
+}
+
 interface State {
   buckets: Record<string, ReserveBucket>
   attestations: Attestation[]
@@ -149,11 +185,13 @@ interface State {
   travelRule: Record<string, TravelRulePolicy>
   governance: GovernancePolicy
   proposals: Proposal[]
+  controlActions: ControlAction[]
 }
 
 const EMPTY: State = {
   buckets: {}, attestations: [], policies: {}, requests: [],
   holders: {}, travelRule: {}, governance: DEFAULT_GOVERNANCE, proposals: [],
+  controlActions: [],
 }
 const listeners = new Set<() => void>()
 
@@ -172,6 +210,7 @@ function read(): State {
       travelRule: parsed.travelRule ?? {},
       governance: parsed.governance ?? DEFAULT_GOVERNANCE,
       proposals: Array.isArray(parsed.proposals) ? parsed.proposals : [],
+      controlActions: Array.isArray(parsed.controlActions) ? parsed.controlActions : [],
     }
   } catch {
     return EMPTY
@@ -231,7 +270,7 @@ export function removeReserveLine(assetId: string, id: string): void {
  * figure (issued - redeemed) rather than the local bucket field; it falls back
  * to the bucket value when omitted.
  */
-export function createAttestation(assetId: string, currency: string, circulation?: number): Attestation {
+export function createAttestation(assetId: string, currency: string, circulation?: number, evidence?: string): Attestation {
   const bucket = bucketOf(assetId)
   const now = new Date()
   const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -245,9 +284,15 @@ export function createAttestation(assetId: string, currency: string, circulation
     reservesTotal: reservesTotalOf(bucket),
     lines: bucket.composition.map(l => ({ ...l })),
     status: 'submitted',
+    evidence: evidence != null && evidence.trim() !== '' ? evidence.trim() : undefined,
   }
   persist({ ...current, attestations: [att, ...current.attestations] })
   return att
+}
+
+/** Record the on-chain anchor txid for a signed attestation. */
+export function setAttestationAnchor(id: string, anchorTxid: string): void {
+  persist({ ...current, attestations: current.attestations.map(a => a.id === id ? { ...a, anchorTxid } : a) })
 }
 
 /** Auditor review - sign or flag a submitted attestation. A signed review
@@ -258,6 +303,7 @@ export function reviewAttestation(id: string, review: {
   note?: string
   auditorKey?: string
   signature?: string
+  exceptions?: boolean
 }): void {
   persist({
     ...current,
@@ -270,6 +316,7 @@ export function reviewAttestation(id: string, review: {
           reviewedAt: new Date().toISOString(),
           auditorKey: review.auditorKey,
           signature: review.signature,
+          exceptions: review.exceptions ?? false,
         }
       : a),
   })
@@ -341,6 +388,16 @@ export function rejectRedemption(id: string, reason: string): void {
     ...current,
     requests: current.requests.map(r => r.id === id
       ? { ...r, status: 'rejected' as const, processedAt: new Date().toISOString(), note: reason }
+      : r),
+  })
+}
+
+/** Auditor confirmation that a redemption was honoured at par, with signature. */
+export function attestRedemption(id: string, review: { auditorName: string; auditorKey: string; signature: string }): void {
+  persist({
+    ...current,
+    requests: current.requests.map(r => r.id === id
+      ? { ...r, auditorName: review.auditorName, auditorKey: review.auditorKey, auditorSignature: review.signature, attestedAt: new Date().toISOString() }
       : r),
   })
 }
@@ -492,6 +549,46 @@ export function useProposals(): Proposal[] {
   return map.proposals
 }
 
+// ── Control actions (auditor sign-off on sensitive admin operations) ──────────
+
+/** Log a sensitive control action for auditor sign-off (idempotent per id). */
+export function logControlAction(input: {
+  assetId: string
+  kind: ControlActionKind
+  detail: string
+  reason: string
+  actorKey: string
+  actorName?: string
+}): void {
+  const action: ControlAction = {
+    id: uid('act'),
+    assetId: input.assetId,
+    kind: input.kind,
+    detail: input.detail,
+    reason: input.reason,
+    actorKey: input.actorKey,
+    actorName: input.actorName,
+    createdAt: new Date().toISOString(),
+    status: 'pending',
+  }
+  persist({ ...current, controlActions: [action, ...current.controlActions] })
+}
+
+/** Auditor acknowledgement + signature over a control action. */
+export function acknowledgeControlAction(id: string, review: { auditorName: string; auditorKey: string; signature: string; note?: string }): void {
+  persist({
+    ...current,
+    controlActions: current.controlActions.map(a => a.id === id
+      ? { ...a, status: 'acknowledged' as const, auditorName: review.auditorName, auditorKey: review.auditorKey, signature: review.signature, auditorNote: review.note, reviewedAt: new Date().toISOString() }
+      : a),
+  })
+}
+
+export function useControlActions(assetId?: string): ControlAction[] {
+  const map = useSyncExternalStore(subscribe, () => current, () => current)
+  return assetId == null ? map.controlActions : map.controlActions.filter(a => a.assetId === assetId)
+}
+
 // ── Cross-instrument snapshot (for the compliance overview) ────────────────────
 
 export interface ComplianceSnapshot {
@@ -501,6 +598,7 @@ export interface ComplianceSnapshot {
   holders: Record<string, HolderRecord>
   proposals: Proposal[]
   governance: GovernancePolicy
+  controlActions: ControlAction[]
 }
 
 export function useComplianceSnapshot(): ComplianceSnapshot {
