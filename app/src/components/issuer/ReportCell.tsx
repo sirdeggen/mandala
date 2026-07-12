@@ -36,7 +36,7 @@ export function Highlight({ text, query }: { text: string; query: string }) {
 }
 
 /**
- * One report-table cell. Identity keys (From / To / Badge ID / Holder) render as
+ * One report-table cell. Identity keys (From / To / Entity ID / Holder) render as
  * a sigil + first-5-last-5 truncation with the full key on hover; transaction
  * hashes truncate the same way; everything else is plain text. Underlying data
  * stays full for export.

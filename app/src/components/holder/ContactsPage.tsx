@@ -104,7 +104,7 @@ interface ContactRowProps {
 }
 
 /** A contact rendered as a profile card - gradient header, overlaid avatar,
- *  verified badge, truncated Badge ID, and a primary Send action. */
+ *  verified badge, truncated Entity ID, and a primary Send action. */
 function ContactRow({ contact, onEdit, onRemove, onSend, removing }: ContactRowProps) {
   const [confirmRemove, setConfirmRemove] = useState(false)
   const hue = hueForKey(contact.identityKey)
@@ -284,7 +284,7 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
 
   const handleSave = async () => {
     if (!identityKey.trim() || !name.trim()) {
-      setSaveError('Badge ID and name are required.')
+      setSaveError('Entity ID and name are required.')
       return
     }
     setSaving(true)
@@ -479,7 +479,7 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
               {mode === 'manual' && (
                 <div>
                   <label className="mb-[4px] block text-[11px] font-medium uppercase tracking-[0.8px] text-faint-foreground">
-                    Badge ID *
+                    Entity ID *
                   </label>
                   <input
                     type="text"
@@ -654,7 +654,7 @@ function EditContactDialog({ contact, wallet, onSaved, onCancel }: EditContactDi
           {/* Identity key (read-only) */}
           <div>
             <label className="mb-[4px] block text-[11px] font-medium uppercase tracking-[0.8px] text-faint-foreground">
-              Badge ID
+              Entity ID
             </label>
             <div className="flex w-full items-center gap-2.5 rounded border border-border bg-muted/40 px-[12px] py-[9px]">
               <IdentitySigil value={contact.identityKey} size={24} className="rounded" />

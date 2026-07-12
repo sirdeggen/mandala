@@ -450,7 +450,7 @@ function AttestationRow({ att, isAuditor, auditorName, fmt }: {
 }
 
 /** Verifies the auditor's ECDSA signature over the attestation and shows the
- *  result with the signing Badge ID - proof the sign-off is genuine and the
+ *  result with the signing Entity ID - proof the sign-off is genuine and the
  *  attested figures haven't been altered since. */
 function SignatureBadge({ att }: { att: Attestation }) {
   const { wallet } = useWallet()

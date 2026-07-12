@@ -78,10 +78,10 @@ export default function QrScanModal ({ open, onClose, onResult }: Props) {
         className="mx-4 w-full max-w-[380px] rounded-lg bg-card shadow-[var(--shadow-pop)] overflow-hidden animate-pop"
         onClick={e => e.stopPropagation()}
         role="dialog"
-        aria-label="Scan a Badge ID QR code"
+        aria-label="Scan an Entity ID QR code"
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-separator">
-          <span className="text-[14px] font-semibold">Scan Badge ID</span>
+          <span className="text-[14px] font-semibold">Scan Entity ID</span>
           <button
             type="button"
             onClick={onClose}

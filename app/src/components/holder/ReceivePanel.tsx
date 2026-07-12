@@ -42,7 +42,7 @@ export default function ReceivePanel() {
         <div className="rounded-lg border border-separator bg-white p-3 shadow-[var(--shadow-card)]">
           <img
             src={qrDataUrl}
-            alt="QR code for your Badge ID"
+            alt="QR code for your Entity ID"
             className="h-[220px] w-[220px]"
           />
         </div>
@@ -53,7 +53,7 @@ export default function ReceivePanel() {
       )}
 
       <div className="w-full max-w-sm space-y-2">
-        <p className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground">Badge ID</p>
+        <p className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground">Entity ID</p>
         <div className="flex items-center gap-2.5 rounded border border-input-border bg-input px-3 py-2">
           <IdentitySigil value={identityKey} size={24} className="rounded" />
           <code
@@ -67,7 +67,7 @@ export default function ReceivePanel() {
             size="sm"
             onClick={() => void handleCopy()}
             className="h-8 shrink-0 px-2"
-            title="Copy Badge ID"
+            title="Copy Entity ID"
           >
             {copied
               ? <Check className="h-4 w-4 text-success" />

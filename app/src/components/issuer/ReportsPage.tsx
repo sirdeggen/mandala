@@ -95,7 +95,7 @@ export default function ReportsPage() {
   }, [ledgerMap, summaries, snap, allLinks, filter])
 
   // A table per report for the current scope. Screening is global (holders are
-  // per Badge ID), so it is never duplicated per instrument.
+  // per Entity ID), so it is never duplicated per instrument.
   const tablesByKey = useMemo(() => {
     const map = {} as Record<ReportKey, ReportTable>
     for (const spec of REPORT_SPECS) {

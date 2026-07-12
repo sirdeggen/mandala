@@ -105,7 +105,7 @@ export function buildReport(key: ReportKey, ctx: ReportCtx): ReportTable {
       }),
     }
     case 'attestations': return {
-      columns: ['Period', 'Status', 'Reserves', 'Circulation', 'Backing %', 'Evidence', 'Auditor', 'Auditor Badge ID', 'Exceptions', 'Reviewed', 'Anchor'],
+      columns: ['Period', 'Status', 'Reserves', 'Circulation', 'Backing %', 'Evidence', 'Auditor', 'Auditor Entity ID', 'Exceptions', 'Reviewed', 'Anchor'],
       rows: ctx.attestations.filter(a => inFilter(a.createdAt, filter)).map(a => [
         a.period, a.status, a.reservesTotal.toLocaleString('en-US'),
         `${a.circulation.toLocaleString('en-US')} ${a.currency}`,
@@ -116,21 +116,21 @@ export function buildReport(key: ReportKey, ctx: ReportCtx): ReportTable {
       ]),
     }
     case 'redemptions': return {
-      columns: ['Requested', 'Holder', 'Badge ID', 'Amount', 'Status', 'Processed', 'At-par confirmed by', 'Confirmed Badge ID', 'Confirmed at', 'Anchor', 'Note'],
+      columns: ['Requested', 'Holder', 'Entity ID', 'Amount', 'Status', 'Processed', 'At-par confirmed by', 'Confirmed Entity ID', 'Confirmed at', 'Anchor', 'Note'],
       rows: ctx.redemptions.filter(r => inFilter(r.requestedAt, filter)).map(r => [
         fmtDate(r.requestedAt), r.holderName, r.holderKey, `${amt(r.amount)} ${r.currency}`, r.status, fmtDate(r.processedAt),
         r.auditorName ?? '', r.auditorKey ?? '', fmtDate(r.attestedAt), r.anchorTxid ?? '', r.note ?? '',
       ]),
     }
     case 'controlActions': return {
-      columns: ['When', 'Action', 'Detail', 'Reason', 'Actor', 'Actor Badge ID', 'Status', 'Signed off by', 'Auditor Badge ID', 'Reviewed', 'Anchor'],
+      columns: ['When', 'Action', 'Detail', 'Reason', 'Actor', 'Actor Entity ID', 'Status', 'Signed off by', 'Auditor Entity ID', 'Reviewed', 'Anchor'],
       rows: ctx.controlActions.filter(a => inFilter(a.createdAt, filter)).map(a => [
         fmtDate(a.createdAt), a.kind, a.detail, a.reason, a.actorName ?? '', a.actorKey,
         a.status, a.auditorName ?? '', a.auditorKey ?? '', fmtDate(a.reviewedAt), a.anchorTxid ?? '',
       ]),
     }
     case 'screening': return {
-      columns: ['Badge ID', 'Name', 'KYC', 'Sanctions', 'PEP', 'Risk', 'Updated'],
+      columns: ['Entity ID', 'Name', 'KYC', 'Sanctions', 'PEP', 'Risk', 'Updated'],
       rows: ctx.holders.filter(h => inFilter(h.updatedAt, filter)).map(h => [
         h.identityKey, h.name, h.kyc, h.sanctions, h.pep ? 'Yes' : 'No', h.risk, fmtDate(h.updatedAt),
       ]),

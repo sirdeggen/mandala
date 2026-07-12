@@ -41,7 +41,7 @@ export interface Attestation {
   auditorName?: string
   auditorNote?: string
   reviewedAt?: string     // ISO
-  /** Auditor's identity key (Badge ID) that signed, and the ECDSA signature
+  /** Auditor's identity key (Entity ID) that signed, and the ECDSA signature
    *  over the attestation digest - present on cryptographically signed ones. */
   auditorKey?: string
   signature?: string
@@ -110,7 +110,7 @@ export type KycStatus = 'unverified' | 'pending' | 'verified' | 'rejected'
 export type RiskRating = 'low' | 'medium' | 'high'
 export type SanctionsResult = 'unscreened' | 'clear' | 'hit'
 
-/** A holder's compliance record - global (per Badge ID), not per instrument, so
+/** A holder's compliance record - global (per Entity ID), not per instrument, so
  *  a holder verified once is verified everywhere. */
 export interface HolderRecord {
   identityKey: string
@@ -308,7 +308,7 @@ export function setAttestationAnchor(id: string, anchorTxid: string): void {
 }
 
 /** Auditor review - sign or flag a submitted attestation. A signed review
- *  carries the auditor's Badge ID and ECDSA signature over the attestation. */
+ *  carries the auditor's Entity ID and ECDSA signature over the attestation. */
 export function reviewAttestation(id: string, review: {
   status: 'signed' | 'flagged'
   auditorName: string

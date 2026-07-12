@@ -5,7 +5,7 @@
  * exactly what is being signed off, so a "signed" flag becomes attributable,
  * non-repudiable, tamper-evident evidence: altering any signed field fails
  * verification. Signatures are made with counterparty 'anyone' so any party can
- * verify against the signer's Badge ID.
+ * verify against the signer's Entity ID.
  */
 import { Utils, type WalletClient, type WalletProtocol } from '@bsv/sdk'
 import type { Attestation, RedemptionRequest, ControlAction } from './compliance'

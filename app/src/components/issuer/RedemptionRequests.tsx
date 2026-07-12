@@ -180,7 +180,7 @@ function NewRequestForm({ assetId, currency, minAmount, onDone }: {
   function submit(e: React.FormEvent) {
     e.preventDefault()
     const amt = Number(amount)
-    if (key.trim() === '') { toast.error('Enter the holder’s Badge ID.'); return }
+    if (key.trim() === '') { toast.error('Enter the holder’s Entity ID.'); return }
     if (!Number.isFinite(amt) || amt <= 0) { toast.error('Enter an amount to redeem.'); return }
     if (minAmount > 0 && amt < minAmount) { toast.error(`Below the ${fmt(minAmount)} ${currency} minimum.`); return }
     createRedemptionRequest({ assetId, holderKey: key.trim(), holderName: name.trim(), amount: amt, currency })
@@ -201,7 +201,7 @@ function NewRequestForm({ assetId, currency, minAmount, onDone }: {
           value={key}
           onChange={setKey}
           onSelect={r => { setKey(r.identityKey); if (r.name) setName(r.name) }}
-          placeholder="Relationship or Badge ID"
+          placeholder="Relationship or Entity ID"
           className="h-9 font-mono text-[12px]"
         />
       </div>

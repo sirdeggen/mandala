@@ -15,9 +15,9 @@ interface Relationship {
 const trunc = (k: string) => (k.length > 12 ? `${k.slice(0, 5)}…${k.slice(-5)}` : k)
 
 /**
- * Badge ID field with a relationship autocomplete. Focusing shows the most-used
+ * Entity ID field with a relationship autocomplete. Focusing shows the most-used
  * relationships (saved contacts + counterparties seen in history); typing
- * matches on name or Badge ID. Picking one fills the Badge ID and reports the
+ * matches on name or Entity ID. Picking one fills the Entity ID and reports the
  * name back so the caller can populate its holder-name field. Free-text Badge
  * IDs are still accepted.
  */
@@ -86,7 +86,7 @@ export function RelationshipField({
           </p>
           {matches.length === 0 ? (
             <p className="px-2 py-2 text-[12px] text-muted-foreground">
-              No matching relationship - screen this Badge ID as typed.
+              No matching relationship - screen this Entity ID as typed.
             </p>
           ) : (
             matches.map(r => (

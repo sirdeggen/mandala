@@ -20,9 +20,9 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { cn } from '@/lib/utils'
 
 /**
- * Holder screening & KYC - the AML compliance floor. Screen a holder's Badge ID
+ * Holder screening & KYC - the AML compliance floor. Screen a holder's Entity ID
  * against a (simulated) sanctions/PEP watchlist, track KYC status and risk, and
- * configure the Travel Rule threshold. Records are global per Badge ID, so a
+ * configure the Travel Rule threshold. Records are global per Entity ID, so a
  * holder screened/verified once carries across every instrument.
  */
 export default function HolderScreening({ assetId, asset }: { assetId: string; asset: AdminAsset | null }) {
@@ -39,7 +39,7 @@ export default function HolderScreening({ assetId, asset }: { assetId: string; a
 
   function screen(e: React.FormEvent) {
     e.preventDefault()
-    if (key.trim() === '') { toast.error('Enter the holder’s Badge ID.'); return }
+    if (key.trim() === '') { toast.error('Enter the holder’s Entity ID.'); return }
     const rec = screenHolder({ identityKey: key.trim(), name: name.trim() })
     toast[rec.sanctions === 'hit' ? 'error' : 'success'](
       rec.sanctions === 'hit' ? 'Sanctions hit - review before allowing' : 'Screened - no sanctions match'
@@ -104,8 +104,8 @@ export default function HolderScreening({ assetId, asset }: { assetId: string; a
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-80 space-y-2 p-3 text-[12px] leading-relaxed text-muted-foreground">
                   <p className="text-[12.5px] font-semibold text-foreground">Where these classifications come from</p>
-                  <p><span className="font-medium text-foreground">Sanctions</span> — the holder's name is matched against a bundled sample watchlist, and the demo additionally flags a deterministic subset of Badge IDs so hits are visible. In production this is where real OFAC / EU / UN feeds are wired in.</p>
-                  <p><span className="font-medium text-foreground">PEP</span> &amp; <span className="font-medium text-foreground">Risk</span> — derived deterministically from the Badge ID, so each holder gets a stable, realistic rating standing in for a screening provider's output.</p>
+                  <p><span className="font-medium text-foreground">Sanctions</span> — the holder's name is matched against a bundled sample watchlist, and the demo additionally flags a deterministic subset of Entity IDs so hits are visible. In production this is where real OFAC / EU / UN feeds are wired in.</p>
+                  <p><span className="font-medium text-foreground">PEP</span> &amp; <span className="font-medium text-foreground">Risk</span> — derived deterministically from the Entity ID, so each holder gets a stable, realistic rating standing in for a screening provider's output.</p>
                   <p><span className="font-medium text-foreground">KYC</span> — not screened; the issuer sets it manually with the actions on each holder row.</p>
                 </PopoverContent>
               </Popover>
@@ -118,7 +118,7 @@ export default function HolderScreening({ assetId, asset }: { assetId: string; a
                   value={key}
                   onChange={setKey}
                   onSelect={r => { setKey(r.identityKey); if (r.name) setName(r.name) }}
-                  placeholder="Relationship or Badge ID"
+                  placeholder="Relationship or Entity ID"
                   className="h-10 font-mono text-[12px]"
                 />
                 <Button type="submit" className="h-10 gap-1.5 px-3 text-[13px]">
@@ -248,7 +248,7 @@ function HolderRow({ holder, readOnly }: { holder: HolderRecord; readOnly: boole
         <div className="mt-2.5 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2">
           <ShieldAlert className="mt-0.5 size-4 shrink-0 text-destructive" />
           <p className="text-[12px] leading-snug text-muted-foreground">
-            This Badge ID matched a sanctions entry. Ban it under <span className="font-medium text-foreground">Admin operations → Ban a Badge ID</span> below.
+            This Entity ID matched a sanctions entry. Ban it under <span className="font-medium text-foreground">Admin operations → Ban an Entity ID</span> below.
           </p>
         </div>
       )}

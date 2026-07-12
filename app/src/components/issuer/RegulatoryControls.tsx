@@ -41,8 +41,8 @@ const ACTION_META: Partial<Record<ActionKey, { kind: ControlActionKind; label: s
   accessMode: { kind: 'accessMode', label: 'Change access mode' },
   freeze: { kind: 'freeze', label: 'Freeze output' },
   unfreeze: { kind: 'unfreeze', label: 'Unfreeze output' },
-  blockIdentity: { kind: 'blockIdentity', label: 'Ban a Badge ID' },
-  unblockIdentity: { kind: 'unblockIdentity', label: 'Lift a Badge ID ban' },
+  blockIdentity: { kind: 'blockIdentity', label: 'Ban an Entity ID' },
+  unblockIdentity: { kind: 'unblockIdentity', label: 'Lift an Entity ID ban' },
   reissue: { kind: 'reissue', label: 'Reissue / recover units' },
 }
 
@@ -265,7 +265,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     identitySearch.handleSelect(null as any, null)
   })
 
-  // Lift a ban for a specific Badge ID straight from the sanctions list.
+  // Lift a ban for a specific Entity ID straight from the sanctions list.
   const liftBan = (key: string) => void run('unblockIdentity', async () => {
     const fields = guardAdminFields({ identityKey: key, requireIdentity: true })
     if (!fields.ok) { toast.error(fields.reason); return }
@@ -341,7 +341,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
 
   // Admin actions, each with a plain-language description for the picker.
   const ACTIONS: { key: ActionKey; title: string; subtitle: string }[] = [
-    { key: 'blockIdentity', title: 'Ban a Badge ID', subtitle: 'Stop a specific holder from sending or receiving this instrument.' },
+    { key: 'blockIdentity', title: 'Ban an Entity ID', subtitle: 'Stop a specific holder from sending or receiving this instrument.' },
     { key: 'unblockIdentity', title: 'Lift a ban', subtitle: 'Restore a previously banned holder’s ability to transact.' },
     { key: 'allowIdentity', title: 'Add to allowlist', subtitle: 'Let a holder transact when the instrument is allowlist-only.' },
     { key: 'unallowIdentity', title: 'Remove from allowlist', subtitle: 'Revoke a holder’s permission on an allowlist-only instrument.' },
@@ -504,7 +504,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
 
       {/* Sanctioned entities - the list of identities banned from this
           instrument, with one-click lift. Adding a ban is done via
-          Admin operations → "Ban a Badge ID" below. */}
+          Admin operations → "Ban an Entity ID" below. */}
       <div className="bg-card border border-border rounded-md p-[16px_18px]">
         <div className="flex items-center justify-between gap-3">
           <div className="text-[13.5px] font-semibold">Sanctioned entities</div>
@@ -513,8 +513,8 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
           </span>
         </div>
         <p className="mt-1 text-[12px] leading-[1.5] text-subtle-foreground">
-          A banned Badge ID cannot send or receive {asset != null ? asset.label : 'this instrument'} - the ban is
-          enforced on-chain by the overlay. Add one below under “Ban a Badge ID”.
+          A banned Entity ID cannot send or receive {asset != null ? asset.label : 'this instrument'} - the ban is
+          enforced on-chain by the overlay. Add one below under “Ban an Entity ID”.
         </p>
 
         {state == null ? (
@@ -523,7 +523,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
           </div>
         ) : state.blockedIdentities.length === 0 ? (
           <div className="mt-3 rounded-md border border-dashed border-border px-3 py-4 text-center text-[12px] text-subtle-foreground">
-            No Badge IDs are currently banned.
+            No Entity IDs are currently banned.
           </div>
         ) : (
           <ul className="mt-3 divide-y divide-separator">
@@ -776,7 +776,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
                   identitySearch.handleSelect(null as any, null)
                 }}
                 disabled={!!identitySearch.selectedIdentity}
-                placeholder="Or paste Badge ID"
+                placeholder="Or paste Entity ID"
                 className="tabular mt-2"
               />
             </>
@@ -865,7 +865,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
                     reissueIdentitySearch.handleSelect(null as any, null)
                   }}
                   disabled={!!reissueIdentitySearch.selectedIdentity}
-                  placeholder="Or paste recipient Badge ID"
+                  placeholder="Or paste recipient Entity ID"
                   className="tabular mt-2"
                 />
               </>

@@ -188,7 +188,7 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
         <div className="max-w-3xl space-y-6">
           <TabHeader
             title="Access controls"
-            description="Screen holders, ban Badge IDs, and control who can send or receive this instrument."
+            description="Screen holders, ban Entity IDs, and control who can send or receive this instrument."
             guide="/help/for-issuers/compliance-controls"
           />
           <HolderScreening assetId={assetId} asset={asset} />

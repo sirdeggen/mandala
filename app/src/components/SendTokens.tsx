@@ -535,7 +535,7 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
               value={searchInput}
               onChange={e => applyRecipientText(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && pendingKey) confirmRecipient() }}
-              placeholder="Name, @handle, email or Badge ID"
+              placeholder="Name, @handle, email or Entity ID"
               className="min-w-0 flex-1 bg-transparent text-[13.5px] text-foreground placeholder:text-subtle-foreground outline-none"
             />
             {isSearching && <Spinner size="sm" tone="brand" />}
@@ -543,8 +543,8 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
           <button
             type="button"
             onClick={() => setScanOpen(true)}
-            aria-label="Scan a Badge ID QR code"
-            title="Scan a Badge ID QR code"
+            aria-label="Scan an Entity ID QR code"
+            title="Scan an Entity ID QR code"
             className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <QrCode className="h-[17px] w-[17px]" strokeWidth={1.9} />
@@ -569,7 +569,7 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 text-[13px] font-semibold text-success">
                       <CheckCircle2 className="h-[14px] w-[14px] flex-none" />
-                      Valid Badge ID
+                      Valid Entity ID
                     </div>
                     <div className="tabular truncate text-[12px] text-subtle-foreground mt-0.5">
                       {pendingKey.slice(0, 20)}…{pendingKey.slice(-6)}
@@ -582,7 +582,7 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
               </div>
             ) : (
               <p className="mt-1.5 text-[12px] text-destructive">
-                Not a valid Badge ID - check it was copied completely.
+                Not a valid Entity ID - check it was copied completely.
               </p>
             )
           }

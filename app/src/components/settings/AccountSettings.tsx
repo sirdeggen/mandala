@@ -218,7 +218,7 @@ function BadgePanel({ identityKey }: { identityKey: string | null }) {
   return (
     <div className="space-y-5">
       <div className="space-y-2">
-        <Label>Badge ID</Label>
+        <Label>Entity ID</Label>
         <div className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-2.5 py-2">
           {identityKey != null
             ? <IdentitySigil value={identityKey} size={32} className="rounded-md" />
@@ -233,7 +233,7 @@ function BadgePanel({ identityKey }: { identityKey: string | null }) {
             type="button"
             onClick={copy}
             disabled={identityKey == null}
-            aria-label="Copy Badge ID"
+            aria-label="Copy Entity ID"
             className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-40"
           >
             {copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
