@@ -1,5 +1,5 @@
 import { Wrench, RotateCcw, Sparkles, Eraser } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useDevMode, toggleDevMode } from '../lib/devMode'
 import { useFullReserve, toggleFullReserve } from '../lib/fullReserveMode'
@@ -21,6 +21,10 @@ export default function DevModeToggle() {
   const guideOpen = useDemoGuide().open
   const { role, name } = useOnboarding()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // Public-facing transparency pages should carry no dev affordance.
+  if (location.pathname.startsWith('/transparency')) return null
 
   const loadDemo = () => {
     const ok = loadDemoScenario(name.trim() || 'Issuer')

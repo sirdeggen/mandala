@@ -47,7 +47,9 @@ export default function OnboardingTour() {
   const assetId = searchParams.get('asset') || (assets != null && assets.length > 0 ? assets[0].assetId : '')
 
   // Auto-open expanded on the very first visit after onboarding completes.
-  const canShow = isInitialized && onboarding.completed && role != null && path != null && !tour.dismissed
+  // Transparency pages are public-facing; keep the tour off them.
+  const onPublicPage = location.pathname.startsWith('/transparency')
+  const canShow = isInitialized && onboarding.completed && role != null && path != null && !tour.dismissed && !onPublicPage
   useEffect(() => {
     if (!canShow) return
     if (tour.autoOpened) return
