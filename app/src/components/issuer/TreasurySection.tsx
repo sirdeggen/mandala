@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ArrowUpRight, ArrowDownLeft, Coins, Plus, ShieldCheck } from 'lucide-react'
+import { ArrowUpRight, ArrowDownLeft, Coins, Plus, ShieldCheck, AlertTriangle } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset } from '@bsv/mandala/assets'
-import { formatCurrency, formatAmount } from '@bsv/mandala/amount'
+import { formatAmount } from '@bsv/mandala/amount'
 import { useHolderData } from '../../hooks/useHolderData'
 import { useAdminSummary } from '../../hooks/useAdminHistory'
+import { useReserveBucket, reservesTotalOf } from '../../lib/compliance'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
 import { useInstrumentColor, securityPattern } from '../../lib/instrumentIcons'
 import SendTokens from '../SendTokens'
@@ -71,9 +72,7 @@ export default function TreasurySection({ assetId, asset }: Props) {
     ? `${identityKey.slice(0, 8)}…${identityKey.slice(-4)}`
     : '-'
 
-  const formattedBalance = balance != null
-    ? formatCurrency(balance, decimals, ticker)
-    : '-'
+  const balanceNumber = balance != null ? formatAmount(balance, decimals) : '-'
 
   const isEmpty = balance === 0
 
@@ -98,6 +97,17 @@ export default function TreasurySection({ assetId, asset }: Props) {
     : null
   const actionCount = summary?.actionCount ?? null
 
+  // ── Reserve backing (full-reserve gate for sending) ──────────────────────────
+  // Free supply = units in public hands (circulation minus treasury); free
+  // reserves must cover it. Sending treasury units increases free supply, so we
+  // only allow sending while reserves >= free supply.
+  const reserves = reservesTotalOf(useReserveBucket(assetId))
+  const circHuman = circulation != null ? circulation / 10 ** decimals : 0
+  const treasuryHuman = balance != null ? balance / 10 ** decimals : 0
+  const freeSupply = Math.max(0, circHuman - treasuryHuman)
+  const fullyBacked = circHuman <= 0 ? true : reserves >= circHuman
+  const canSend = reserves >= freeSupply
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -121,22 +131,25 @@ export default function TreasurySection({ assetId, asset }: Props) {
             <span className="text-[11px] font-medium uppercase tracking-[1.2px] text-white/70">
               Treasury balance
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-white ring-1 ring-inset ring-white/25">
-              <ShieldCheck className="size-3" strokeWidth={2.5} />
-              Reserve-backed
-            </span>
+            {fullyBacked ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-white ring-1 ring-inset ring-white/25">
+                <ShieldCheck className="size-3" strokeWidth={2.5} />
+                Reserve-backed
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-warning/25 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-warning ring-1 ring-inset ring-warning/40">
+                <AlertTriangle className="size-3" strokeWidth={2.5} />
+                Under-reserved
+              </span>
+            )}
           </div>
 
           {loading ? (
             <div className="h-[44px] w-[180px] animate-pulse rounded-sm bg-white/20" />
           ) : (
-            <div
-              className={cn(
-                'tabular text-[44px] font-semibold leading-none tracking-[-1.5px]',
-                isEmpty ? 'text-white/55' : 'text-white'
-              )}
-            >
-              {formattedBalance}
+            <div className={cn('tabular text-[44px] font-semibold leading-none tracking-[-1.5px]', isEmpty ? 'text-white/55' : 'text-white')}>
+              {balanceNumber}
+              {ticker != null && <span className="ml-2 align-baseline text-[24px] font-light tracking-tight text-white/70">{ticker}</span>}
             </div>
           )}
 
@@ -239,7 +252,21 @@ export default function TreasurySection({ assetId, asset }: Props) {
         {/* Folder body */}
         <div className="relative overflow-hidden rounded-lg rounded-tl-none border border-border bg-card shadow-[var(--shadow-card)]">
           {tab === 'send' && (
-            <SendTokens lockedAssetId={assetId} initialRecipient={initialRecipient} bare />
+            canSend ? (
+              <SendTokens lockedAssetId={assetId} initialRecipient={initialRecipient} bare />
+            ) : (
+              <div className="flex items-start gap-3 px-6 py-6">
+                <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-warning/10 text-warning">
+                  <AlertTriangle className="size-4.5" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[14px] font-medium text-foreground">Sending is paused - free reserves below free supply</p>
+                  <p className="text-balance text-[13px] text-muted-foreground">
+                    Units already in holders' hands ({formatAmount(Math.max(0, (circulation ?? 0) - (balance ?? 0)), decimals)} {ticker ?? ''}) exceed the recorded reserves. Add reserves under Attestations, or redeem units, before sending more from treasury.
+                  </p>
+                </div>
+              </div>
+            )
           )}
           {tab === 'receive' && (
             <div className="px-[24px] py-[20px]">

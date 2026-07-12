@@ -267,24 +267,41 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
     setStep('amount')
   }
 
-  const handleKeypad = (key: string) => {
+  const handleKeypad = useCallback((key: string) => {
     if (key === 'backspace') {
       setAmountStr(s => s.slice(0, -1))
       return
     }
     if (key === '.') {
       if (decimals === 0) return // no decimals allowed
-      if (amountStr.includes('.')) return
-      setAmountStr(s => (s === '' ? '0.' : s + '.'))
+      setAmountStr(s => (s.includes('.') ? s : s === '' ? '0.' : s + '.'))
       return
     }
-    // digit
-    const next = amountStr + key
-    // Validate it won't exceed balance or have too many decimal places
-    const [, frac = ''] = next.split('.')
-    if (frac.length > decimals) return
-    setAmountStr(next)
-  }
+    // digit - functional update so a physical-keyboard listener stays current
+    setAmountStr(s => {
+      const next = s + key
+      const [, frac = ''] = next.split('.')
+      if (frac.length > decimals) return s
+      // avoid a leading run of zeros like "000"
+      if (s === '0' && key === '0') return s
+      return next
+    })
+  }, [decimals])
+
+  // Physical keyboard support on the amount step: type digits / "." and delete
+  // with Backspace, unless focus is in a text field (e.g. the note input).
+  useEffect(() => {
+    if (step !== 'amount') return
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t != null && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      if (e.key >= '0' && e.key <= '9') { handleKeypad(e.key); e.preventDefault() }
+      else if (e.key === '.') { handleKeypad('.'); e.preventDefault() }
+      else if (e.key === 'Backspace') { handleKeypad('backspace'); e.preventDefault() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [step, handleKeypad])
 
   const handleMax = () => {
     if (!selectedBalance) return
