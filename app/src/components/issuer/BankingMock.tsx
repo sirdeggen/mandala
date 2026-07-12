@@ -1,17 +1,21 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowDownLeft, ArrowUpRight, PlusCircle, Trash2, ShieldCheck, AlertTriangle, ArrowRight, Landmark, Plug } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, PlusCircle, Trash2, ShieldCheck, AlertTriangle, ArrowRight, Landmark, Plug, CirclePlus, Check, X, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Select } from '../ui/select'
 import { Input } from '../ui/input'
+import { Spinner } from '../ui/spinner'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useAdminAssets } from '../../hooks/useAdminAssets'
 import { useAdminSummary } from '../../hooks/useAdminHistory'
+import { useIssuerMutations } from '../../hooks/useIssuerMutations'
 import { useWallet } from '../../context/WalletContext'
+import { useOnboarding } from '../../lib/onboarding'
 import { reconcile, makeTransfer, TransferDirection } from '@bsv/mandala/banking'
 import { useMockTransfers, addMockTransfer, removeMockTransfer, clearMockTransfers } from '../../lib/mandala/mockBankStore'
 import { useActiveIntegration } from '../../lib/integrations'
+import { useMintRequests, createMintRequest, settleMintRequest, rejectMintRequest, removeMintRequest, type MintRequest } from '../../lib/orchestration'
 import { formatAmount, parseAmount } from '@bsv/mandala/amount'
 import { bankForRef } from '@/content/banks'
 import { BankReconcileButton } from './ReconcileLink'
@@ -49,6 +53,8 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
   const { wallet } = useWallet()
   const { data: assetsData } = useAdminAssets()
   const assets: AdminAsset[] = assetsData ?? []
+  const { issue } = useIssuerMutations()
+  const approverName = useOnboarding().name.trim() || 'Issuer'
   const [selectedAssetId, setSelectedAssetId] = useState('')
   const [transferAmount, setTransferAmount] = useState('')
   const [direction, setDirection] = useState<TransferDirection>('in')
@@ -60,6 +66,7 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
   // the same per-asset feed; starts blank - nothing to reconcile until a
   // transfer is added, and switching assets switches the whole feed.
   const transfers = useMockTransfers(activeAssetId)
+  const mintRequests = useMintRequests(activeAssetId)
 
   const asset = assets.find(a => a.assetId === activeAssetId) ?? null
   const decimals = Number(asset?.metadata?.decimals) || 0
@@ -112,8 +119,34 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
     const t = { ...makeTransfer(amount, direction, activeAssetId), originator }
     addMockTransfer(t)
     setTransferAmount('')
-    toast.success(`Added ${direction === 'in' ? 'incoming' : 'outgoing'} transfer: ${t.originator} · ${formatAmount(amount, decimals)}`)
+    // A reserve deposit raises a mint request for a second approver to settle
+    // (deposit-to-mint, maker-checker). Withdrawals just adjust the reserve
+    // balance; redemptions and their burns are handled on the redemption queue.
+    if (direction === 'in') {
+      const bank = bankForRef(t.id)
+      createMintRequest({ assetId: activeAssetId, amount, originator, reference: `${bank.name} ${bank.account}` })
+      toast.success(`Deposit recorded. Mint request raised for ${formatAmount(amount, decimals)}, awaiting approval.`)
+    } else {
+      toast.success(`Withdrawal recorded: ${originator}, ${formatAmount(amount, decimals)}`)
+    }
   }, [transferAmount, decimals, direction, activeAssetId])
+
+  // Checker step: approve a pending mint request. This performs the real
+  // on-chain issuance and records the txid against the request.
+  const [approvingId, setApprovingId] = useState<string | null>(null)
+  const approveMint = useCallback(async (req: MintRequest) => {
+    if (asset == null || approvingId != null) return
+    setApprovingId(req.id)
+    try {
+      const res = await issue.mutateAsync({ asset, amount: req.amount })
+      settleMintRequest(req.id, { txid: res.txid, approvedBy: approverName })
+      toast.success(`Minted ${formatAmount(req.amount, decimals)} on-chain`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not issue on-chain')
+    } finally {
+      setApprovingId(null)
+    }
+  }, [asset, approvingId, issue, approverName, decimals])
 
   const handleRemoveTransfer = useCallback((id: string) => {
     removeMockTransfer(id)
@@ -199,7 +232,7 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <Plug className="size-3.5" /> Sandbox feed — no bank or custodian connected
+            <Plug className="size-3.5" /> Sandbox reserve feed, no bank or custodian connected
           </span>
         )}
         <button type="button" onClick={() => navigate('/issuer/integrations')} className="text-[11.5px] font-medium text-primary hover:underline">
@@ -335,6 +368,82 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
         })}
       </div>
       )}
+
+      {/* MINTING QUEUE - deposit-to-mint with maker-checker approval. A reserve
+          deposit raises a request; a second approver settles it, issuing the
+          matching units on-chain. */}
+      {mintRequests.length > 0 && (() => {
+        const ticker = asset?.metadata?.ticker != null ? String(asset.metadata.ticker).toUpperCase() : 'units'
+        return (
+          <>
+            <p className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase mb-[10px] mt-[22px]">
+              Minting queue · maker-checker
+            </p>
+            <div className="bg-card border border-border rounded-md overflow-hidden">
+              {mintRequests.map((r, idx) => {
+                const pending = r.status === 'pending'
+                const settled = r.status === 'settled'
+                const busy = approvingId === r.id
+                return (
+                  <div key={r.id} className={cn('flex flex-wrap items-center gap-3 px-[18px] py-[14px]', idx > 0 && 'border-t border-separator')}>
+                    <span className={cn('grid size-9 shrink-0 place-items-center rounded-lg', settled ? 'bg-success/10 text-success' : r.status === 'rejected' ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary')}>
+                      <CirclePlus className="size-4.5" strokeWidth={2} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="tabular text-[14px] font-semibold text-foreground">{formatAmount(r.amount, decimals)} {ticker}</span>
+                        <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold',
+                          settled ? 'bg-success/10 text-success' : r.status === 'rejected' ? 'bg-muted text-muted-foreground' : 'bg-warning/10 text-warning')}>
+                          {settled ? 'Minted' : r.status === 'rejected' ? 'Rejected' : 'Awaiting approval'}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 truncate text-[11.5px] text-subtle-foreground">
+                        From {r.originator} · {r.reference}
+                      </div>
+                      <div className="mt-0.5 text-[11px] text-faint-foreground">
+                        {settled ? `Approved by ${r.approvedBy}` : r.status === 'rejected' ? `Rejected by ${r.approvedBy}` : `Requested by ${r.requestedBy}`}
+                      </div>
+                    </div>
+                    {pending ? (
+                      <div className="flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void approveMint(r)}
+                          disabled={busy || asset == null}
+                          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                        >
+                          {busy ? <Spinner size="sm" tone="current" /> : <Check className="size-3.5" />}
+                          {busy ? 'Minting…' : 'Approve & mint'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => rejectMintRequest(r.id, { approvedBy: approverName })}
+                          disabled={busy}
+                          aria-label="Reject mint request"
+                          className="grid size-8 place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-destructive disabled:opacity-50"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex shrink-0 items-center gap-2">
+                        {settled && r.txid != null && (
+                          <a href={`https://whatsonchain.com/tx/${r.txid}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11.5px] font-medium text-primary hover:underline">
+                            <ExternalLink className="size-3.5" /> {r.txid.slice(0, 10)}…
+                          </a>
+                        )}
+                        <button type="button" onClick={() => removeMintRequest(r.id)} aria-label="Dismiss" className="grid size-8 place-items-center rounded-md text-subtle-foreground transition-colors hover:bg-muted hover:text-destructive">
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )
+      })()}
 
       {/* RECONCILIATION */}
       {recon != null && (() => {
