@@ -15,7 +15,7 @@ import {
 import { exportReport, exportBundle, FORMAT_LABEL, type ReportTable, type ExportFormat, type ReportSection } from '../../lib/exports'
 import { logExport, removeExport, useExportHistory } from '../../lib/exportHistory'
 import { YearSelect, availableYears } from './YearSelect'
-import { ExportButtonGroup } from './ExportButtonGroup'
+import { ExportFormatPicker } from './ExportFormatPicker'
 import { PopoverSelect } from './PopoverSelect'
 import { ReportCell, isNowrapColumn } from './ReportCell'
 import { Input } from '../ui/input'
@@ -128,41 +128,38 @@ export default function ReportsPage() {
   const historyAssetId = scope === 'all' ? '' : scope
   const history = useExportHistory(historyAssetId)
 
-  // Actual file generation - from the toast CTA or Recent exports.
-  const downloadOne = (key: ReportKey, format: ExportFormat) => {
+  const fmtList = (formats: ExportFormat[]) => formats.map(f => FORMAT_LABEL[f]).join(', ')
+
+  // Generate one file per selected format.
+  const downloadOne = (key: ReportKey, formats: ExportFormat[]) => {
     const spec = REPORT_SPECS.find(s => s.key === key)
     if (spec == null) return
-    exportReport(`${scopeName} ${spec.name} ${periodName}`, format, tablesByKey[key])
+    formats.forEach(f => exportReport(`${scopeName} ${spec.name} ${periodName}`, f, tablesByKey[key]))
   }
-  const downloadAllBundle = (format: ExportFormat) => {
+  const downloadAllBundle = (formats: ExportFormat[]) => {
     const sections: ReportSection[] = REPORT_SPECS
       .map(s => ({ title: s.name, table: tablesByKey[s.key] }))
       .filter(s => s.table.rows.length > 0)
     if (sections.length === 0) { toast.error('Nothing to export.'); return }
-    exportBundle(`${scopeName} all reports ${periodName}`, format, sections)
+    formats.forEach(f => exportBundle(`${scopeName} all reports ${periodName}`, f, sections))
   }
 
-  // Clicking an export button adds it to Recent exports and offers a download
-  // shortcut, rather than downloading straight away (matches the instrument tab).
-  const exportOne = (key: ReportKey, format: ExportFormat) => {
+  // Download the selected file types and log the export (re-downloadable below).
+  const exportOne = (key: ReportKey, formats: ExportFormat[]) => {
     const spec = REPORT_SPECS.find(s => s.key === key)!
     const table = tablesByKey[key]
     if (table.rows.length === 0) { toast.error('No rows to export.'); return }
-    logExport({ assetId: historyAssetId, reportKey: key, reportName: `${scopeName} · ${spec.name}`, format, rowCount: table.rows.length })
-    toast.success(`${spec.name} (${FORMAT_LABEL[format]}) is ready`, {
-      description: 'Download it from Recent exports below.',
-      action: { label: 'Download', onClick: () => downloadOne(key, format) },
-    })
+    downloadOne(key, formats)
+    logExport({ assetId: historyAssetId, reportKey: key, reportName: `${scopeName} · ${spec.name}`, formats, rowCount: table.rows.length })
+    toast.success(`Exported ${spec.name} · ${fmtList(formats)}`)
   }
 
-  const exportAll = (format: ExportFormat) => {
+  const exportAll = (formats: ExportFormat[]) => {
     const rows = REPORT_SPECS.reduce((n, s) => n + tablesByKey[s.key].rows.length, 0)
     if (rows === 0) { toast.error('No rows to export for this selection.'); return }
-    logExport({ assetId: historyAssetId, reportKey: 'summary', reportName: `${scopeName} · all reports`, format, rowCount: rows, bundle: true })
-    toast.success(`All reports (${FORMAT_LABEL[format]}) are ready`, {
-      description: 'Download them from Recent exports below.',
-      action: { label: 'Download', onClick: () => downloadAllBundle(format) },
-    })
+    downloadAllBundle(formats)
+    logExport({ assetId: historyAssetId, reportKey: 'summary', reportName: `${scopeName} · all reports`, formats, rowCount: rows, bundle: true })
+    toast.success(`Exported all reports · ${fmtList(formats)}`)
   }
 
   if (assets.length === 0) {
@@ -204,7 +201,7 @@ export default function ReportsPage() {
         )}
         <div className="ml-auto flex items-center gap-2">
           <span className="text-[12px] font-medium text-muted-foreground">Download all</span>
-          <ExportButtonGroup onExport={exportAll} primary />
+          <ExportFormatPicker onExport={exportAll} />
         </div>
       </div>
 
@@ -246,7 +243,7 @@ export default function ReportsPage() {
                     <div className="text-[14px] font-semibold text-foreground">{activeSpec.name}</div>
                     <p className="text-[12px] text-muted-foreground">{activeSpec.description} · {activeTable.rows.length} row{activeTable.rows.length === 1 ? '' : 's'}</p>
                   </div>
-                  <ExportButtonGroup onExport={f => exportOne(tab as ReportKey, f)} disabled={activeTable.rows.length === 0} />
+                  <ExportFormatPicker onExport={f => exportOne(tab as ReportKey, f)} disabled={activeTable.rows.length === 0} />
                 </div>
                 {/* Inline filter - matches any column, highlights matches below. */}
                 <div className="relative mt-2.5">
@@ -296,20 +293,25 @@ export default function ReportsPage() {
                 </p>
               ) : (
                 <div className="overflow-hidden rounded-lg border border-border">
-                  <div className="grid grid-cols-[1.6fr_70px_60px_1fr_72px] items-center border-b border-border bg-muted/40 px-3 py-2 text-[10.5px] font-medium uppercase tracking-wide text-subtle-foreground">
-                    <div>Report</div><div>Format</div><div className="text-right">Rows</div><div className="text-right">Created</div><div className="text-right">Actions</div>
+                  <div className="grid grid-cols-[1.6fr_120px_60px_1fr_72px] items-center border-b border-border bg-muted/40 px-3 py-2 text-[10.5px] font-medium uppercase tracking-wide text-subtle-foreground">
+                    <div>Report</div><div>Files</div><div className="text-right">Rows</div><div className="text-right">Created</div><div className="text-right">Actions</div>
                   </div>
                   {history.map(h => (
-                    <div key={h.id} className="grid grid-cols-[1.6fr_70px_60px_1fr_72px] items-center border-t border-separator px-3 py-2 text-[12.5px]">
+                    <div key={h.id} className="grid grid-cols-[1.6fr_120px_60px_1fr_72px] items-center border-t border-separator px-3 py-2 text-[12.5px]">
                       <div className="truncate font-medium text-foreground">{h.reportName}</div>
-                      <div><span className="rounded bg-muted px-1.5 py-0.5 text-[10.5px] font-semibold text-muted-foreground">{FORMAT_LABEL[h.format]}</span></div>
+                      <div className="flex flex-wrap gap-1">
+                        {h.formats.map(f => (
+                          <span key={f} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{FORMAT_LABEL[f]}</span>
+                        ))}
+                      </div>
                       <div className="text-right tabular text-muted-foreground">{h.rowCount}</div>
                       <div className="truncate text-right text-[11.5px] text-subtle-foreground">{fmtDateTime(h.createdAt)}</div>
                       <div className="flex justify-end gap-1">
                         <button
                           type="button"
-                          aria-label="Download"
-                          onClick={() => { if (h.bundle) downloadAllBundle(h.format); else downloadOne(h.reportKey as ReportKey, h.format) }}
+                          aria-label="Download all files"
+                          title={`Download ${fmtList(h.formats)}`}
+                          onClick={() => { if (h.bundle) downloadAllBundle(h.formats); else downloadOne(h.reportKey as ReportKey, h.formats) }}
                           className="grid size-7 place-items-center rounded border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                         >
                           <Download className="size-3.5" />

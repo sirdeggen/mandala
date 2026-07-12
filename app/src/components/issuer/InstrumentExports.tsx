@@ -5,7 +5,7 @@ import {
   ListOrdered, Layers, BadgeCheck, HandCoins, ShieldAlert, Link2, GaugeCircle, Lock,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { ExportButtonGroup } from './ExportButtonGroup'
+import { ExportFormatPicker } from './ExportFormatPicker'
 import { ReportCell, isNowrapColumn } from './ReportCell'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useOverlayActivity } from '../../hooks/useOverlayActivity'
@@ -70,34 +70,31 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
 
   const scopeLabel = `${asset?.label ?? 'instrument'}${year === 'all' ? '' : ` ${year}`}`
 
-  // Actual file generation - triggered from the toast CTA or Recent exports.
-  const downloadReport = (r: ReportView, format: ExportFormat) => {
-    exportReport(`${scopeLabel} ${r.name}`, format, r.table)
+  const fmtList = (formats: ExportFormat[]) => formats.map(f => FORMAT_LABEL[f]).join(', ')
+
+  // Generate one file per selected format.
+  const doDownloadReport = (r: ReportView, formats: ExportFormat[]) => {
+    formats.forEach(f => exportReport(`${scopeLabel} ${r.name}`, f, r.table))
   }
-  const downloadAll = (format: ExportFormat) => {
+  const doDownloadAll = (formats: ExportFormat[]) => {
     const sections = reports.filter(r => r.table.rows.length > 0).map(r => ({ title: r.name, table: r.table }))
     if (sections.length === 0) { toast.error('Nothing to export yet.'); return }
-    exportBundle(`${scopeLabel} all reports`, format, sections)
+    formats.forEach(f => exportBundle(`${scopeLabel} all reports`, f, sections))
   }
 
-  // Clicking an export button prepares the file and logs it to Recent exports
-  // rather than downloading straight away; the toast offers a download shortcut.
-  const prepareReport = (r: ReportView, format: ExportFormat) => {
+  // Download the selected file types and log the export (re-downloadable below).
+  const runReport = (r: ReportView, formats: ExportFormat[]) => {
     if (r.table.rows.length === 0) { toast.error('No rows to export yet.'); return }
-    logExport({ assetId, reportKey: r.key, reportName: r.name, format, rowCount: r.table.rows.length })
-    toast.success(`${r.name} (${FORMAT_LABEL[format]}) is ready`, {
-      description: 'Download it from Recent exports below.',
-      action: { label: 'Download', onClick: () => downloadReport(r, format) },
-    })
+    doDownloadReport(r, formats)
+    logExport({ assetId, reportKey: r.key, reportName: r.name, formats, rowCount: r.table.rows.length })
+    toast.success(`Exported ${r.name} · ${fmtList(formats)}`)
   }
-  const prepareAll = (format: ExportFormat) => {
+  const runAll = (formats: ExportFormat[]) => {
     const rows = reports.reduce((n, r) => n + r.table.rows.length, 0)
     if (rows === 0) { toast.error('Nothing to export yet.'); return }
-    logExport({ assetId, reportKey: 'summary', reportName: 'All reports', format, rowCount: rows, bundle: true })
-    toast.success(`All reports (${FORMAT_LABEL[format]}) are ready`, {
-      description: 'Download them from Recent exports below.',
-      action: { label: 'Download', onClick: () => downloadAll(format) },
-    })
+    doDownloadAll(formats)
+    logExport({ assetId, reportKey: 'summary', reportName: 'All reports', formats, rowCount: rows, bundle: true })
+    toast.success(`Exported all reports · ${fmtList(formats)}`)
   }
 
   return (
@@ -116,29 +113,29 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[12px] font-medium text-muted-foreground">Export all</span>
-          <ExportButtonGroup onExport={prepareAll} primary />
+          <ExportFormatPicker onExport={runAll} />
         </div>
       </div>
 
-      {/* Report catalogue */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {/* Report catalogue - inset on a sidebar-toned panel, cards inside */}
+      <div className="grid grid-cols-1 gap-3 rounded-xl bg-sidebar p-3 sm:grid-cols-2">
         {reports.map(r => (
-          <div key={r.key} className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+          <div key={r.key} className="flex flex-col rounded-xl border border-border bg-card p-4">
             <div className="flex items-start gap-3">
               <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
                 <r.Icon className="size-4.5" strokeWidth={2} />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-[14px] font-semibold text-foreground">{r.name}</div>
-                <p className="mt-0.5 text-[12px] leading-snug text-muted-foreground">{r.description}</p>
+                <p className="mt-0.5 text-balance text-[12px] leading-snug text-muted-foreground">{r.description}</p>
               </div>
             </div>
-            <div className="mt-3 flex items-center justify-between gap-2">
-              <span className="text-[11px] text-faint-foreground">{r.table.rows.length} row{r.table.rows.length === 1 ? '' : 's'}</span>
-              <div className="flex flex-wrap items-center justify-end gap-1.5">
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-faint-foreground">{r.table.rows.length} row{r.table.rows.length === 1 ? '' : 's'}</span>
                 <ActionBtn Icon={Eye} label="View" onClick={() => setPreview(r)} />
-                <ExportButtonGroup onExport={f => prepareReport(r, f)} disabled={r.table.rows.length === 0} />
               </div>
+              <ExportFormatPicker onExport={f => runReport(r, f)} disabled={r.table.rows.length === 0} />
             </div>
           </div>
         ))}
@@ -153,23 +150,28 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
           </p>
         ) : (
           <div className="overflow-hidden rounded-lg border border-border">
-            <div className="grid grid-cols-[1.4fr_70px_60px_1fr_72px] items-center border-b border-border bg-muted/40 px-3 py-2 text-[10.5px] font-medium uppercase tracking-wide text-subtle-foreground">
-              <div>Report</div><div>Format</div><div className="text-right">Rows</div><div className="text-right">Created</div><div className="text-right">Actions</div>
+            <div className="grid grid-cols-[1.4fr_120px_60px_1fr_72px] items-center border-b border-border bg-muted/40 px-3 py-2 text-[10.5px] font-medium uppercase tracking-wide text-subtle-foreground">
+              <div>Report</div><div>Files</div><div className="text-right">Rows</div><div className="text-right">Created</div><div className="text-right">Actions</div>
             </div>
             {history.map(h => {
               const report = reports.find(r => r.key === h.reportKey)
               return (
-                <div key={h.id} className="grid grid-cols-[1.4fr_70px_60px_1fr_72px] items-center border-t border-separator px-3 py-2 text-[12.5px]">
+                <div key={h.id} className="grid grid-cols-[1.4fr_120px_60px_1fr_72px] items-center border-t border-separator px-3 py-2 text-[12.5px]">
                   <div className="truncate font-medium text-foreground">{h.reportName}</div>
-                  <div><span className="rounded bg-muted px-1.5 py-0.5 text-[10.5px] font-semibold text-muted-foreground">{FORMAT_LABEL[h.format]}</span></div>
+                  <div className="flex flex-wrap gap-1">
+                    {h.formats.map(f => (
+                      <span key={f} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{FORMAT_LABEL[f]}</span>
+                    ))}
+                  </div>
                   <div className="text-right tabular text-muted-foreground">{h.rowCount}</div>
                   <div className="truncate text-right text-[11.5px] text-subtle-foreground">{fmtDate(h.createdAt)}</div>
                   <div className="flex justify-end gap-1">
                     <button
                       type="button"
-                      aria-label="Download"
+                      aria-label="Download all files"
+                      title={`Download ${fmtList(h.formats)}`}
                       disabled={!h.bundle && report == null}
-                      onClick={() => { if (h.bundle) downloadAll(h.format); else if (report != null) downloadReport(report, h.format) }}
+                      onClick={() => { if (h.bundle) doDownloadAll(h.formats); else if (report != null) doDownloadReport(report, h.formats) }}
                       className="grid size-7 place-items-center rounded border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
                     >
                       <Download className="size-3.5" />
@@ -190,7 +192,7 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
         )}
       </div>
 
-      {preview != null && <PreviewModal report={preview} onClose={() => setPreview(null)} onExport={prepareReport} />}
+      {preview != null && <PreviewModal report={preview} onClose={() => setPreview(null)} onExport={runReport} />}
     </div>
   )
 }
@@ -212,7 +214,7 @@ function ActionBtn({ Icon, label, onClick, disabled }: { Icon: LucideIcon; label
 function PreviewModal({ report, onClose, onExport }: {
   report: ReportView
   onClose: () => void
-  onExport: (r: ReportView, format: ExportFormat) => void
+  onExport: (r: ReportView, formats: ExportFormat[]) => void
 }) {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/40 p-4 animate-in" onClick={onClose}>
@@ -222,8 +224,8 @@ function PreviewModal({ report, onClose, onExport }: {
             <h2 className="truncate text-[15px] font-semibold text-foreground">{report.name}</h2>
             <p className="text-[12px] text-muted-foreground">{report.table.rows.length} row{report.table.rows.length === 1 ? '' : 's'}</p>
           </div>
-          <div className="flex items-center gap-1.5">
-            <ExportButtonGroup onExport={f => onExport(report, f)} disabled={report.table.rows.length === 0} />
+          <div className="flex items-center gap-2.5">
+            <ExportFormatPicker onExport={f => onExport(report, f)} disabled={report.table.rows.length === 0} />
             <button type="button" onClick={onClose} aria-label="Close" className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
               <X className="size-4" />
             </button>

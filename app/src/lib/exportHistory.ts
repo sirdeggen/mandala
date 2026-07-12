@@ -12,14 +12,14 @@ export interface ExportRecord {
   assetId: string
   reportKey: string
   reportName: string
-  format: ExportFormat
+  formats: ExportFormat[]
   rowCount: number
   createdAt: string   // ISO
   /** True when this record is a bundle of every report, not a single one. */
   bundle?: boolean
 }
 
-const KEY = 'underwrite.exportHistory.v1'
+const KEY = 'underwrite.exportHistory.v2'
 const listeners = new Set<() => void>()
 
 function read(): ExportRecord[] {
@@ -28,7 +28,12 @@ function read(): ExportRecord[] {
     const raw = localStorage.getItem(KEY)
     if (raw == null) return []
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed as ExportRecord[] : []
+    if (!Array.isArray(parsed)) return []
+    // Tolerate older single-format entries.
+    return (parsed as Array<ExportRecord & { format?: ExportFormat }>).map(e => ({
+      ...e,
+      formats: Array.isArray(e.formats) ? e.formats : (e.format != null ? [e.format] : []),
+    }))
   } catch {
     return []
   }
