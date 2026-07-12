@@ -1,9 +1,10 @@
 # Starter-template image credits
 
 All images in this folder are used on the issuer Home starter-template gallery
-(`src/content/instrumentTemplates.ts`). They were sourced from **Unsplash** and
+(`src/content/instrumentTemplates.ts`). Most were sourced from **Unsplash** and
 downloaded locally so the app self-hosts them (no runtime dependency on the
-Unsplash CDN).
+Unsplash CDN); the four currency banknote images (`usd/eur/chf/gbp-stablecoin`)
+were provided separately as licensed stock and are marked accordingly below.
 
 ## Licence
 
@@ -22,10 +23,10 @@ illustrate.
 
 | File | Used for | Source (Unsplash) |
 |------|----------|-------------------|
-| `usd-stablecoin.jpg`  | USD Stablecoin template   | https://unsplash.com/photos/100-us-dollar-banknote-rKPiuXLq29A |
-| `chf-stablecoin.jpg`  | CHF Stablecoin template   | https://unsplash.com/photos/10-and-100-banknotes-on-white-table-htol9OLeW20 |
-| `eur-stablecoin.jpg`  | EUR Stablecoin template   | https://unsplash.com/photos/50-euro-bill-on-brown-wooden-table-cg4MzL_eSvU |
-| `gbp-stablecoin.jpg`  | GBP Stablecoin template   | https://unsplash.com/photos/20-pounds-bank-of-england-8WRRJ4xJeyg |
+| `usd-stablecoin.jpg`  | USD Stablecoin template   | Provided (licensed stock) — US $100 banknote macro |
+| `chf-stablecoin.jpg`  | CHF Stablecoin template   | Provided (licensed stock) — Swiss franc notes & coins |
+| `eur-stablecoin.jpg`  | EUR Stablecoin template   | Provided (licensed stock) — €20 banknote detail |
+| `gbp-stablecoin.jpg`  | GBP Stablecoin template   | Provided (licensed stock) — GBP notes & coins |
 | `deposit-token.jpg`   | Deposit Token template    | https://images.unsplash.com/photo-1462206092226-f46025ffe607 |
 | `money-market.jpg`    | Money Market Token        | https://images.unsplash.com/photo-1535320903710-d993d3d77d29 |
 | `emoney.jpg`          | E-Money Token template    | https://images.unsplash.com/photo-1509017174183-0b7e0278f1ec |
