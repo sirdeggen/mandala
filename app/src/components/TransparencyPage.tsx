@@ -178,28 +178,32 @@ export function TransparencyOrg() {
         <ArrowLeft className="size-4" /> Directory
       </Link>
 
-      <div className="flex items-center gap-3">
-        <CompanyAvatar name={name} size={44} className="rounded-xl" />
-        <div>
-          <h1 className="text-[22px] font-semibold tracking-[-0.01em] text-foreground">{name}</h1>
-          <div className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground"><Building2 className="size-3.5" /> Issuing institution</div>
+      {/* Institution card, with its instruments nested as children */}
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
+        <div className="flex items-center gap-3">
+          <CompanyAvatar name={name} size={44} className="rounded-xl" />
+          <div>
+            <h1 className="text-[22px] font-semibold tracking-[-0.01em] text-foreground">{name}</h1>
+            <div className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground"><Building2 className="size-3.5" /> Issuing institution</div>
+          </div>
         </div>
-      </div>
 
-      {!entity.published ? (
-        <div className="mt-6 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3 text-[13px] text-warning">
-          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-          <span>This institution has not published a transparency page.</span>
-        </div>
-      ) : isLoading ? (
-        <div className="mt-10 flex items-center gap-2 text-[13px] text-muted-foreground"><Spinner size="sm" tone="brand" /> Loading…</div>
-      ) : instruments.length === 0 ? (
-        <p className="mt-8 rounded-xl border border-dashed border-border px-4 py-12 text-center text-[13.5px] text-muted-foreground">No published instruments for this institution.</p>
-      ) : (
-        <div className="mt-6 space-y-3">
-          {instruments.map(i => <InstrumentRow key={i.assetId} issuer={issuer} assetId={i.assetId} />)}
-        </div>
-      )}
+        {!entity.published ? (
+          <div className="mt-5 flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/5 px-4 py-3 text-[13px] text-warning">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+            <span>This institution has not published a transparency page.</span>
+          </div>
+        ) : isLoading ? (
+          <div className="mt-6 flex items-center gap-2 text-[13px] text-muted-foreground"><Spinner size="sm" tone="brand" /> Loading…</div>
+        ) : instruments.length === 0 ? (
+          <p className="mt-5 rounded-xl border border-dashed border-border px-4 py-10 text-center text-[13.5px] text-muted-foreground">No published instruments for this institution.</p>
+        ) : (
+          <div className="mt-5 border-t border-separator pt-2">
+            <div className="mb-1 px-1 text-[11px] font-medium uppercase tracking-wide text-subtle-foreground">Instruments</div>
+            {instruments.map(i => <InstrumentRow key={i.assetId} issuer={issuer} assetId={i.assetId} />)}
+          </div>
+        )}
+      </div>
     </Chrome>
   )
 }
@@ -222,7 +226,7 @@ function InstrumentRow({ issuer, assetId }: { issuer: string; assetId: string })
   return (
     <Link
       to={`/transparency/${encodeURIComponent(issuer)}/${encodeURIComponent(assetId)}`}
-      className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-card)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-card hover:shadow-[0_10px_24px_-12px_rgba(16,24,40,0.25)]"
+      className="flex items-center gap-4 rounded-xl px-2 py-2.5 transition-colors hover:bg-muted/50"
     >
       <InstrumentIcon assetId={assetId} size={40} className="rounded-lg" image={asset != null ? assetImage(asset) : undefined} />
       <div className="min-w-0 flex-1">
