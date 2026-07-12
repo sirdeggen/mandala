@@ -117,7 +117,9 @@ export const entityLogo = (id: string): string | null => LOGO_BY_ID[id] ?? null
 const hrs = (base: number, h: number) => new Date(base - h * 3_600_000).toISOString()
 const days = (base: number, d: number) => new Date(base - d * 86_400_000).toISOString()
 
-function seed(): Entity[] {
+/** Build our own organisation + the full known-institution directory fresh
+ *  (people/timestamps regenerated each call - fine for mock data). */
+function buildAll(): { own: Entity; directory: Entity[] } {
   const now = Date.now()
   let pid = 0
   const p = (name: string, title: string, systemRole: SystemRole, status: PersonStatus, lastH: number, perms?: Permission[]): Person => {
@@ -133,18 +135,18 @@ function seed(): Entity[] {
       lastActiveAt: hrs(now, lastH),
     }
   }
-  return [
-    {
-      id: 'self', name: 'Your organisation', type: 'reserve-bank', relationship: 'reserve', own: true,
-      jurisdiction: 'Switzerland', status: 'active', monogram: 'YO', color: '#0f172a', sinceAt: days(now, 600),
-      instruments: ['CHFD', 'EURD', 'USDX'],
-      people: [
-        p('Anna Weber', 'Head of Issuance', 'admin', 'active', 0),
-        p('Marc Bianchi', 'Compliance Lead', 'approver', 'active', 3),
-        p('Sofia Meier', 'Treasury Operations', 'operator', 'active', 8),
-        p('Daniel Roth', 'Internal Audit', 'auditor', 'active', 26),
-      ],
-    },
+  const own: Entity = {
+    id: 'self', name: 'Your organisation', type: 'reserve-bank', relationship: 'reserve', own: true,
+    jurisdiction: 'Switzerland', status: 'active', monogram: 'YO', color: '#0f172a', sinceAt: days(now, 600),
+    instruments: ['CHFD', 'EURD', 'USDX'],
+    people: [
+      p('Anna Weber', 'Head of Issuance', 'admin', 'active', 0),
+      p('Marc Bianchi', 'Compliance Lead', 'approver', 'active', 3),
+      p('Sofia Meier', 'Treasury Operations', 'operator', 'active', 8),
+      p('Daniel Roth', 'Internal Audit', 'auditor', 'active', 26),
+    ],
+  }
+  const directory: Entity[] = [
     {
       id: 'sygnum', name: 'Sygnum Bank', type: 'reserve-bank', relationship: 'reserve',
       jurisdiction: 'Switzerland', status: 'active', monogram: 'Sy', color: '#111827', domain: 'sygnum.com', sinceAt: days(now, 420),
@@ -234,11 +236,23 @@ function seed(): Entity[] {
       ],
     },
   ]
+  return { own, directory }
+}
+
+/** All known institutions (the directory the Add-relationship picker draws from). */
+export function directoryEntities(): Entity[] { return buildAll().directory }
+
+/** Relationships added by default. Others in the directory can be added later. */
+const INITIAL_ADDED = ['sygnum', 'zkb', 'postfinance', 'pwc', 'finma']
+
+function seed(): Entity[] {
+  const { own, directory } = buildAll()
+  return [own, ...directory.filter(e => INITIAL_ADDED.includes(e.id))]
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
-const KEY = 'underwrite.entities.v3'
+const KEY = 'underwrite.entities.v4'
 const listeners = new Set<() => void>()
 
 function read(): Entity[] {
@@ -272,32 +286,14 @@ const uid = (p: string) => { seq += 1; return `${p}-${current.length}-${seq}-${(
 
 // ── Entity mutations ──────────────────────────────────────────────────────────
 
-export interface NewEntity {
-  name: string
-  type: EntityType
-  relationship: RelationshipKind
-  jurisdiction: string
-  instruments?: string[]
-}
-
-export function addEntity(input: NewEntity): Entity {
-  const now = new Date().toISOString()
-  const monogram = input.name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('') || '??'
-  const palette = ['#b91c1c', '#0e7490', '#7c3aed', '#1e3a8a', '#166534', '#9a3412', '#0891b2', '#4f46e5']
-  const entity: Entity = {
-    id: uid('e'),
-    name: input.name.trim(),
-    type: input.type,
-    relationship: input.relationship,
-    jurisdiction: input.jurisdiction.trim() || 'Switzerland',
-    status: 'onboarding',
-    monogram,
-    color: palette[(current.length) % palette.length],
-    sinceAt: now,
-    instruments: input.instruments ?? [],
-    people: [],
-  }
-  persist([entity, ...current])
+/** Add an existing institution from the directory as a relationship. Creation
+ *  of brand-new institutions is intentionally not supported - you can only add
+ *  organisations that already exist in the network. */
+export function addFromDirectory(id: string): Entity | null {
+  if (current.some(e => e.id === id)) return null
+  const entity = buildAll().directory.find(d => d.id === id)
+  if (entity == null) return null
+  persist([...current, { ...entity, status: 'onboarding', sinceAt: new Date().toISOString() }])
   return entity
 }
 
@@ -368,4 +364,10 @@ export function useEntities(): Entity[] {
 export function useEntity(id: string | null): Entity | null {
   const all = useEntities()
   return id == null ? null : all.find(e => e.id === id) ?? null
+}
+
+/** Directory institutions not yet added as a relationship. */
+export function useAvailableEntities(): Entity[] {
+  const added = new Set(useEntities().map(e => e.id))
+  return directoryEntities().filter(e => !added.has(e.id))
 }

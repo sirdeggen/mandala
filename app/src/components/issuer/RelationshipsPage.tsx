@@ -14,11 +14,11 @@ import {
 } from 'lucide-react'
 import { IdentitySigil } from '@/components/ui/identity-sigil'
 import {
-  useEntities, useEntity, entityLogo, addEntity, removeEntity, setEntityStatus,
+  useEntities, useEntity, useAvailableEntities, entityLogo, addFromDirectory, removeEntity, setEntityStatus,
   addPerson, removePerson, setPersonRole, togglePersonPermission, setPersonStatus,
   ENTITY_TYPE_LABEL, RELATIONSHIP_LABEL, ENTITY_STATUS_LABEL, SYSTEM_ROLE_LABEL,
   PERMISSION_LABEL, PERMISSION_DESCRIPTION, ALL_PERMISSIONS, PERSON_STATUS_LABEL,
-  type Entity, type Person, type EntityType, type RelationshipKind, type EntityStatus,
+  type Entity, type Person, type EntityType, type EntityStatus,
   type SystemRole, type PersonStatus,
 } from '../../lib/entities'
 import { Button } from '../ui/button'
@@ -417,46 +417,47 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 }
 
 function AddEntityDrawer({ open, onClose, onAdded }: { open: boolean; onClose: () => void; onAdded: (id: string) => void }) {
-  const [name, setName] = useState('')
-  const [type, setType] = useState<EntityType>('custodian')
-  const [relationship, setRelationship] = useState<RelationshipKind>('custody')
-  const [jurisdiction, setJurisdiction] = useState('Switzerland')
+  const available = useAvailableEntities()
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+  const rows = available.filter(e => q === '' || e.name.toLowerCase().includes(q) || ENTITY_TYPE_LABEL[e.type].toLowerCase().includes(q))
 
-  const submit = () => {
-    if (name.trim() === '') { toast.error('Enter the institution name.'); return }
-    const e = addEntity({ name, type, relationship, jurisdiction })
-    toast.success(`${e.name} added`)
-    setName(''); setType('custodian'); setRelationship('custody'); setJurisdiction('Switzerland')
-    onAdded(e.id)
+  const add = (id: string, name: string) => {
+    const e = addFromDirectory(id)
+    if (e == null) { toast.error('Already added.'); return }
+    toast.success(`${name} added`)
+    onAdded(id)
   }
 
   return (
     <Sheet open={open} onOpenChange={o => { if (!o) onClose() }}>
       <SheetContent side="right" className="w-full sm:max-w-md">
         <SheetTitle className="sr-only">Add relationship</SheetTitle>
-        <DrawerHeader title="Add a relationship" subtitle="Register an institution you work with." onClose={onClose} />
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
-          <div><FieldLabel>Institution name</FieldLabel><Input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Sygnum Bank AG" className="mt-1.5 h-10 text-[13px]" /></div>
-          <div>
-            <FieldLabel>Type</FieldLabel>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {(Object.keys(ENTITY_TYPE_LABEL) as EntityType[]).map(t => (
-                <button key={t} type="button" onClick={() => setType(t)} className={cn('rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors', type === t ? 'border-foreground bg-foreground text-background' : 'border-border text-muted-foreground hover:bg-muted')}>{ENTITY_TYPE_LABEL[t]}</button>
-              ))}
-            </div>
+        <DrawerHeader title="Add a relationship" subtitle="Choose an institution already in the network." onClose={onClose} />
+        <div className="border-b border-border px-5 py-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-faint-foreground" />
+            <Input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search institutions" className="h-9 pl-8 text-[13px]" />
           </div>
-          <div>
-            <FieldLabel>Relationship</FieldLabel>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {(Object.keys(RELATIONSHIP_LABEL) as RelationshipKind[]).map(r => (
-                <button key={r} type="button" onClick={() => setRelationship(r)} className={cn('rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors', relationship === r ? 'border-foreground bg-foreground text-background' : 'border-border text-muted-foreground hover:bg-muted')}>{RELATIONSHIP_LABEL[r]}</button>
-              ))}
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+          {available.length === 0 ? (
+            <p className="px-2 py-10 text-center text-[13px] text-muted-foreground">Every institution in the network is already a relationship.</p>
+          ) : rows.length === 0 ? (
+            <p className="px-2 py-10 text-center text-[13px] text-muted-foreground">No institutions match “{query.trim()}”.</p>
+          ) : rows.map(e => (
+            <div key={e.id} className="flex items-center gap-3 rounded-lg px-2 py-2">
+              <Monogram entity={e} size={34} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] font-medium text-foreground">{e.name}</div>
+                <div className="truncate text-[11.5px] text-subtle-foreground">{ENTITY_TYPE_LABEL[e.type]} · {e.jurisdiction}</div>
+              </div>
+              <Button variant="outline" onClick={() => add(e.id, e.name)} className="h-8 shrink-0 gap-1.5 px-3 text-[12px]"><Plus className="size-3.5" /> Add</Button>
             </div>
-          </div>
-          <div><FieldLabel>Jurisdiction</FieldLabel><Input value={jurisdiction} onChange={e => setJurisdiction(e.target.value)} className="mt-1.5 h-10 text-[13px]" /></div>
+          ))}
         </div>
         <div className="border-t border-border px-5 py-3">
-          <Button onClick={submit} size="lg" className="w-full gap-1.5"><Plus className="size-4" /> Add relationship</Button>
+          <p className="text-[11.5px] leading-snug text-subtle-foreground">Only institutions already onboarded to the network can be added. New institutions are onboarded separately.</p>
         </div>
       </SheetContent>
     </Sheet>
