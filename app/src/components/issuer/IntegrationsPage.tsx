@@ -370,17 +370,17 @@ function EmptyState({ onConnect, onBrowseAll }: { onConnect: (p: Provider) => vo
       <div className="mx-auto h-48 w-full max-w-[360px]">
         <div className="relative mx-auto h-48 w-[340px]">
           {/* soft glow behind the hub */}
-          <div className="absolute left-1/2 top-[calc(50%+12px)] size-44 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--color-primary)_14%,transparent),transparent_70%)]" />
+          <div className="absolute left-1/2 top-[calc(50%+22px)] size-44 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--color-primary)_14%,transparent),transparent_70%)]" />
           {/* dashed connectors from hub (170,108) to each provider */}
           <svg viewBox="0 0 340 192" className="absolute inset-0 h-full w-full text-border" fill="none" aria-hidden>
             <g stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 4">
-              <path d="M170 108 L170 26" />
-              <path d="M170 108 L52 168" />
-              <path d="M170 108 L288 168" />
+              <path d="M170 118 L170 26" />
+              <path d="M170 118 L52 168" />
+              <path d="M170 118 L288 168" />
             </g>
           </svg>
           {/* hub - centred low, gently bobbing, with a glossy gel sheen */}
-          <div className="absolute left-1/2 top-[calc(50%+12px)] -translate-x-1/2 -translate-y-1/2">
+          <div className="absolute left-1/2 top-[calc(50%+22px)] -translate-x-1/2 -translate-y-1/2">
             <div className="animate-bob relative grid size-16 place-items-center overflow-hidden rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-pop)]">
               {/* gel: top-down gloss + a soft corner highlight */}
               <div className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/35 to-transparent" />
