@@ -95,7 +95,7 @@
 
   --success: #2f9e5c;            /* backed / verified green */
   --success-foreground: #ffffff;
-  --warning: #b45309;            /* amber / attention */
+  --warning: #ca8a04;            /* yellow / attention */
   --warning-foreground: #ffffff;
   --destructive: #e5484d;        /* red */
   --destructive-foreground: #ffffff;

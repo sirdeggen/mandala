@@ -17,7 +17,7 @@ import { logExport, removeExport, useExportHistory } from '../../lib/exportHisto
 import { YearSelect, availableYears } from './YearSelect'
 import { ExportFormatPicker } from './ExportFormatPicker'
 import { DownloadSignoffButton, DownloadEventRows } from './DownloadSignoffButton'
-import { PopoverSelect } from './PopoverSelect'
+import { PopoverSelect, PopoverMultiSelect } from './PopoverSelect'
 import { ReportCell, isNowrapColumn } from './ReportCell'
 import { Input } from '../ui/input'
 import { cn } from '@/lib/utils'
@@ -49,7 +49,8 @@ export default function ReportsPage() {
   const summaries = useAdminSummaries(assets.map(a => a.assetId))
   const allLinks = useAllReconLinks()
 
-  const [scope, setScope] = useState<'all' | string>('all')
+  // Selected instrument scope. Empty = all instruments.
+  const [scope, setScope] = useState<string[]>([])
   const [periodMode, setPeriodMode] = useState<PeriodMode>('all')
   const [year, setYear] = useState<number>(() => new Date().getFullYear())
   const [from, setFrom] = useState('')
@@ -61,7 +62,7 @@ export default function ReportsPage() {
     setLedgerMap(m => (m[id] === entries ? m : { ...m, [id]: entries }))
   }, [])
 
-  const scopeAssets = scope === 'all' ? assets : assets.filter(a => a.assetId === scope)
+  const scopeAssets = scope.length === 0 ? assets : assets.filter(a => scope.includes(a.assetId))
 
   const filter: DateFilter = periodMode === 'all'
     ? { mode: 'all' }
@@ -100,7 +101,7 @@ export default function ReportsPage() {
     for (const spec of REPORT_SPECS) {
       if (spec.key === 'screening') {
         map[spec.key] = scopeAssets[0] != null ? buildReport('screening', ctxFor(scopeAssets[0])) : { columns: [], rows: [] }
-      } else if (scope !== 'all') {
+      } else if (scopeAssets.length === 1) {
         map[spec.key] = scopeAssets[0] != null ? buildReport(spec.key, ctxFor(scopeAssets[0])) : { columns: [], rows: [] }
       } else {
         const combined: ReportTable = { columns: [], rows: [] }
@@ -115,7 +116,11 @@ export default function ReportsPage() {
     return map
   }, [scope, scopeAssets, ctxFor])
 
-  const scopeName = scope === 'all' ? 'All instruments' : (assets.find(a => a.assetId === scope)?.label ?? 'Instrument')
+  const scopeName = scope.length === 0
+    ? 'All instruments'
+    : scope.length === 1
+      ? (assets.find(a => a.assetId === scope[0])?.label ?? 'Instrument')
+      : `${scope.length} instruments`
   const periodName = periodMode === 'all' ? 'all time' : periodMode === 'year' ? String(year) : `${from || '…'} to ${to || '…'}`
   const isReport = tab !== 'recent'
   const activeSpec = isReport ? REPORT_SPECS.find(s => s.key === tab) : undefined
@@ -126,7 +131,8 @@ export default function ReportsPage() {
   const q = query.trim().toLowerCase()
   const filteredRows = q === '' ? activeTable.rows : activeTable.rows.filter(row => row.some(cell => cell.toLowerCase().includes(q)))
 
-  const historyAssetId = scope === 'all' ? '' : scope
+  // Export history is keyed per-instrument; scope it only when exactly one is selected.
+  const historyAssetId = scope.length === 1 ? scope[0]! : ''
   const history = useExportHistory(historyAssetId)
 
   const fmtList = (formats: ExportFormat[]) => formats.map(f => FORMAT_LABEL[f]).join(', ')
@@ -181,10 +187,12 @@ export default function ReportsPage() {
 
       {/* Scope + period + download-all controls */}
       <div className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-[var(--shadow-card)]">
-        <PopoverSelect
-          value={scope}
+        <PopoverMultiSelect
+          values={scope}
           onChange={setScope}
-          options={[{ value: 'all', label: 'All instruments' }, ...assets.map(a => ({ value: a.assetId, label: a.label }))]}
+          placeholder="All instruments"
+          summaryNoun="instruments"
+          options={assets.map(a => ({ value: a.assetId, label: a.label }))}
         />
         <PopoverSelect
           value={periodMode}
@@ -258,7 +266,7 @@ export default function ReportsPage() {
               </div>
               <div className="max-h-[60vh] overflow-auto">
                 {activeTable.rows.length === 0 ? (
-                  <p className="px-5 py-12 text-center text-[13px] text-muted-foreground">No data for this report{scope === 'all' ? ' across your instruments' : ''} in this period.</p>
+                  <p className="px-5 py-12 text-center text-[13px] text-muted-foreground">No data for this report{scope.length === 0 ? ' across your instruments' : ''} in this period.</p>
                 ) : filteredRows.length === 0 ? (
                   <p className="px-5 py-12 text-center text-[13px] text-muted-foreground">No rows match “{query.trim()}”.</p>
                 ) : (
