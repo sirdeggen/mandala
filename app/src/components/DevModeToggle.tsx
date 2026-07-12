@@ -1,7 +1,9 @@
-import { Wrench, RotateCcw } from 'lucide-react'
+import { Wrench, RotateCcw, Sparkles, Eraser } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { useDevMode, toggleDevMode } from '../lib/devMode'
 import { useFullReserve, toggleFullReserve } from '../lib/fullReserveMode'
+import { loadDemoScenario, resetDemo } from '../lib/demoScenario'
 import { useOnboarding, updateProfile, resetOnboarding, type OnboardingRole } from '../lib/onboarding'
 import { cn } from '@/lib/utils'
 
@@ -15,8 +17,13 @@ import { cn } from '@/lib/utils'
 export default function DevModeToggle() {
   const dev = useDevMode()
   const fullReserve = useFullReserve()
-  const { role } = useOnboarding()
+  const { role, name } = useOnboarding()
   const navigate = useNavigate()
+
+  const loadDemo = () => {
+    const ok = loadDemoScenario(name.trim() || 'Issuer')
+    toast[ok ? 'success' : 'info'](ok ? 'Demo scenario loaded' : 'Demo already loaded. Reset first to reload.')
+  }
 
   // Treat anything that isn't explicitly 'auditor' as issuer for the switch.
   const isAuditor = role === 'auditor'
@@ -89,6 +96,26 @@ export default function DevModeToggle() {
             />
           </button>
         </div>
+
+        <div className="my-1 h-px bg-border" />
+
+        {/* Demo scenario */}
+        <button
+          type="button"
+          onClick={loadDemo}
+          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
+        >
+          <Sparkles className="size-4 text-muted-foreground" strokeWidth={2} />
+          Load demo scenario
+        </button>
+        <button
+          type="button"
+          onClick={resetDemo}
+          className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
+        >
+          <Eraser className="size-4 text-muted-foreground" strokeWidth={2} />
+          Reset demo
+        </button>
 
         {/* Reset tour */}
         <button
