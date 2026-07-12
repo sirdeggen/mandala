@@ -8,6 +8,7 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import 'flag-icons/css/flag-icons.min.css'
 import {
   Plus, Search, X, MoreVertical, ArrowLeft, Users, Building2, Trash2, ShieldCheck,
   BadgeCheck, Check, Clock, Ban, ChevronRight,
@@ -44,6 +45,27 @@ const fmtActive = (iso: string): string => {
   if (mins < 60) return `${Math.max(1, mins)} min ago`
   const h = Math.round(mins / 60); if (h < 24) return `${h}h ago`
   const dd = Math.round(h / 24); return dd < 30 ? `${dd}d ago` : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+const FLAG: Record<string, string> = {
+  Switzerland: 'ch', Germany: 'de', France: 'fr', Netherlands: 'nl', Ireland: 'ie', Luxembourg: 'lu',
+  Spain: 'es', Italy: 'it', Belgium: 'be', Austria: 'at', 'United Kingdom': 'gb', 'United States': 'us',
+}
+
+/** Country flag for a jurisdiction (flag-icons); nothing if unknown. */
+function Flag({ jurisdiction, className }: { jurisdiction: string; className?: string }) {
+  const cc = FLAG[jurisdiction]
+  if (cc == null) return null
+  return <span className={cn(`fi fi-${cc}`, 'shrink-0 rounded-[2px] shadow-sm', className)} aria-hidden />
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-[11px] font-medium uppercase tracking-wide text-subtle-foreground">{label}</dt>
+      <dd className="mt-0.5 flex items-center gap-1.5 text-[13px] font-medium text-foreground">{children}</dd>
+    </div>
+  )
 }
 
 function Monogram({ entity, size = 40 }: { entity: Pick<Entity, 'id' | 'monogram' | 'color' | 'own'>; size?: number }) {
@@ -200,7 +222,7 @@ function EntityList({ onOpen }: { onOpen: (id: string) => void }) {
                   </div>
                 </button>
                 <div className="truncate text-[12.5px] text-muted-foreground">{e.own ? '—' : RELATIONSHIP_LABEL[e.relationship]}</div>
-                <div className="truncate text-[12.5px] text-muted-foreground">{e.jurisdiction}</div>
+                <div className="flex items-center gap-1.5 truncate text-[12.5px] text-muted-foreground"><Flag jurisdiction={e.jurisdiction} /> {e.jurisdiction}</div>
                 <button type="button" onClick={() => onOpen(e.id)} className="flex items-center gap-2"><PeopleFacepile people={e.people} /></button>
                 <div><StatusBadge status={e.status} /></div>
                 <div className="text-right text-[12px] text-subtle-foreground">{fmtSince(e.sinceAt)}</div>
@@ -295,7 +317,7 @@ function EntityDetail({ entity, onBack }: { entity: Entity; onBack: () => void }
                   <>
                     <span>{ENTITY_TYPE_LABEL[entity.type]}</span><span className="text-faint-foreground">·</span>
                     <span>{RELATIONSHIP_LABEL[entity.relationship]}</span><span className="text-faint-foreground">·</span>
-                    <span>{entity.jurisdiction}</span>
+                    <span className="inline-flex items-center gap-1.5"><Flag jurisdiction={entity.jurisdiction} /> {entity.jurisdiction}</span>
                   </>
                 )}
               </div>
@@ -344,14 +366,26 @@ function EntityDetail({ entity, onBack }: { entity: Entity; onBack: () => void }
       <div className="mt-6">
         <h2 className="mb-3 text-[15px] font-semibold text-foreground">Overview</h2>
         <div className="rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-card)]">
-          <div className="text-[12px] font-medium uppercase tracking-wide text-subtle-foreground">Instruments they interact with</div>
-          {entity.instruments.length === 0 ? (
-            <p className="mt-1.5 text-[13px] text-muted-foreground">None recorded.</p>
-          ) : (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {entity.instruments.map(t => <span key={t} className="rounded-full bg-muted px-2.5 py-0.5 text-[12px] font-medium text-foreground">{t}</span>)}
-            </div>
-          )}
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+            <Field label="Jurisdiction"><Flag jurisdiction={entity.jurisdiction} /> {entity.jurisdiction}</Field>
+            {!own && <Field label="Institution type">{ENTITY_TYPE_LABEL[entity.type]}</Field>}
+            {!own && <Field label="Relationship">{RELATIONSHIP_LABEL[entity.relationship]}</Field>}
+            <Field label="People with access">{entity.people.length}</Field>
+            <Field label={own ? 'Established' : 'Relationship since'}>{fmtSince(entity.sinceAt)}</Field>
+            <Field label="Status"><span className={ENTITY_STATUS_TONE[entity.status]}>{ENTITY_STATUS_LABEL[entity.status]}</span></Field>
+          </dl>
+
+          <div className="mt-4 border-t border-separator pt-3">
+            <div className="text-[11px] font-medium uppercase tracking-wide text-subtle-foreground">Instruments they interact with</div>
+            {entity.instruments.length === 0 ? (
+              <p className="mt-1.5 text-[13px] text-muted-foreground">None recorded.</p>
+            ) : (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {entity.instruments.map(t => <span key={t} className="rounded-full bg-muted px-2.5 py-0.5 text-[12px] font-medium text-foreground">{t}</span>)}
+              </div>
+            )}
+          </div>
+
           {!own && (
             <div className="mt-4 flex items-center justify-between border-t border-separator pt-3">
               <span className="text-[12.5px] text-muted-foreground">Remove this relationship and everyone's access.</span>
