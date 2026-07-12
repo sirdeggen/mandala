@@ -532,14 +532,29 @@ function ManagePersonDrawer({ entityId, person, onClose }: { entityId: string; p
 
               <div>
                 <FieldLabel>Permissions</FieldLabel>
-                <TooltipProvider delayDuration={120}>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {ALL_PERMISSIONS.map(perm => (
-                      <PermissionPill key={perm} perm={perm} on={person.permissions.includes(perm)} onClick={() => togglePersonPermission(entityId, person.id, perm)} />
-                    ))}
-                  </div>
-                </TooltipProvider>
-                <p className="mt-1.5 text-[11px] text-faint-foreground">Tap a permission to grant or revoke it for this person.</p>
+                <div className="mt-1.5 space-y-0.5">
+                  {ALL_PERMISSIONS.map(perm => {
+                    const on = person.permissions.includes(perm)
+                    return (
+                      <button
+                        key={perm}
+                        type="button"
+                        role="checkbox"
+                        aria-checked={on}
+                        onClick={() => togglePersonPermission(entityId, person.id, perm)}
+                        className="flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                      >
+                        <span className={cn('mt-0.5 grid size-[18px] shrink-0 place-items-center rounded-[5px] border transition-colors', on ? 'border-primary bg-primary text-primary-foreground' : 'border-input-border bg-input')}>
+                          {on && <Check className="size-3" strokeWidth={3} />}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-[13px] font-medium text-foreground">{PERMISSION_LABEL[perm]}</span>
+                          <span className="block text-[11.5px] leading-snug text-muted-foreground">{PERMISSION_DESCRIPTION[perm]}</span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               <div>
