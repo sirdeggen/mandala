@@ -270,7 +270,7 @@ function TemplateCard({ template, index, onUse }: {
       type="button"
       onClick={onUse}
       style={{ animationDelay: `${(index % 4) * 45}ms`, animationFillMode: 'backwards' }}
-      className="group animate-in relative block aspect-[4/3] overflow-hidden rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      className="group animate-in relative block aspect-[16/10] overflow-hidden rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <img
         src={template.image}
