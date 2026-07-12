@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowDownLeft, ArrowUpRight, PlusCircle, Trash2, ShieldCheck, AlertTriangle, ArrowRight, Landmark, Plug, CirclePlus, Check, X, ExternalLink } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, PlusCircle, Trash2, ShieldCheck, AlertTriangle, ArrowRight, Landmark, Plug, CirclePlus, Signature, X, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Select } from '../ui/select'
@@ -141,9 +141,12 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
     try {
       const res = await issue.mutateAsync({ asset, amount: req.amount })
       settleMintRequest(req.id, { txid: res.txid, approvedBy: approverName })
-      toast.success(`Minted ${formatAmount(req.amount, decimals)} on-chain`)
+      toast.success(`Issued ${formatAmount(req.amount, decimals)} on-chain`)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Could not issue on-chain')
+      const msg = e instanceof Error ? e.message : ''
+      toast.error(/permission denied/i.test(msg)
+        ? 'Your wallet declined the issuance. Approve it in your wallet, then try again.'
+        : (msg !== '' ? msg : 'Could not issue on-chain'))
     } finally {
       setApprovingId(null)
     }
@@ -409,8 +412,8 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
                           disabled={busy || asset == null}
                           className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
                         >
-                          {busy ? <Spinner size="sm" tone="current" /> : <Check className="size-3.5" />}
-                          {busy ? 'Minting…' : 'Approve & mint'}
+                          {busy ? <Spinner size="sm" tone="current" /> : <Signature className="size-3.5" />}
+                          {busy ? 'Signing…' : 'Approve & sign'}
                         </button>
                         <button
                           type="button"
