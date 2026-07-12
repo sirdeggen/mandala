@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { IdentitySigil } from '@/components/ui/identity-sigil'
 import {
-  useEntities, useEntity, addEntity, removeEntity, setEntityStatus,
+  useEntities, useEntity, entityLogo, addEntity, removeEntity, setEntityStatus,
   addPerson, removePerson, setPersonRole, togglePersonPermission, setPersonStatus,
   ENTITY_TYPE_LABEL, RELATIONSHIP_LABEL, ENTITY_STATUS_LABEL, SYSTEM_ROLE_LABEL,
   PERMISSION_LABEL, ALL_PERMISSIONS, PERSON_STATUS_LABEL,
@@ -42,10 +42,19 @@ const fmtActive = (iso: string): string => {
   const dd = Math.round(h / 24); return dd < 30 ? `${dd}d ago` : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-function Monogram({ entity, size = 40 }: { entity: Pick<Entity, 'monogram' | 'color'>; size?: number }) {
+function Monogram({ entity, size = 40 }: { entity: Pick<Entity, 'id' | 'monogram' | 'color'>; size?: number }) {
+  const [broken, setBroken] = useState(false)
+  const logo = entityLogo(entity.id)
+  const showLogo = logo != null && !broken
   return (
-    <span className="grid shrink-0 place-items-center rounded-lg font-semibold text-white" style={{ width: size, height: size, backgroundColor: entity.color, fontSize: size * 0.34 }} aria-hidden>
-      {entity.monogram}
+    <span
+      className="grid shrink-0 place-items-center overflow-hidden rounded-lg border border-border/60 font-semibold text-white"
+      style={{ width: size, height: size, backgroundColor: showLogo ? '#fff' : entity.color, fontSize: size * 0.34 }}
+      aria-hidden
+    >
+      {showLogo
+        ? <img src={logo} alt="" loading="lazy" onError={() => setBroken(true)} style={{ width: size * 0.64, height: size * 0.64, objectFit: 'contain' }} />
+        : entity.monogram}
     </span>
   )
 }

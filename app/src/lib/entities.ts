@@ -81,10 +81,23 @@ export interface Entity {
   status: EntityStatus
   monogram: string
   color: string
+  /** Real product logo bundled under src/assets/entities/<id>.png, if any. */
+  domain?: string
   sinceAt: string         // ISO
   instruments: string[]
   people: Person[]
 }
+
+// Real institution logos, resolved to hashed asset URLs at build time.
+const LOGO_FILES = import.meta.glob('../assets/entities/*.png', { eager: true, import: 'default' }) as Record<string, string>
+const LOGO_BY_ID: Record<string, string> = {}
+for (const [path, url] of Object.entries(LOGO_FILES)) {
+  const id = (path.split('/').pop() ?? '').replace(/\.png$/, '')
+  if (id !== '') LOGO_BY_ID[id] = url
+}
+
+/** Bundled logo URL for an entity, or null to fall back to the monogram tile. */
+export const entityLogo = (id: string): string | null => LOGO_BY_ID[id] ?? null
 
 // ── Seed ──────────────────────────────────────────────────────────────────────
 
@@ -109,8 +122,8 @@ function seed(): Entity[] {
   }
   return [
     {
-      id: 'e-helvetia', name: 'Helvetia Kantonalbank AG', type: 'reserve-bank', relationship: 'reserve',
-      jurisdiction: 'Switzerland', status: 'active', monogram: 'HK', color: '#b91c1c', sinceAt: days(now, 420),
+      id: 'sygnum', name: 'Sygnum Bank', type: 'reserve-bank', relationship: 'reserve',
+      jurisdiction: 'Switzerland', status: 'active', monogram: 'Sy', color: '#111827', domain: 'sygnum.com', sinceAt: days(now, 420),
       instruments: ['CHFD', 'EURD'],
       people: [
         p('Andrea Vogt', 'Head of Correspondent Banking', 'approver', 'active', 2),
@@ -119,56 +132,86 @@ function seed(): Entity[] {
       ],
     },
     {
-      id: 'e-alpine', name: 'Alpine Custody Services SA', type: 'custodian', relationship: 'custody',
-      jurisdiction: 'Switzerland', status: 'active', monogram: 'AC', color: '#0e7490', sinceAt: days(now, 300),
-      instruments: ['CHFD', 'EURD', 'USDX'],
+      id: 'amina', name: 'AMINA Bank', type: 'reserve-bank', relationship: 'reserve',
+      jurisdiction: 'Switzerland', status: 'active', monogram: 'AM', color: '#0f766e', domain: 'aminagroup.com', sinceAt: days(now, 300),
+      instruments: ['CHFD', 'USDX'],
       people: [
-        p('Julien Moreau', 'Custody Relationship Manager', 'operator', 'active', 1),
-        p('Sophie Blanc', 'Vault Operations', 'operator', 'active', 5),
-        p('Thomas Roth', 'Head of Custody', 'admin', 'active', 20),
+        p('Julien Moreau', 'Relationship Manager', 'operator', 'active', 1),
         p('Nadia Keller', 'Risk & Controls', 'approver', 'active', 48),
       ],
     },
     {
-      id: 'e-matterhorn', name: 'Matterhorn Market Making AG', type: 'market-maker', relationship: 'liquidity',
-      jurisdiction: 'Switzerland', status: 'active', monogram: 'MM', color: '#7c3aed', sinceAt: days(now, 210),
-      instruments: ['CHFD', 'USDX'],
+      id: 'zkb', name: 'Zürcher Kantonalbank', type: 'reserve-bank', relationship: 'reserve',
+      jurisdiction: 'Switzerland', status: 'active', monogram: 'ZK', color: '#005aa0', domain: 'zkb.ch', sinceAt: days(now, 350),
+      instruments: ['CHFD'],
       people: [
-        p('David Iten', 'Head of Trading', 'operator', 'active', 3),
-        p('Priya Nair', 'Liquidity Desk', 'operator', 'active', 6),
+        p('Isabelle Rey', 'Head of Institutional', 'approver', 'active', 22),
+        p('Pierre Meier', 'Reserve Accounts', 'operator', 'active', 44),
       ],
     },
     {
-      id: 'e-rhone', name: 'Rhône Liquidity Partners SA', type: 'market-maker', relationship: 'liquidity',
-      jurisdiction: 'Switzerland', status: 'active', monogram: 'RL', color: '#4f46e5', sinceAt: days(now, 160),
-      instruments: ['EURD'],
+      id: 'postfinance', name: 'PostFinance', type: 'reserve-bank', relationship: 'reserve',
+      jurisdiction: 'Switzerland', status: 'onboarding', monogram: 'PF', color: '#ffcc00', domain: 'postfinance.ch', sinceAt: days(now, 14),
+      instruments: ['CHFD'],
       people: [
-        p('Camille Girard', 'Managing Partner', 'admin', 'active', 12),
-        p('Louis Favre', 'Quant Trader', 'operator', 'active', 26),
+        p('Erik Lindqvist', 'Treasury Lead', 'viewer', 'invited', 72),
       ],
     },
     {
-      id: 'e-zurichdx', name: 'Zürich Digital Exchange AG', type: 'exchange', relationship: 'distribution',
-      jurisdiction: 'Switzerland', status: 'active', monogram: 'ZD', color: '#0891b2', sinceAt: days(now, 130),
+      id: 'fireblocks', name: 'Fireblocks', type: 'custodian', relationship: 'custody',
+      jurisdiction: 'United States', status: 'active', monogram: 'Fb', color: '#f5820b', domain: 'fireblocks.com', sinceAt: days(now, 260),
+      instruments: ['CHFD', 'EURD', 'USDX'],
+      people: [
+        p('Sophie Blanc', 'Vault Operations', 'operator', 'active', 5),
+        p('Thomas Roth', 'Solutions Engineer', 'operator', 'active', 20, ['integrations', 'reports']),
+      ],
+    },
+    {
+      id: 'taurus', name: 'Taurus', type: 'custodian', relationship: 'custody',
+      jurisdiction: 'Switzerland', status: 'active', monogram: 'Ta', color: '#1f2937', domain: 'taurushq.com', sinceAt: days(now, 200),
+      instruments: ['CHFD', 'EURD'],
+      people: [
+        p('Felix Wyss', 'Head of Custody', 'admin', 'active', 15),
+        p('Ana Costa', 'Settlement Ops', 'operator', 'active', 52),
+      ],
+    },
+    {
+      id: 'sdx', name: 'SIX Digital Exchange', type: 'exchange', relationship: 'distribution',
+      jurisdiction: 'Switzerland', status: 'active', monogram: 'SD', color: '#e60000', domain: 'sdx.com', sinceAt: days(now, 160),
       instruments: ['CHFD', 'EURD', 'USDX'],
       people: [
         p('Elena Fischer', 'Listings Manager', 'operator', 'active', 4),
-        p('Ravi Menon', 'Integrations Engineer', 'operator', 'active', 8, ['integrations', 'reports']),
         p('Hanna Suter', 'Compliance', 'auditor', 'active', 40),
       ],
     },
     {
-      id: 'e-nordkap', name: 'Nordkap Asset Management AG', type: 'corporate-treasury', relationship: 'distribution',
-      jurisdiction: 'Switzerland', status: 'onboarding', monogram: 'NK', color: '#334155', sinceAt: days(now, 14),
-      instruments: ['CHFD'],
+      id: 'bitcoinsuisse', name: 'Bitcoin Suisse', type: 'exchange', relationship: 'distribution',
+      jurisdiction: 'Switzerland', status: 'active', monogram: 'BS', color: '#e8622c', domain: 'bitcoinsuisse.com', sinceAt: days(now, 130),
+      instruments: ['CHFD', 'USDX'],
       people: [
-        p('Erik Lindqvist', 'Treasurer', 'viewer', 'invited', 72),
-        p('Mia Holm', 'Operations', 'viewer', 'invited', 96),
+        p('David Iten', 'Brokerage Desk', 'operator', 'active', 3),
+        p('Priya Nair', 'Onboarding', 'viewer', 'active', 26),
       ],
     },
     {
-      id: 'e-helvetic-assurance', name: 'Helvetic Assurance AG', type: 'auditor', relationship: 'audit',
-      jurisdiction: 'Switzerland', status: 'active', monogram: 'HA', color: '#7c2d12', sinceAt: days(now, 260),
+      id: 'cumberland', name: 'Cumberland', type: 'market-maker', relationship: 'liquidity',
+      jurisdiction: 'United States', status: 'active', monogram: 'Cu', color: '#0b3d91', domain: 'cumberland.io', sinceAt: days(now, 120),
+      instruments: ['USDX'],
+      people: [
+        p('Camille Girard', 'Liquidity Partner', 'operator', 'active', 12),
+      ],
+    },
+    {
+      id: 'wintermute', name: 'Wintermute', type: 'market-maker', relationship: 'liquidity',
+      jurisdiction: 'United Kingdom', status: 'active', monogram: 'Wi', color: '#00d1b2', domain: 'wintermute.com', sinceAt: days(now, 95),
+      instruments: ['EURD', 'USDX'],
+      people: [
+        p('Louis Favre', 'Trading', 'operator', 'active', 6),
+      ],
+    },
+    {
+      id: 'pwc', name: 'PwC Switzerland', type: 'auditor', relationship: 'audit',
+      jurisdiction: 'Switzerland', status: 'active', monogram: 'Pw', color: '#d04a02', domain: 'pwc.ch', sinceAt: days(now, 300),
       instruments: ['CHFD', 'EURD', 'USDX'],
       people: [
         p('Dr. Petra Wenger', 'Lead Auditor', 'auditor', 'active', 18),
@@ -176,45 +219,19 @@ function seed(): Entity[] {
       ],
     },
     {
-      id: 'e-finma', name: 'FINMA', type: 'regulator', relationship: 'oversight',
-      jurisdiction: 'Switzerland', status: 'active', monogram: 'FI', color: '#0a3161', sinceAt: days(now, 500),
+      id: '21shares', name: '21Shares', type: 'fund', relationship: 'reserve',
+      jurisdiction: 'Switzerland', status: 'active', monogram: '21', color: '#111827', domain: '21shares.com', sinceAt: days(now, 120),
+      instruments: ['USDX'],
+      people: [
+        p('Klaus Berger', 'Product Manager', 'viewer', 'active', 60, ['reserves', 'reports']),
+      ],
+    },
+    {
+      id: 'finma', name: 'FINMA', type: 'regulator', relationship: 'oversight',
+      jurisdiction: 'Switzerland', status: 'active', monogram: 'FI', color: '#0a3161', domain: 'finma.ch', sinceAt: days(now, 500),
       instruments: ['CHFD', 'EURD', 'USDX'],
       people: [
-        p('Regulatory Liaison', 'Supervision Desk', 'viewer', 'active', 240, ['reports']),
-      ],
-    },
-    {
-      id: 'e-aare', name: 'Aare Digital Custody AG', type: 'custodian', relationship: 'custody',
-      jurisdiction: 'Switzerland', status: 'active', monogram: 'AA', color: '#166534', sinceAt: days(now, 95),
-      instruments: ['USDX'],
-      people: [
-        p('Felix Wyss', 'Head of Digital Assets', 'admin', 'active', 15),
-        p('Ana Costa', 'Settlement Ops', 'operator', 'active', 52),
-      ],
-    },
-    {
-      id: 'e-lemanmm', name: 'Lemanic Capital Markets AG', type: 'market-maker', relationship: 'liquidity',
-      jurisdiction: 'Switzerland', status: 'suspended', monogram: 'LC', color: '#9a3412', sinceAt: days(now, 200),
-      instruments: ['EURD'],
-      people: [
-        p('Olivier Dubois', 'Head of Markets', 'operator', 'suspended', 500),
-      ],
-    },
-    {
-      id: 'e-genevepb', name: 'Genève Private Bank SA', type: 'reserve-bank', relationship: 'reserve',
-      jurisdiction: 'Switzerland', status: 'active', monogram: 'GP', color: '#1e3a8a', sinceAt: days(now, 350),
-      instruments: ['EURD'],
-      people: [
-        p('Isabelle Rey', 'Head of Institutional', 'approver', 'active', 22),
-        p('Pierre Meier', 'Reserve Accounts', 'operator', 'active', 44),
-      ],
-    },
-    {
-      id: 'e-alpinefund', name: 'Alpine Money Market Fund', type: 'fund', relationship: 'reserve',
-      jurisdiction: 'Luxembourg', status: 'active', monogram: 'AF', color: '#0d9488', sinceAt: days(now, 120),
-      instruments: ['USDX'],
-      people: [
-        p('Klaus Berger', 'Fund Manager', 'viewer', 'active', 60, ['reserves', 'reports']),
+        p('Supervision Desk', 'Regulatory Liaison', 'viewer', 'active', 240, ['reports']),
       ],
     },
   ]
@@ -222,7 +239,7 @@ function seed(): Entity[] {
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
-const KEY = 'underwrite.entities.v1'
+const KEY = 'underwrite.entities.v2'
 const listeners = new Set<() => void>()
 
 function read(): Entity[] {
