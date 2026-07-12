@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Search, RefreshCw, Check, X, Trash2, ShieldAlert, Info } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Search, RefreshCw, Check, X, Trash2, ShieldAlert, Info, Plug } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
 import {
   useHolders, useTravelRule, screenHolder, setKyc, removeHolder, setTravelRule,
   type HolderRecord, type KycStatus, type RiskRating, type SanctionsResult,
 } from '../../lib/compliance'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
+import { useActiveIntegration } from '../../lib/integrations'
 import { IdentitySigil } from '@/components/ui/identity-sigil'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -27,6 +29,8 @@ export default function HolderScreening({ assetId, asset }: { assetId: string; a
   const holders = useHolders()
   const travelRule = useTravelRule(assetId)
   const isAuditor = isReviewerRole(useOnboarding().role)
+  const screeningVia = useActiveIntegration('screening')
+  const navigate = useNavigate()
   const currency = asset?.metadata?.ticker != null ? String(asset.metadata.ticker).toUpperCase() : 'units'
 
   const [name, setName] = useState('')
@@ -77,9 +81,23 @@ export default function HolderScreening({ assetId, asset }: { assetId: string; a
         {tab === 'screening' && (
           <div>
             <div className="flex items-start justify-between gap-3">
-              <p className="text-[12px] text-muted-foreground">
-                Screen a holder against sanctions &amp; PEP lists and record their KYC status. Screening is simulated against a sample watchlist.
-              </p>
+              <div className="min-w-0">
+                <p className="text-[12px] text-muted-foreground">
+                  Screen a holder against sanctions &amp; PEP lists and record their KYC status.{' '}
+                  {screeningVia != null
+                    ? <>Screening runs via <span className="font-medium text-foreground">{screeningVia.providerName}</span>.</>
+                    : <>Screening is simulated against a sample watchlist.</>}
+                </p>
+                {screeningVia != null ? (
+                  <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-[10.5px] font-medium text-success">
+                    <Plug className="size-3" /> Live · {screeningVia.providerName} · {screeningVia.environment}
+                  </span>
+                ) : (
+                  <button type="button" onClick={() => navigate('/issuer/integrations')} className="mt-1.5 inline-flex items-center gap-1 text-[11.5px] font-medium text-primary hover:underline">
+                    <Plug className="size-3" /> Connect a screening provider
+                  </button>
+                )}
+              </div>
               <Popover>
                 <PopoverTrigger className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[11.5px] font-medium text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60">
                   <Info className="size-3.5" /> How screening works

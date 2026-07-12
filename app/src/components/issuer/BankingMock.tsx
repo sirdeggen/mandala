@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { ArrowDownLeft, ArrowUpRight, PlusCircle, Trash2, ShieldCheck, AlertTriangle, ArrowRight, Landmark } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { ArrowDownLeft, ArrowUpRight, PlusCircle, Trash2, ShieldCheck, AlertTriangle, ArrowRight, Landmark, Plug } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Select } from '../ui/select'
@@ -11,6 +11,7 @@ import { useAdminSummary } from '../../hooks/useAdminHistory'
 import { useWallet } from '../../context/WalletContext'
 import { reconcile, makeTransfer, TransferDirection } from '@bsv/mandala/banking'
 import { useMockTransfers, addMockTransfer, removeMockTransfer, clearMockTransfers } from '../../lib/mandala/mockBankStore'
+import { useActiveIntegration } from '../../lib/integrations'
 import { formatAmount, parseAmount } from '@bsv/mandala/amount'
 import { bankForRef } from '@/content/banks'
 import { BankReconcileButton } from './ReconcileLink'
@@ -69,6 +70,8 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
 
   // Switch to the instrument's Issuance & redemption tab (id 'operations').
   const [, setSearchParams] = useSearchParams()
+  const reservesVia = useActiveIntegration('reserves')
+  const navigate = useNavigate()
   const goToIssuance = useCallback(() => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
@@ -163,6 +166,25 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
           </div>
         </div>
       )}
+
+      {/* Reserve-feed provenance: relabelled when a bank/custodian integration
+          is connected, otherwise a prompt to wire one up. */}
+      <div className="mt-[22px] flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+        {reservesVia != null ? (
+          <span className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
+            <Plug className="size-3.5 text-success" />
+            Reserve balances via <span className="font-medium text-foreground">{reservesVia.providerName}</span>
+            <span className="rounded-full bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success">{reservesVia.environment}</span>
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
+            <Plug className="size-3.5" /> Sandbox feed — no bank or custodian connected
+          </span>
+        )}
+        <button type="button" onClick={() => navigate('/issuer/integrations')} className="text-[11.5px] font-medium text-primary hover:underline">
+          {reservesVia != null ? 'Manage' : 'Connect a bank or custodian'}
+        </button>
+      </div>
 
       {/* SIMULATE A TRANSFER - the counterparty is always a synthetic "Company
           {letter}"; only amount + direction are admin-supplied. This is a

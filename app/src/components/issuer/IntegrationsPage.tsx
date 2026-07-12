@@ -1,0 +1,724 @@
+/**
+ * Integrations - the external services a regulated stablecoin issuer connects
+ * (KYC, sanctions/AML feeds, banking & custody, SSO, attestation, reporting).
+ *
+ * This is a DEMO surface: it shows the exact shape of connecting real providers
+ * (auth, scopes, environments, sync/test, key rotation, webhooks) but performs
+ * no real network calls - connections are mock records in localStorage. It maps
+ * onto the app's simulated subsystems, so connecting e.g. ComplyAdvantage
+ * relabels the (still-simulated) sanctions screening as "via ComplyAdvantage".
+ * Provider names are illustrative and imply no affiliation.
+ */
+import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
+import {
+  Plus, Search, X, MoreVertical, Check, Copy, RotateCw, Plug, ArrowLeft, Info,
+  Zap, RefreshCw, Trash2, ShieldAlert, UserCheck, Radar, Landmark,
+  KeyRound, FileCheck2, Bell, Eye, EyeOff, LayoutGrid, List,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { useOnboarding } from '../../lib/onboarding'
+import {
+  PROVIDERS, providerById, popularProviders, CATEGORY_LABEL, CATEGORY_ORDER, AUTH_LABEL,
+  STATUS_LABEL, useConnections, addConnection, removeConnection, recordTest, recordSync, rotateKey,
+  type Provider, type Connection, type ConnectionStatus, type IntegrationCategory,
+} from '../../lib/integrations'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Sheet, SheetContent, SheetTitle } from '../ui/sheet'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
+
+const CATEGORY_ICON: Record<IntegrationCategory, LucideIcon> = {
+  kyc: UserCheck, sanctions: ShieldAlert, analytics: Radar, banking: Landmark,
+  sso: KeyRound, attestation: FileCheck2, reporting: Bell,
+}
+
+const STATUS_TONE: Record<ConnectionStatus, string> = {
+  connected: 'text-success', sandbox: 'text-sky-600', action_required: 'text-warning',
+  error: 'text-destructive', disconnected: 'text-muted-foreground',
+}
+
+const fmtWhen = (iso?: string): string => {
+  if (iso == null) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  const mins = Math.round((Date.now() - d.getTime()) / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins} min ago`
+  const hrs = Math.round(mins / 60)
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// ── Small pieces ──────────────────────────────────────────────────────────────
+
+function ProviderTile({ provider, size = 40 }: { provider: Provider; size?: number }) {
+  return (
+    <span
+      className="grid shrink-0 place-items-center rounded-lg font-semibold text-white"
+      style={{ width: size, height: size, backgroundColor: provider.color, fontSize: size * 0.34 }}
+      aria-hidden
+    >
+      {provider.monogram}
+    </span>
+  )
+}
+
+function StatusBadge({ status }: { status: ConnectionStatus }) {
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 text-[12.5px] font-medium', STATUS_TONE[status])}>
+      <span className="size-2 rounded-full bg-current" />
+      {STATUS_LABEL[status]}
+    </span>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+export default function IntegrationsPage() {
+  const { name } = useOnboarding()
+  const ownerName = name.trim() || 'Issuer'
+  const connections = useConnections()
+
+  const [view, setView] = useState<'connections' | 'apps'>('connections')
+  const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<ConnectionStatus | 'all'>('all')
+  const [connectProvider, setConnectProvider] = useState<Provider | null | 'picker'>(null)
+  const [detailId, setDetailId] = useState<string | null>(null)
+
+  const q = query.trim().toLowerCase()
+
+  const filteredConnections = useMemo(() => connections.filter(c => {
+    const p = providerById(c.providerId)
+    const matchesQ = q === '' || c.label.toLowerCase().includes(q) || (p?.name.toLowerCase().includes(q) ?? false)
+    const matchesStatus = statusFilter === 'all' || c.status === statusFilter
+    return matchesQ && matchesStatus
+  }), [connections, q, statusFilter])
+
+  const openConnect = (p: Provider | 'picker') => setConnectProvider(p)
+  const detail = detailId != null ? connections.find(c => c.id === detailId) ?? null : null
+
+  return (
+    <div className="w-full max-w-5xl">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="font-heading text-[26px] font-medium tracking-[-0.02em] text-foreground">Integrations</h1>
+          <p className="mt-1 max-w-2xl text-[15px] text-muted-foreground">
+            Connect the KYC, sanctions, banking, custody and access providers that power compliance. Provider names are illustrative for this demo.
+          </p>
+        </div>
+        <Button onClick={() => openConnect('picker')} className="h-10 shrink-0 gap-1.5 px-3.5 text-[13px]">
+          <Plus className="size-4" /> Add connection
+        </Button>
+      </div>
+
+      {/* Demo disclosure */}
+      <div className="mt-4 flex items-start gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-[12px] leading-snug text-muted-foreground">
+        <Info className="mt-0.5 size-4 shrink-0" />
+        <p>
+          Connections here are illustrative and stored only in your browser — no real API calls, keys or OAuth handshakes occur. This shows exactly where each provider would be wired in production; connecting one relabels the matching simulated area (e.g. screening → “via ComplyAdvantage”).
+        </p>
+      </div>
+
+      {/* View toggle + filters */}
+      <div className="mt-5 flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-lg border border-border bg-card p-0.5">
+          {([['connections', 'Connections', List], ['apps', 'Apps', LayoutGrid]] as const).map(([id, label, Icon]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setView(id)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors',
+                view === id ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Icon className="size-3.5" /> {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-faint-foreground" />
+          <Input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder={view === 'connections' ? 'Search connection or app name' : 'Search apps'}
+            className="h-9 pl-8 text-[13px]"
+          />
+        </div>
+
+        {view === 'connections' && connections.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {(['all', 'connected', 'sandbox', 'action_required', 'error'] as const).map(s => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStatusFilter(s)}
+                className={cn(
+                  'rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition-colors',
+                  statusFilter === s ? 'border-foreground bg-foreground text-background' : 'border-border text-muted-foreground hover:bg-muted'
+                )}
+              >
+                {s === 'all' ? 'All' : STATUS_LABEL[s].replace('Connected · ', '')}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="mt-4">
+        {view === 'apps' ? (
+          <AppsCatalog query={q} connections={connections} onConnect={openConnect} onOpenDetail={setDetailId} />
+        ) : connections.length === 0 ? (
+          <EmptyState onConnect={openConnect} onBrowseAll={() => setView('apps')} />
+        ) : (
+          <ConnectionsTable rows={filteredConnections} onOpenDetail={setDetailId} onAdd={() => openConnect('picker')} />
+        )}
+      </div>
+
+      <ConnectDrawer
+        target={connectProvider}
+        ownerName={ownerName}
+        onClose={() => setConnectProvider(null)}
+        onConnected={id => { setConnectProvider(null); setView('connections'); setDetailId(id) }}
+      />
+      <DetailDrawer connection={detail} onClose={() => setDetailId(null)} />
+    </div>
+  )
+}
+
+// ── Connections table ─────────────────────────────────────────────────────────
+
+function ConnectionsTable({ rows, onOpenDetail, onAdd }: {
+  rows: Connection[]; onOpenDetail: (id: string) => void; onAdd: () => void
+}) {
+  if (rows.length === 0) {
+    return <p className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-[13px] text-muted-foreground">No connections match your filters.</p>
+  }
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-card)]">
+      <div className="grid grid-cols-[1.6fr_1fr_150px_90px_130px_44px] items-center gap-2 border-b border-border bg-muted/40 px-4 py-2.5 text-[10.5px] font-medium uppercase tracking-wide text-subtle-foreground">
+        <div>Name</div><div>Category</div><div>Status</div><div className="text-right">Used by</div><div className="text-right">Last synced</div><div />
+      </div>
+      {rows.map((c, i) => {
+        const p = providerById(c.providerId)
+        if (p == null) return null
+        return (
+          <div key={c.id} className={cn('grid grid-cols-[1.6fr_1fr_150px_90px_130px_44px] items-center gap-2 px-4 py-3', i > 0 && 'border-t border-separator')}>
+            <button type="button" onClick={() => onOpenDetail(c.id)} className="flex min-w-0 items-center gap-3 text-left">
+              <ProviderTile provider={p} size={34} />
+              <div className="min-w-0">
+                <div className="truncate text-[13.5px] font-medium text-foreground hover:underline">{c.label}</div>
+                <div className="truncate text-[11.5px] text-subtle-foreground">{p.name}</div>
+              </div>
+            </button>
+            <div className="min-w-0 truncate text-[12.5px] text-muted-foreground">{CATEGORY_LABEL[p.category]}</div>
+            <div><StatusBadge status={c.status} /></div>
+            <div className="flex items-center justify-end gap-1 text-right text-[12.5px] tabular text-muted-foreground">
+              <Zap className="size-3 text-faint-foreground" />{c.usedByCount}
+            </div>
+            <div className="truncate text-right text-[11.5px] text-subtle-foreground">{fmtWhen(c.lastSyncAt)}</div>
+            <RowMenu connection={c} onOpenDetail={() => onOpenDetail(c.id)} />
+          </div>
+        )
+      })}
+      <div className="border-t border-separator px-4 py-2.5">
+        <button type="button" onClick={onAdd} className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-primary hover:underline">
+          <Plus className="size-3.5" /> Add connection
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function RowMenu({ connection, onOpenDetail }: { connection: Connection; onOpenDetail: () => void }) {
+  const [open, setOpen] = useState(false)
+  const act = (fn: () => void) => { fn(); setOpen(false) }
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        aria-label="Connection actions"
+        className="grid size-8 place-items-center justify-self-end rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+      >
+        <MoreVertical className="size-4" />
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-44 p-1">
+        <MenuItem Icon={Info} label="View details" onClick={() => act(onOpenDetail)} />
+        <MenuItem Icon={RefreshCw} label="Sync now" onClick={() => act(() => { recordSync(connection.id); toast.success('Synced') })} />
+        <MenuItem Icon={Check} label="Test connection" onClick={() => act(() => { recordTest(connection.id, true); toast.success('Test succeeded') })} />
+        <div className="my-1 h-px bg-border" />
+        <MenuItem Icon={Trash2} label="Disconnect" danger onClick={() => act(() => { removeConnection(connection.id); toast.success('Disconnected') })} />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function MenuItem({ Icon, label, onClick, danger }: { Icon: LucideIcon; label: string; onClick: () => void; danger?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn('flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors hover:bg-accent', danger ? 'text-destructive hover:bg-destructive/5' : 'text-foreground')}
+    >
+      <Icon className="size-3.5 shrink-0" /> {label}
+    </button>
+  )
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+function EmptyState({ onConnect, onBrowseAll }: { onConnect: (p: Provider) => void; onBrowseAll: () => void }) {
+  const common = popularProviders()
+  return (
+    <div className="rounded-xl border border-border bg-card p-6 text-center shadow-[var(--shadow-card)] sm:p-8">
+      <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary">
+        <Plug className="size-6" />
+      </span>
+      <h2 className="mt-3 text-[17px] font-semibold text-foreground">Connect your first integration</h2>
+      <p className="mx-auto mt-1 max-w-md text-balance text-[13.5px] text-muted-foreground">
+        Wire in the providers that handle identity, sanctions, reserves and access. Start with a common one below or browse the full catalogue.
+      </p>
+
+      <div className="mt-6 grid gap-3 text-left sm:grid-cols-2 lg:grid-cols-3">
+        {common.map(p => {
+          const Icon = CATEGORY_ICON[p.category]
+          return (
+            <div key={p.id} className="flex flex-col rounded-xl border border-border bg-sidebar p-4">
+              <div className="flex items-center gap-3">
+                <ProviderTile provider={p} size={38} />
+                <div className="min-w-0">
+                  <div className="truncate text-[13.5px] font-semibold text-foreground">{p.name}</div>
+                  <div className="flex items-center gap-1 text-[11px] text-subtle-foreground">
+                    <Icon className="size-3" /> {CATEGORY_LABEL[p.category]}
+                  </div>
+                </div>
+              </div>
+              <p className="mt-2 line-clamp-2 flex-1 text-[12px] leading-snug text-muted-foreground">{p.blurb}</p>
+              <Button variant="outline" onClick={() => onConnect(p)} className="mt-3 h-8 w-full gap-1.5 text-[12.5px]">
+                <Plus className="size-3.5" /> Connect
+              </Button>
+            </div>
+          )
+        })}
+      </div>
+
+      <button type="button" onClick={onBrowseAll} className="mt-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-primary hover:underline">
+        Browse all {PROVIDERS.length} apps <ArrowLeft className="size-3.5 rotate-180" />
+      </button>
+    </div>
+  )
+}
+
+// ── Apps catalogue ────────────────────────────────────────────────────────────
+
+function AppsCatalog({ query, connections, onConnect, onOpenDetail }: {
+  query: string; connections: Connection[]; onConnect: (p: Provider) => void; onOpenDetail: (id: string) => void
+}) {
+  const connByProvider = useMemo(() => {
+    const m = new Map<string, Connection>()
+    for (const c of connections) if (!m.has(c.providerId)) m.set(c.providerId, c)
+    return m
+  }, [connections])
+
+  const groups = CATEGORY_ORDER
+    .map(cat => ({
+      cat,
+      items: PROVIDERS.filter(p => p.category === cat && (query === '' || p.name.toLowerCase().includes(query) || p.blurb.toLowerCase().includes(query))),
+    }))
+    .filter(g => g.items.length > 0)
+
+  if (groups.length === 0) {
+    return <p className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-[13px] text-muted-foreground">No apps match “{query}”.</p>
+  }
+
+  return (
+    <div className="space-y-6">
+      {groups.map(({ cat, items }) => {
+        const Icon = CATEGORY_ICON[cat]
+        return (
+          <div key={cat}>
+            <div className="mb-2.5 flex items-center gap-2 text-[13px] font-semibold text-foreground">
+              <Icon className="size-4 text-muted-foreground" /> {CATEGORY_LABEL[cat]}
+            </div>
+            <div className="grid gap-3 rounded-xl bg-sidebar p-3 sm:grid-cols-2 lg:grid-cols-3">
+              {items.map(p => {
+                const conn = connByProvider.get(p.id)
+                return (
+                  <div key={p.id} className="flex flex-col rounded-xl border border-border bg-card p-4">
+                    <div className="flex items-start gap-3">
+                      <ProviderTile provider={p} size={38} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[13.5px] font-semibold text-foreground">{p.name}</div>
+                        <div className="text-[11px] text-subtle-foreground">{AUTH_LABEL[p.authType]}</div>
+                      </div>
+                    </div>
+                    <p className="mt-2 line-clamp-2 flex-1 text-[12px] leading-snug text-muted-foreground">{p.blurb}</p>
+                    {conn != null ? (
+                      <button
+                        type="button"
+                        onClick={() => onOpenDetail(conn.id)}
+                        className="mt-3 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border text-[12.5px] font-medium text-foreground transition-colors hover:bg-muted"
+                      >
+                        <StatusBadge status={conn.status} />
+                      </button>
+                    ) : (
+                      <Button variant="outline" onClick={() => onConnect(p)} className="mt-3 h-8 w-full gap-1.5 text-[12.5px]">
+                        <Plus className="size-3.5" /> Connect
+                      </Button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Connect drawer ────────────────────────────────────────────────────────────
+
+function ConnectDrawer({ target, ownerName, onClose, onConnected }: {
+  target: Provider | 'picker' | null
+  ownerName: string
+  onClose: () => void
+  onConnected: (id: string) => void
+}) {
+  const open = target != null
+  return (
+    <Sheet open={open} onOpenChange={o => { if (!o) onClose() }}>
+      <SheetContent side="right" className="w-full sm:max-w-md">
+        <SheetTitle className="sr-only">Add connection</SheetTitle>
+        {open && <ConnectDrawerBody initial={target} ownerName={ownerName} onClose={onClose} onConnected={onConnected} />}
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function ConnectDrawerBody({ initial, ownerName, onClose, onConnected }: {
+  initial: Provider | 'picker'
+  ownerName: string
+  onClose: () => void
+  onConnected: (id: string) => void
+}) {
+  const [provider, setProvider] = useState<Provider | null>(initial === 'picker' ? null : initial)
+  const [pickQuery, setPickQuery] = useState('')
+
+  if (provider == null) {
+    const q = pickQuery.trim().toLowerCase()
+    const groups = CATEGORY_ORDER
+      .map(cat => ({ cat, items: PROVIDERS.filter(p => p.category === cat && (q === '' || p.name.toLowerCase().includes(q))) }))
+      .filter(g => g.items.length > 0)
+    return (
+      <>
+        <DrawerHeader title="Add a connection" subtitle="Choose a provider to connect." onClose={onClose} />
+        <div className="border-b border-border px-5 py-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-faint-foreground" />
+            <Input autoFocus value={pickQuery} onChange={e => setPickQuery(e.target.value)} placeholder="Search apps" className="h-9 pl-8 text-[13px]" />
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+          {groups.map(({ cat, items }) => (
+            <div key={cat} className="mb-2">
+              <div className="px-2 py-1 text-[10.5px] font-medium uppercase tracking-wide text-subtle-foreground">{CATEGORY_LABEL[cat]}</div>
+              {items.map(p => (
+                <button key={p.id} type="button" onClick={() => setProvider(p)} className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-accent">
+                  <ProviderTile provider={p} size={34} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-medium text-foreground">{p.name}</div>
+                    <div className="truncate text-[11.5px] text-subtle-foreground">{p.blurb}</div>
+                  </div>
+                  <ArrowLeft className="size-4 shrink-0 rotate-180 text-faint-foreground" />
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      </>
+    )
+  }
+
+  return <ConnectForm provider={provider} ownerName={ownerName} onBack={initial === 'picker' ? () => setProvider(null) : undefined} onClose={onClose} onConnected={onConnected} />
+}
+
+function ConnectForm({ provider, ownerName, onBack, onClose, onConnected }: {
+  provider: Provider
+  ownerName: string
+  onBack?: () => void
+  onClose: () => void
+  onConnected: (id: string) => void
+}) {
+  const [environment, setEnvironment] = useState<'production' | 'sandbox'>('sandbox')
+  const [label, setLabel] = useState(`${provider.name} · ${ownerName}`)
+  const [apiKey, setApiKey] = useState('')
+  const [scopes, setScopes] = useState<Set<string>>(() => new Set(provider.scopes))
+  const [connecting, setConnecting] = useState(false)
+  const Icon = CATEGORY_ICON[provider.category]
+  const isOAuth = provider.authType === 'oauth2'
+
+  const toggleScope = (s: string) => setScopes(prev => {
+    const next = new Set(prev); next.has(s) ? next.delete(s) : next.add(s); return next
+  })
+
+  const submit = () => {
+    if (label.trim() === '') { toast.error('Give this connection a label.'); return }
+    if (!isOAuth && apiKey.trim() === '') { toast.error(`Enter your ${provider.name} ${AUTH_LABEL[provider.authType].toLowerCase()}.`); return }
+    setConnecting(true)
+    // Simulate the handshake round-trip.
+    window.setTimeout(() => {
+      const conn = addConnection({
+        providerId: provider.id,
+        label: label.trim(),
+        environment,
+        scopes: [...scopes],
+        ownerName,
+      })
+      setConnecting(false)
+      toast.success(`Connected ${provider.name}`, { description: `${environment === 'sandbox' ? 'Sandbox' : 'Production'} · relabelled where it applies.` })
+      onConnected(conn.id)
+    }, 650)
+  }
+
+  return (
+    <>
+      <DrawerHeader title="Connect" onClose={onClose} onBack={onBack} />
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className="flex items-center gap-3">
+          <ProviderTile provider={provider} size={44} />
+          <div className="min-w-0">
+            <div className="text-[15px] font-semibold text-foreground">{provider.name}</div>
+            <div className="flex items-center gap-1 text-[11.5px] text-subtle-foreground"><Icon className="size-3" /> {CATEGORY_LABEL[provider.category]}</div>
+          </div>
+        </div>
+        <p className="mt-3 text-[12.5px] leading-snug text-muted-foreground">{provider.blurb}</p>
+
+        <div className="mt-4 space-y-4">
+          {/* Environment */}
+          <div>
+            <FieldLabel>Environment</FieldLabel>
+            <div className="mt-1.5 inline-flex rounded-lg border border-border p-0.5">
+              {(['sandbox', 'production'] as const).map(env => (
+                <button key={env} type="button" onClick={() => setEnvironment(env)}
+                  className={cn('rounded-md px-3 py-1.5 text-[12.5px] font-medium capitalize transition-colors', environment === env ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground')}>
+                  {env}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Label */}
+          <div>
+            <FieldLabel>Connection label</FieldLabel>
+            <Input value={label} onChange={e => setLabel(e.target.value)} className="mt-1.5 h-10 text-[13px]" />
+          </div>
+
+          {/* Auth */}
+          {isOAuth ? (
+            <div className="rounded-lg border border-border bg-muted/40 px-3 py-3 text-[12.5px] text-muted-foreground">
+              In production this launches the {provider.name} OAuth 2.0 consent screen. For the demo, connecting simulates a granted token.
+            </div>
+          ) : (
+            <div>
+              <FieldLabel>{AUTH_LABEL[provider.authType]}</FieldLabel>
+              <Input value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder={provider.authType === 'mtls' ? 'Paste client certificate…' : 'sk_live_…'} className="mt-1.5 h-10 font-mono text-[12.5px]" />
+              <p className="mt-1 text-[11px] text-faint-foreground">Stored only in your browser for this demo — never transmitted.</p>
+            </div>
+          )}
+
+          {/* Scopes */}
+          <div>
+            <FieldLabel>Permissions requested</FieldLabel>
+            <div className="mt-1.5 space-y-1.5">
+              {provider.scopes.map(s => (
+                <label key={s} className="flex cursor-pointer items-center gap-2 text-[12.5px] text-foreground">
+                  <input type="checkbox" checked={scopes.has(s)} onChange={() => toggleScope(s)} className="size-3.5 rounded border-input-border accent-[var(--color-primary)]" />
+                  <span className="font-mono text-[12px] text-muted-foreground">{s}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-[11.5px] leading-snug text-muted-foreground">
+            <Info className="mt-0.5 size-3.5 shrink-0" />
+            <span>Powers <span className="font-medium text-foreground">{provider.powers}</span>. No real request is made — this records a mock connection.</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-border px-5 py-3">
+        <Button onClick={submit} loading={connecting} loadingText="Connecting…" size="lg" className="w-full gap-1.5">
+          {isOAuth ? <><KeyRound className="size-4" /> Authorise {provider.name}</> : <><Plug className="size-4" /> Connect {provider.name}</>}
+        </Button>
+      </div>
+    </>
+  )
+}
+
+// ── Detail drawer ─────────────────────────────────────────────────────────────
+
+function DetailDrawer({ connection, onClose }: { connection: Connection | null; onClose: () => void }) {
+  return (
+    <Sheet open={connection != null} onOpenChange={o => { if (!o) onClose() }}>
+      <SheetContent side="right" className="w-full sm:max-w-md">
+        <SheetTitle className="sr-only">Connection details</SheetTitle>
+        {connection != null && <DetailBody connection={connection} onClose={onClose} />}
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function DetailBody({ connection, onClose }: { connection: Connection; onClose: () => void }) {
+  const p = providerById(connection.providerId)
+  const [revealed, setRevealed] = useState(false)
+  const [testing, setTesting] = useState(false)
+  if (p == null) return null
+  const Icon = CATEGORY_ICON[p.category]
+
+  const copy = (text: string, what: string) => { void navigator.clipboard?.writeText(text).then(() => toast.success(`${what} copied`)).catch(() => {}) }
+  const test = () => {
+    setTesting(true)
+    window.setTimeout(() => { recordTest(connection.id, true); setTesting(false); toast.success('Test connection succeeded') }, 700)
+  }
+
+  return (
+    <>
+      <DrawerHeader title="Connection" onClose={onClose} />
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className="flex items-center gap-3">
+          <ProviderTile provider={p} size={44} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[15px] font-semibold text-foreground">{connection.label}</div>
+            <div className="flex items-center gap-1 text-[11.5px] text-subtle-foreground"><Icon className="size-3" /> {p.name}</div>
+          </div>
+          <StatusBadge status={connection.status} />
+        </div>
+
+        {/* What it powers */}
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-[12px] leading-snug text-muted-foreground">
+          <Info className="mt-0.5 size-3.5 shrink-0" />
+          <span>Powers <span className="font-medium text-foreground">{p.powers}</span>{p.subsystem != null && <> — the matching area is relabelled “via {p.name}”.</>}</span>
+        </div>
+
+        {/* Meta */}
+        <dl className="mt-4 divide-y divide-separator rounded-lg border border-border">
+          <Row label="Environment"><span className="capitalize">{connection.environment}</span></Row>
+          <Row label="Owner">{connection.ownerName}</Row>
+          <Row label="Used by">{connection.usedByCount} workflow{connection.usedByCount === 1 ? '' : 's'}</Row>
+          <Row label="Connected">{fmtWhen(connection.createdAt)}</Row>
+          <Row label="Last synced">{fmtWhen(connection.lastSyncAt)}</Row>
+        </dl>
+
+        {/* Credentials */}
+        {p.authType !== 'oauth2' && (
+          <div className="mt-4">
+            <FieldLabel>{AUTH_LABEL[p.authType]}</FieldLabel>
+            <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+              <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-foreground">
+                {revealed ? `${connection.maskedKey.replace(/•+/, '3f9a72b1c4')}` : connection.maskedKey}
+              </span>
+              <button type="button" onClick={() => setRevealed(v => !v)} aria-label={revealed ? 'Hide' : 'Reveal'} className="text-muted-foreground hover:text-foreground">
+                {revealed ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+              <button type="button" onClick={() => copy(connection.maskedKey, 'Key')} aria-label="Copy" className="text-muted-foreground hover:text-foreground">
+                <Copy className="size-4" />
+              </button>
+              <button type="button" onClick={() => { rotateKey(connection.id); toast.success('API key rotated') }} aria-label="Rotate" className="text-muted-foreground hover:text-foreground">
+                <RotateCw className="size-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Webhook */}
+        <div className="mt-4">
+          <FieldLabel>Webhook endpoint</FieldLabel>
+          <div className="mt-1.5 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+            <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-muted-foreground">{connection.webhookURL}</span>
+            <button type="button" onClick={() => copy(connection.webhookURL, 'URL')} aria-label="Copy URL" className="text-muted-foreground hover:text-foreground"><Copy className="size-4" /></button>
+          </div>
+        </div>
+
+        {/* Scopes */}
+        <div className="mt-4">
+          <FieldLabel>Permissions</FieldLabel>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {connection.scopes.map(s => (
+              <span key={s} className="rounded-full bg-muted px-2 py-0.5 font-mono text-[11px] text-muted-foreground">{s}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* Activity */}
+        <div className="mt-4">
+          <FieldLabel>Recent activity</FieldLabel>
+          <div className="mt-1.5 space-y-2">
+            {connection.events.slice(0, 8).map((e, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 text-[12px]">
+                <span className="text-muted-foreground">{e.detail}</span>
+                <span className="shrink-0 text-subtle-foreground">{fmtWhen(e.at)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer actions */}
+      <div className="flex items-center gap-2 border-t border-border px-5 py-3">
+        <Button variant="outline" onClick={test} loading={testing} loadingText="Testing…" className="h-9 flex-1 gap-1.5 text-[12.5px]">
+          <Check className="size-4" /> Test connection
+        </Button>
+        <Button variant="outline" onClick={() => { recordSync(connection.id); toast.success('Synced') }} className="h-9 gap-1.5 px-3 text-[12.5px]">
+          <RefreshCw className="size-4" /> Sync
+        </Button>
+        <button
+          type="button"
+          onClick={() => { removeConnection(connection.id); toast.success('Disconnected'); onClose() }}
+          className="grid size-9 place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-destructive/5 hover:text-destructive"
+          aria-label="Disconnect"
+        >
+          <Trash2 className="size-4" />
+        </button>
+      </div>
+    </>
+  )
+}
+
+// ── Shared drawer chrome ──────────────────────────────────────────────────────
+
+function DrawerHeader({ title, subtitle, onClose, onBack }: { title: string; subtitle?: string; onClose: () => void; onBack?: () => void }) {
+  return (
+    <div className="flex items-center gap-2 border-b border-border px-4 py-3.5">
+      {onBack != null && (
+        <button type="button" onClick={onBack} aria-label="Back" className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+          <ArrowLeft className="size-4" />
+        </button>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="text-[15px] font-semibold text-foreground">{title}</div>
+        {subtitle != null && <div className="text-[12px] text-muted-foreground">{subtitle}</div>}
+      </div>
+      <button type="button" onClick={onClose} aria-label="Close" className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+        <X className="size-4" />
+      </button>
+    </div>
+  )
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return <div className="text-[11px] font-medium uppercase tracking-wide text-subtle-foreground">{children}</div>
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-3 py-2 text-[12.5px]">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="font-medium text-foreground">{children}</dd>
+    </div>
+  )
+}

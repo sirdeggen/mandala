@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Home, Signature, Building2, ShieldCheck, ChevronsUpDown, BadgeCheck,
-  Settings, Plus, LogOut, BookOpen, FileText
+  Settings, Plus, LogOut, BookOpen, FileText, Blocks
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useWallet } from '../../context/WalletContext'
@@ -29,10 +29,11 @@ import AuditorHome from './AuditorHome'
 import IssueInstrumentDrawer from './IssueInstrumentDrawer'
 import ComplianceOverview from './ComplianceOverview'
 import ReportsPage from './ReportsPage'
+import IntegrationsPage from './IntegrationsPage'
 import AccountSettings from '../settings/AccountSettings'
 import ContactsPage from '../holder/ContactsPage'
 
-type Section = 'home' | 'overview' | 'relationships' | 'compliance' | 'reports' | 'instrument' | 'settings'
+type Section = 'home' | 'overview' | 'relationships' | 'compliance' | 'reports' | 'integrations' | 'instrument' | 'settings'
 
 type NavItem = {
   key: string
@@ -49,6 +50,7 @@ const TOP_NAV: NavItem[] = [
   { key: 'relationships', section: 'relationships', label: 'Relationships', icon: Building2 },
   { key: 'compliance',    section: 'compliance',    label: 'Compliance',    icon: ShieldCheck },
   { key: 'reports',       section: 'reports',       label: 'Reports',       icon: FileText },
+  { key: 'integrations',  section: 'integrations',  label: 'Integrations',  icon: Blocks },
 ]
 
 // ── Instrument switcher (sidebar popover) ─────────────────────────────────────
@@ -267,7 +269,7 @@ function AccountMenu({ seed, displayName, verified, onSettings }: {
 
 // `home` / `overview` are nav-backed; `instrument` is reached by selecting an
 // instrument; `settings` is reached from the account menu.
-const VALID_SECTIONS = ['home', 'overview', 'relationships', 'compliance', 'reports', 'instrument', 'settings']
+const VALID_SECTIONS = ['home', 'overview', 'relationships', 'compliance', 'reports', 'integrations', 'instrument', 'settings']
 
 export default function IssuerDashboard() {
   const { identityKey } = useWallet()
@@ -462,6 +464,9 @@ export default function IssuerDashboard() {
             )}
             {section === 'reports' && (
               <ReportsPage />
+            )}
+            {section === 'integrations' && (
+              <IntegrationsPage />
             )}
             {section === 'instrument' && (
               <InstrumentDetail
