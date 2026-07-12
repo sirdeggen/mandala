@@ -31,7 +31,7 @@ import ComplianceOverview from './ComplianceOverview'
 import ReportsPage from './ReportsPage'
 import IntegrationsPage from './IntegrationsPage'
 import AccountSettings from '../settings/AccountSettings'
-import ContactsPage from '../holder/ContactsPage'
+import RelationshipsPage from './RelationshipsPage'
 
 type Section = 'home' | 'overview' | 'relationships' | 'compliance' | 'reports' | 'integrations' | 'instrument' | 'settings'
 
@@ -328,12 +328,6 @@ export default function IssuerDashboard() {
     setSendContact(null)
     navigate(`/issuer/instrument?${next.toString()}`)
   }
-  const handleContactSend = (contact: { identityKey: string; name: string }) => {
-    if (assets.length === 0) { toast.info('Issue an instrument first, then you can send it.'); return }
-    if (assets.length === 1) { sendTo(assets[0].assetId, contact); return }
-    setSendContact({ identityKey: contact.identityKey, name: contact.name })
-  }
-
   // Normalise an unknown /issuer/:section, keeping ?asset. The old standalone
   // /issuer/regulatory page now lives inside Operations.
   useEffect(() => {
@@ -457,7 +451,7 @@ export default function IssuerDashboard() {
               />
             )}
             {section === 'relationships' && (
-              <ContactsPage onSend={handleContactSend} />
+              <RelationshipsPage />
             )}
             {section === 'compliance' && (
               <ComplianceOverview onOpenInstrument={openInstrument} />
