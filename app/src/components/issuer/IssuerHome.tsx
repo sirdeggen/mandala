@@ -203,8 +203,8 @@ function StatCard({ stat, onClick }: { stat: Stat; onClick?: () => void }) {
       onClick={onClick}
       disabled={!clickable}
       className={cn(
-        'flex flex-col justify-between rounded-xl border border-border bg-card p-5 text-left transition-colors',
-        clickable && 'group hover:border-muted-foreground/40 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60'
+        'flex flex-col justify-between rounded-xl border border-border bg-card p-5 text-left transition-all duration-200',
+        clickable && 'group hover:-translate-y-0.5 hover:shadow-[0_12px_28px_-12px_rgba(16,24,40,0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60'
       )}
     >
       <div className="flex items-center justify-between">
