@@ -17,6 +17,7 @@ import { useMockTransfers } from '../../lib/mandala/mockBankStore'
 import { useMintRequests } from '../../lib/orchestration'
 import { useRedemptionRequests } from '../../lib/compliance'
 import { bankForRef } from '@/content/banks'
+import { CompanyAvatar } from '@/components/ui/company-avatar'
 import { cn } from '@/lib/utils'
 
 const ACCT_RESERVE = 'Reserve · Cash'
@@ -119,7 +120,7 @@ export default function LedgerView({ assetId, asset, decimals }: { assetId: stri
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             {subAccounts.map((b, i) => (
               <div key={b.name} className={cn('flex items-center gap-3 px-4 py-2.5', i > 0 && 'border-t border-separator')}>
-                <span className="grid size-8 shrink-0 place-items-center rounded-lg text-[11px] font-bold text-white" style={{ backgroundColor: b.color }}>{b.short}</span>
+                <CompanyAvatar name={b.name} size={32} className="rounded-lg" />
                 <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">{b.name}</span>
                 <span className="tabular text-[13px] font-semibold">{fmt(b.balance)} {ticker}</span>
               </div>

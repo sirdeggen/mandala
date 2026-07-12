@@ -18,6 +18,7 @@ import { useActiveIntegration } from '../../lib/integrations'
 import { useMintRequests, createMintRequest, settleMintRequest, rejectMintRequest, removeMintRequest, type MintRequest } from '../../lib/orchestration'
 import { formatAmount, parseAmount } from '@bsv/mandala/amount'
 import { bankForRef } from '@/content/banks'
+import { CompanyAvatar } from '@/components/ui/company-avatar'
 import { BankReconcileButton } from './ReconcileLink'
 
 interface BankingMockProps {
@@ -326,16 +327,10 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
               key={t.id}
               className={`flex items-center gap-[14px] px-[18px] py-[15px]${idx > 0 ? ' border-t border-separator' : ''}`}
             >
-              {/* Bank logo with a direction badge - the institution the transfer
+              {/* Bank avatar with a direction badge - the institution the transfer
                   moved through, plus whether it was a deposit or withdrawal. */}
-              <div className="relative flex-none">
-                <div
-                  className="grid size-10 place-items-center rounded-lg text-[13px] font-bold text-white shadow-sm"
-                  style={{ backgroundColor: bank.color }}
-                  title={bank.name}
-                >
-                  {bank.short}
-                </div>
+              <div className="relative flex-none" title={bank.name}>
+                <CompanyAvatar name={bank.name} size={40} className="rounded-lg" />
                 <span className={cn(
                   'absolute -bottom-1 -right-1 grid size-[18px] place-items-center rounded-full text-white ring-2 ring-card',
                   isOut ? 'bg-destructive' : 'bg-success'
