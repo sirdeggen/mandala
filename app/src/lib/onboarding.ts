@@ -34,10 +34,12 @@ export interface OnboardingProfile {
   role: OnboardingRole | null
   name: string
   email: string
+  /** The user's job title within their organisation. */
+  title: string
   entity: EntityDetails | null
 }
 
-const EMPTY: OnboardingProfile = { completed: false, role: null, name: '', email: '', entity: null }
+const EMPTY: OnboardingProfile = { completed: false, role: null, name: '', email: '', title: '', entity: null }
 
 const listeners = new Set<() => void>()
 
@@ -52,6 +54,7 @@ function read(): OnboardingProfile {
       role: parsed.role === 'issuer' || parsed.role === 'auditor' || parsed.role === 'individual' ? parsed.role : null,
       name: typeof parsed.name === 'string' ? parsed.name : '',
       email: typeof parsed.email === 'string' ? parsed.email : '',
+      title: typeof parsed.title === 'string' ? parsed.title : '',
       entity: parsed.entity ?? null
     }
   } catch {

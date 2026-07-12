@@ -48,6 +48,7 @@ export default function OnboardingWizard() {
       role,
       name: name.trim(),
       email: '',
+      title: '',
       entity: role === 'issuer'
         ? { legalName: legalName.trim() || name.trim(), country, address: address.trim() }
         : null

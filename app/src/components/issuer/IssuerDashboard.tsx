@@ -11,6 +11,7 @@ import { useAdminAssets, useInvalidateAdminAssets } from '../../hooks/useAdminAs
 import { useAdminSummary } from '../../hooks/useAdminHistory'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
 import { UserAvatar } from '@/components/ui/user-avatar'
+import { useUserAvatar } from '../../lib/userAvatar'
 import {
   SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
   SidebarGroup, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarSeparator,
@@ -232,10 +233,11 @@ function AccountMenu({ seed, displayName, verified, onSettings, onCompany }: {
   onSettings: () => void
   onCompany: () => void
 }) {
+  const avatar = useUserAvatar()
   return (
     <Popover>
       <PopoverTrigger className="flex w-full items-center gap-2.5 rounded-md border border-sidebar-border bg-card px-2.5 py-2 text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0">
-        <UserAvatar seed={seed} size={32} />
+        <UserAvatar seed={seed} src={avatar} size={32} />
         <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
           <div className="truncate text-[12px] font-semibold leading-tight text-foreground">{displayName}</div>
           <div className="mt-[2px] flex items-center gap-1 text-[10px] leading-none text-sidebar-foreground/60">
@@ -249,7 +251,7 @@ function AccountMenu({ seed, displayName, verified, onSettings, onCompany }: {
         {/* Current account */}
         <div className="p-1.5">
           <div className="flex w-full items-center gap-2.5 rounded-xl bg-accent px-2.5 py-2 text-left">
-            <UserAvatar seed={seed} size={36} />
+            <UserAvatar seed={seed} src={avatar} size={36} />
             <div className="min-w-0 flex-1">
               <div className="truncate text-[14px] font-semibold text-foreground">{displayName}</div>
               <div className="truncate text-[12px] text-muted-foreground">{verified ? 'Verified issuer' : 'Issuer'}</div>
