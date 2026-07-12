@@ -12,9 +12,10 @@ import { useSyncExternalStore } from 'react'
 // ── Catalogue ─────────────────────────────────────────────────────────────────
 
 export type IntegrationCategory =
-  | 'kyc' | 'sanctions' | 'analytics' | 'banking' | 'sso' | 'attestation' | 'reporting'
+  | 'licensing' | 'kyc' | 'sanctions' | 'analytics' | 'banking' | 'sso' | 'attestation' | 'reporting'
 
 export const CATEGORY_LABEL: Record<IntegrationCategory, string> = {
+  licensing: 'Licensing & authorisation',
   kyc: 'KYC & identity verification',
   sanctions: 'Sanctions, PEP & AML screening',
   analytics: 'Blockchain analytics',
@@ -25,7 +26,7 @@ export const CATEGORY_LABEL: Record<IntegrationCategory, string> = {
 }
 
 export const CATEGORY_ORDER: IntegrationCategory[] =
-  ['kyc', 'sanctions', 'analytics', 'banking', 'sso', 'attestation', 'reporting']
+  ['licensing', 'kyc', 'sanctions', 'analytics', 'banking', 'sso', 'attestation', 'reporting']
 
 export type AuthType = 'api_key' | 'oauth2' | 'mtls' | 'webhook'
 
@@ -38,7 +39,7 @@ export const AUTH_LABEL: Record<AuthType, string> = {
 
 /** Which simulated subsystem a provider would feed, so connecting it can
  *  relabel that area's data provenance ("via {provider}"). */
-export type Subsystem = 'screening' | 'kyc' | 'reserves' | 'rbac' | 'reporting'
+export type Subsystem = 'screening' | 'kyc' | 'reserves' | 'rbac' | 'reporting' | 'licensing'
 
 export interface Provider {
   id: string
@@ -60,6 +61,12 @@ export interface Provider {
 }
 
 export const PROVIDERS: Provider[] = [
+  // Licensing & authorisation - the external authorities that grant an issuer
+  // Badge the right to issue particular instrument categories.
+  { id: 'finma', name: 'FINMA e-licensing', category: 'licensing', authType: 'oauth2', monogram: 'FI', color: '#b91c1c', domain: 'finma.ch', subsystem: 'licensing', powers: 'Issuer licensing & category authorisation', blurb: 'Swiss Financial Market Supervisory Authority — verifies your licence and authorises issuance categories.', scopes: ['licence.read', 'authorisations.read'] },
+  { id: 'eba-mica', name: 'EBA · MiCA authority', category: 'licensing', authType: 'mtls', monogram: 'EB', color: '#1e3a8a', domain: 'eba.europa.eu', subsystem: 'licensing', powers: 'MiCA authorisation & passporting', blurb: 'EU authorisation and passporting for e-money and asset-referenced tokens under MiCA.', scopes: ['authorisation.read', 'passport.read'] },
+  { id: 'scheme-operator', name: 'Scheme operator', category: 'licensing', authType: 'api_key', monogram: 'SO', color: '#334155', subsystem: 'licensing', powers: 'Programme-level issuance rules', blurb: 'A network or card-scheme operator that authorises participants and category rules.', scopes: ['membership.read', 'rules.read'] },
+
   // KYC / identity verification
   { id: 'onfido', name: 'Onfido', category: 'kyc', authType: 'api_key', monogram: 'On', color: '#3a3ad6', domain: 'onfido.com', popular: true, subsystem: 'kyc', powers: 'Holder identity verification & document checks', blurb: 'Automated identity document and biometric verification for holder onboarding.', scopes: ['applicants.read', 'checks.write', 'watchlist.read'] },
   { id: 'jumio', name: 'Jumio', category: 'kyc', authType: 'oauth2', monogram: 'Ju', color: '#0a7d3d', domain: 'jumio.com', subsystem: 'kyc', powers: 'ID verification & liveness', blurb: 'ID verification, liveness detection and AML screening in one flow.', scopes: ['identity.verify', 'aml.read'] },

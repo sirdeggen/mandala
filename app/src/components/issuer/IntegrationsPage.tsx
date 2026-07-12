@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 import {
   Plus, Search, X, MoreVertical, Check, Copy, RotateCw, Plug, ArrowLeft, Info,
   Zap, RefreshCw, Trash2, ShieldAlert, UserCheck, Radar, Landmark,
-  KeyRound, FileCheck2, Bell, Eye, EyeOff, LayoutGrid, List,
+  KeyRound, FileCheck2, Bell, Eye, EyeOff, LayoutGrid, List, ScrollText,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useOnboarding } from '../../lib/onboarding'
@@ -30,8 +30,8 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { cn } from '@/lib/utils'
 
 const CATEGORY_ICON: Record<IntegrationCategory, LucideIcon> = {
-  kyc: UserCheck, sanctions: ShieldAlert, analytics: Radar, banking: Landmark,
-  sso: KeyRound, attestation: FileCheck2, reporting: Bell,
+  licensing: ScrollText, kyc: UserCheck, sanctions: ShieldAlert, analytics: Radar,
+  banking: Landmark, sso: KeyRound, attestation: FileCheck2, reporting: Bell,
 }
 
 const STATUS_TONE: Record<ConnectionStatus, string> = {

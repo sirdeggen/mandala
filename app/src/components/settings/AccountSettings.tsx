@@ -1,15 +1,17 @@
 import { useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { BadgeCheck, Copy, Check, ChevronDown } from 'lucide-react'
+import { BadgeCheck, Copy, Check, ChevronDown, Plug, X } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { useOnboarding, updateProfile } from '../../lib/onboarding'
+import { useActiveIntegration } from '../../lib/integrations'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { IdentitySigil } from '@/components/ui/identity-sigil'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { WHITELISTED_CATEGORIES } from '@/content/issuerBadge'
 import { cn } from '@/lib/utils'
 
@@ -150,6 +152,10 @@ function shortKey(key: string): string {
 
 function BadgePanel({ identityKey }: { identityKey: string | null }) {
   const [copied, setCopied] = useState(false)
+  const licensing = useActiveIntegration('licensing')
+  const navigate = useNavigate()
+  const [requestOpen, setRequestOpen] = useState(false)
+  const granted = licensing != null
 
   async function copy() {
     if (identityKey == null) return
@@ -192,10 +198,30 @@ function BadgePanel({ identityKey }: { identityKey: string | null }) {
       </div>
 
       <div className="space-y-2">
-        <Label>Whitelisted for issuing</Label>
-        <p className="text-[12.5px] text-muted-foreground">
-          This Badge is authorised to issue the following categories of instruments.
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <Label>Whitelisted for issuing</Label>
+          {granted && (
+            <button type="button" onClick={() => setRequestOpen(true)} className="text-[12px] font-medium text-primary hover:underline">
+              Request additional categories
+            </button>
+          )}
+        </div>
+
+        {granted ? (
+          <p className="text-[12.5px] text-muted-foreground">
+            Authorised by <span className="font-medium text-foreground">{licensing!.providerName}</span>. This Badge may issue the categories below. Authorisation is granted by the licensing authority — not self-assigned.
+          </p>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2.5">
+            <p className="text-[12.5px] text-muted-foreground">
+              Not yet authorised. Whitelisting is granted by an external licensing authority — connect one to authorise this Badge to issue.
+            </p>
+            <button type="button" onClick={() => navigate('/issuer/integrations')} className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline">
+              <Plug className="size-3" /> Connect a licensing authority
+            </button>
+          </div>
+        )}
+
         <TooltipProvider delayDuration={120}>
           <div className="flex flex-wrap gap-2 pt-1">
             {WHITELISTED_CATEGORIES.map(cat => (
@@ -203,22 +229,122 @@ function BadgePanel({ identityKey }: { identityKey: string | null }) {
                 <TooltipTrigger asChild>
                   <span
                     tabIndex={0}
-                    className="inline-flex cursor-default items-center gap-1.5 rounded-full border border-success/30 bg-success/5 px-2.5 py-1 text-[12.5px] font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                    className={cn(
+                      'inline-flex cursor-default items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12.5px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+                      granted ? 'border-success/30 bg-success/5 text-foreground' : 'border-border bg-muted/40 text-muted-foreground'
+                    )}
                   >
-                    <BadgeCheck className="size-3.5 text-success" strokeWidth={2.4} />
+                    <BadgeCheck className={cn('size-3.5', granted ? 'text-success' : 'text-faint-foreground')} strokeWidth={2.4} />
                     {cat.label}
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[240px] text-left">
                   <p className="font-medium">{cat.type}</p>
-                  <p className="mt-1 text-primary-foreground/75">Requirements met: {cat.requirementsMet}</p>
+                  <p className="mt-1 text-primary-foreground/75">
+                    {granted ? <>Granted by {licensing!.providerName}. Requirements met: {cat.requirementsMet}</> : <>Requires: {cat.requirementsMet}</>}
+                  </p>
                 </TooltipContent>
               </Tooltip>
             ))}
           </div>
         </TooltipProvider>
       </div>
+
+      <RequestCategoriesSheet open={requestOpen} authority={licensing?.providerName ?? ''} onClose={() => setRequestOpen(false)} />
     </div>
+  )
+}
+
+// ── Request additional issuance categories (right-side sheet) ──────────────────
+
+function RequestCategoriesSheet({ open, authority, onClose }: { open: boolean; authority: string; onClose: () => void }) {
+  return (
+    <Sheet open={open} onOpenChange={o => { if (!o) onClose() }}>
+      <SheetContent side="right" className="w-full sm:max-w-md">
+        <SheetTitle className="sr-only">Request additional categories</SheetTitle>
+        {open && <RequestCategoriesBody authority={authority} onClose={onClose} />}
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function RequestCategoriesBody({ authority, onClose }: { authority: string; onClose: () => void }) {
+  const [category, setCategory] = useState('')
+  const [email, setEmail] = useState('')
+  const [note, setNote] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [done, setDone] = useState(false)
+
+  const submit = () => {
+    if (category.trim() === '') { toast.error('Name the category you need authorised.'); return }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { toast.error('Enter a valid work email.'); return }
+    setSubmitting(true)
+    window.setTimeout(() => { setSubmitting(false); setDone(true) }, 650)
+  }
+
+  const header = (
+    <div className="flex items-center gap-2 border-b border-border px-4 py-3.5">
+      <div className="min-w-0 flex-1">
+        <div className="text-[15px] font-semibold text-foreground">{done ? 'Request received' : 'Request additional categories'}</div>
+        {!done && authority !== '' && <div className="truncate text-[12px] text-muted-foreground">Routed to {authority}</div>}
+      </div>
+      <button type="button" onClick={onClose} aria-label="Close" className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+        <X className="size-4" />
+      </button>
+    </div>
+  )
+
+  if (done) {
+    return (
+      <>
+        {header}
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 py-10 text-center">
+          <span className="grid size-14 place-items-center rounded-2xl bg-success/10 text-success">
+            <Check className="size-7" strokeWidth={2.5} />
+          </span>
+          <h3 className="mt-4 text-[16px] font-semibold text-foreground">Request submitted</h3>
+          <p className="mt-1.5 max-w-xs text-balance text-[13px] leading-relaxed text-muted-foreground">
+            {authority !== '' ? <>{authority} will review authorisation for <span className="font-medium text-foreground">{category.trim()}</span> and follow up at <span className="font-medium text-foreground">{email.trim()}</span>.</> : <>We’ll review <span className="font-medium text-foreground">{category.trim()}</span> and follow up at <span className="font-medium text-foreground">{email.trim()}</span>.</>}
+          </p>
+          <Button variant="outline" onClick={onClose} className="mt-6 h-9 px-5 text-[13px]">Done</Button>
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <>
+      {header}
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        <p className="text-[12.5px] leading-snug text-muted-foreground">
+          Ask your licensing authority to authorise this Badge for another instrument category.
+        </p>
+        <div className="space-y-1.5">
+          <Label htmlFor="rc-cat">Instrument category</Label>
+          <Input id="rc-cat" autoFocus value={category} onChange={e => setCategory(e.target.value)} placeholder="e.g. Asset-referenced tokens" className="h-10 text-[13px]" />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="rc-email">Work email</Label>
+          <Input id="rc-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@bank.example" className="h-10 text-[13px]" />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="rc-note">Supporting detail (optional)</Label>
+          <textarea
+            id="rc-note"
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            rows={3}
+            placeholder="Licence reference, reserve model, intended use…"
+            className="w-full resize-none rounded-md border border-input-border bg-input px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-subtle-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+          />
+        </div>
+      </div>
+      <div className="border-t border-border px-5 py-3">
+        <Button onClick={submit} loading={submitting} loadingText="Submitting…" size="lg" className="w-full">
+          Submit request
+        </Button>
+      </div>
+    </>
   )
 }
 
