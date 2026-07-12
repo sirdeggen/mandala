@@ -44,7 +44,7 @@ export const INSTRUMENT_TEMPLATES: InstrumentTemplate[] = [
   {
     id: 'chf-stablecoin', category: 'Stablecoins', name: 'CHF Stablecoin', ticker: 'CHFX', decimals: 2,
     description: 'A Swiss-franc-referenced token, fully reserve-backed.',
-    icon: 'CircleDollarSign', image: img('chf-stablecoin'), flag: 'ch',
+    icon: 'SwissFranc', image: img('chf-stablecoin'), flag: 'ch',
   },
   {
     id: 'eur-stablecoin', category: 'Stablecoins', name: 'EUR Stablecoin', ticker: 'EURX', decimals: 2,
@@ -54,7 +54,7 @@ export const INSTRUMENT_TEMPLATES: InstrumentTemplate[] = [
   {
     id: 'gbp-stablecoin', category: 'Stablecoins', name: 'GBP Stablecoin', ticker: 'GBPX', decimals: 2,
     description: 'A pound-sterling-referenced token, fully reserve-backed.',
-    icon: 'CircleDollarSign', image: img('gbp-stablecoin'), flag: 'gb',
+    icon: 'PoundSterling', image: img('gbp-stablecoin'), flag: 'gb',
   },
 
   // ── Deposit tokens ──

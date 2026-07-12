@@ -12,7 +12,8 @@
 import { useSyncExternalStore } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
-  Banknote, Coins, DollarSign, CircleDollarSign, Wallet, HandCoins, PiggyBank,
+  Banknote, Coins, DollarSign, CircleDollarSign, PoundSterling, SwissFranc,
+  Wallet, HandCoins, PiggyBank,
   CreditCard, Landmark, Vault,
   FileText, ScrollText, ReceiptText, Receipt, Stamp, Scale, Briefcase, BookText,
   Key, ShieldCheck,
@@ -35,6 +36,8 @@ export const ICON_GROUPS: IconGroup[] = [
       { name: 'Coins', Icon: Coins },
       { name: 'DollarSign', Icon: DollarSign },
       { name: 'CircleDollarSign', Icon: CircleDollarSign },
+      { name: 'PoundSterling', Icon: PoundSterling },
+      { name: 'SwissFranc', Icon: SwissFranc },
       { name: 'Wallet', Icon: Wallet },
       { name: 'HandCoins', Icon: HandCoins },
       { name: 'PiggyBank', Icon: PiggyBank },
