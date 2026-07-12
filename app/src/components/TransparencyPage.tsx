@@ -41,7 +41,7 @@ function Chrome({ issuerKey, background = false, children }: { issuerKey?: strin
       {background && (
         <div aria-hidden className="pointer-events-none fixed inset-0 z-0">
           <img src="/backgrounds/transparencybg.jpg" alt="" className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-background/72 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-background/72 backdrop-blur-[1.5px]" />
         </div>
       )}
       <div className="relative z-10">
@@ -61,10 +61,11 @@ function Chrome({ issuerKey, background = false, children }: { issuerKey?: strin
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-5 py-8 sm:px-8">{children}</main>
-      <footer className="py-6">
-        <a href="/" className="mx-auto flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-[12.5px] font-medium text-muted-foreground shadow-[var(--shadow-card)] transition-colors hover:text-foreground">
+      <footer className="pb-6 pt-1">
+        <a href="/" className="mx-auto flex w-fit items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-[12.5px] font-medium text-muted-foreground shadow-[var(--shadow-card)] transition-colors hover:text-foreground">
+          Powered by
           <img src="/icon-192.png" alt="" aria-hidden className="size-5 rounded" />
-          Powered by <span className="font-handwritten text-[17px] font-bold leading-none text-foreground">Underwrite</span>
+          <span className="font-handwritten text-[17px] font-bold leading-none text-foreground">Underwrite</span>
         </a>
       </footer>
       </div>
@@ -173,7 +174,7 @@ export function TransparencyOrg() {
 
   return (
     <Chrome issuerKey={issuer} background={entity.published}>
-      <Link to="/transparency" className="mb-6 inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground">
+      <Link to="/transparency" className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[13px] font-medium text-foreground shadow-[var(--shadow-card)] transition-colors hover:bg-muted">
         <ArrowLeft className="size-4" /> Directory
       </Link>
 
@@ -253,7 +254,7 @@ export function TransparencyInstrument() {
 
   return (
     <Chrome issuerKey={issuer} background={published}>
-      <Link to={`/transparency/${encodeURIComponent(issuer)}`} className="mb-6 inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground">
+      <Link to={`/transparency/${encodeURIComponent(issuer)}`} className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[13px] font-medium text-foreground shadow-[var(--shadow-card)] transition-colors hover:bg-muted">
         <ArrowLeft className="size-4" /> {name}
       </Link>
 

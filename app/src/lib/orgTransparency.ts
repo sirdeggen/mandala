@@ -54,17 +54,18 @@ function subscribe(cb: () => void): () => void { listeners.add(cb); return () =>
 
 export interface EntityTransparency { published: boolean; listed: boolean }
 
-/** Reactive entity transparency flags for one issuer key. */
+/** Reactive entity transparency flags for one issuer key. A published entity is
+ *  listed in the directory by default; the listing switch is an opt-out. */
 export function useEntityTransparency(identityKey: string): EntityTransparency {
   const s = useSyncExternalStore(subscribe, snapshot, snapshot)
-  return { published: s.published[identityKey] === true, listed: s.listed[identityKey] === true }
+  return { published: s.published[identityKey] === true, listed: s.listed[identityKey] !== false }
 }
 
-/** Reactive list of issuer keys that have opted into the public directory
- *  (and published their page). */
+/** Reactive list of issuer keys whose page is published and not hidden from the
+ *  directory. */
 export function useListedEntityKeys(): string[] {
   const s = useSyncExternalStore(subscribe, snapshot, snapshot)
-  return Object.keys(s.listed).filter(k => s.listed[k] === true && s.published[k] === true)
+  return Object.keys(s.published).filter(k => s.published[k] === true && s.listed[k] !== false)
 }
 
 /** Non-reactive read of an entity's published flag. */

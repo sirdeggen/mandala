@@ -205,7 +205,6 @@ function EntityTransparencySettings() {
       const signature = await signStatement(wallet, `entity-transparency:${identityKey}:${at}`, message)
       const txid = await anchorOnChain(wallet, `entity-transparency:${identityKey}:${at}`, { message, signature, signerKey: identityKey }, `entity transparency ${nextPublished ? 'publish' : 'unpublish'}`)
       setEntityPublished(identityKey, nextPublished)
-      if (!nextPublished) setEntityListed(identityKey, false)
       recordSignedEvent({ kind: 'transparency-entity', label: `${nextPublished ? 'Published' : 'Unpublished'} entity transparency page`, signerKey: identityKey, signerName: name.trim() || undefined, at, txid })
       setConfirmOpen(false)
       toast.success(nextPublished ? 'Transparency page published and anchored on-chain' : 'Transparency page unpublished and anchored on-chain')
