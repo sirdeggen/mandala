@@ -117,7 +117,7 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
       {/* Tabs - only the active tab is underlined (black), via an ::after bar so
           no base border colour bleeds through. The strip scrolls on small
           screens with the scrollbar hidden. */}
-      <div className="mb-6 flex gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div data-tour-id="instrument-tabs" className="mb-6 flex gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map(({ id, label }) => (
           <button
             key={id}

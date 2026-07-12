@@ -393,7 +393,7 @@ export default function IssuerDashboard() {
           <SidebarGroup className="pb-1">
             <SidebarMenu>
               {TOP_NAV.filter(item => !(item.issuerOnly && isReviewerRole(onboardingRole))).map(({ key, section: sec, label, icon: Icon }) => (
-                <SidebarMenuItem key={key}>
+                <SidebarMenuItem key={key} data-tour-id={`nav-${sec}`}>
                   <SidebarMenuButton isActive={section === sec} tooltip={label} onClick={() => goSection(sec)}>
                     <Icon strokeWidth={1.9} />
                     <span>{label}</span>

@@ -79,7 +79,7 @@ export default function IssuerHome({ assets, onReload, onOpenInstrument }: {
       </div>
 
       {/* Cards - keyed by tab so the fade-in replays on switch */}
-      <div key={active} className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
+      <div key={active} data-tour-id="instrument-templates" className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
         {items.map((t, i) => (
           <TemplateCard key={t.id} template={t} index={i} onUse={() => useTemplate(t)} />
         ))}

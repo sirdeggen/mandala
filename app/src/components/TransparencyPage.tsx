@@ -60,7 +60,7 @@ export default function TransparencyPage() {
       </header>
 
       <main className="mx-auto max-w-5xl px-5 py-8 sm:px-8">
-        <h1 className="font-heading text-[28px] font-medium tracking-[-0.02em] text-foreground">Proof of reserves</h1>
+        <h1 data-tour-id="transparency-hero" className="font-heading text-[28px] font-medium tracking-[-0.02em] text-foreground">Proof of reserves</h1>
         <p className="mt-1.5 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
           Every unit in circulation settles on a public blockchain and is backed by recorded reserves.
           Period attestations are cryptographically signed and anchored on-chain, so backing can be

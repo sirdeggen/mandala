@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { BadgeCheck, Copy, Check, ChevronDown, Plug, X, Plus, Camera } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { useOnboarding, updateProfile, isReviewerRole } from '../../lib/onboarding'
+import { resetTour } from '../../lib/onboardingTour'
 import { useActiveIntegration } from '../../lib/integrations'
 import { useUserAvatar, setUserAvatar } from '../../lib/userAvatar'
 import {
@@ -187,6 +188,30 @@ function ProfilePanel() {
       <Disclosure title="Badge & authorisation" summary={badgeSummary}>
         <BadgePanel identityKey={identityKey} />
       </Disclosure>
+
+      <Disclosure title="Product tour" summary="Replay the guided walkthrough">
+        <TourPanel />
+      </Disclosure>
+    </div>
+  )
+}
+
+// ── Product tour ────────────────────────────────────────────────────────────
+
+function TourPanel() {
+  const navigate = useNavigate()
+  const restart = () => {
+    resetTour()
+    navigate('/issuer/home')
+    toast.success('Product tour restarted')
+  }
+  return (
+    <div className="space-y-3">
+      <p className="text-[13px] leading-relaxed text-muted-foreground">
+        Reopen the guided walkthrough for your role. It steps through the key
+        surfaces and highlights where to go next.
+      </p>
+      <Button type="button" variant="outline" onClick={restart}>Restart tour</Button>
     </div>
   )
 }
