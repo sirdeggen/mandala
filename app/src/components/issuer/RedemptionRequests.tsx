@@ -9,6 +9,7 @@ import {
   SETTLEMENT_WINDOW_LABEL, type RedemptionRequest, type SettlementWindow,
 } from '../../lib/compliance'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
+import { useIssuerMutations } from '../../hooks/useIssuerMutations'
 import { useWallet } from '../../context/WalletContext'
 import { signRedemption, verifyRedemptionSignature, redemptionMessage } from '../../lib/complianceSignature'
 import { anchorOnChain } from '../../lib/onchainAnchor'
@@ -153,7 +154,7 @@ export default function RedemptionRequests({ assetId, asset }: { assetId: string
         ) : (
           <div className="space-y-2.5">
             {[...pending, ...processed].map(r => (
-              <RedemptionRow key={r.id} req={r} fmt={fmt} readOnly={isAuditor} />
+              <RedemptionRow key={r.id} req={r} fmt={fmt} readOnly={isAuditor} asset={asset} />
             ))}
           </div>
         )}
@@ -220,14 +221,16 @@ const STATUS_STYLE: Record<RedemptionRequest['status'], { label: string; cls: st
   rejected: { label: 'Rejected', cls: 'bg-destructive/10 text-destructive' },
 }
 
-function RedemptionRow({ req, fmt, readOnly }: { req: RedemptionRequest; fmt: (n: number) => string; readOnly: boolean }) {
+function RedemptionRow({ req, fmt, readOnly, asset }: { req: RedemptionRequest; fmt: (n: number) => string; readOnly: boolean; asset: AdminAsset | null }) {
   const { role, name } = useOnboarding()
   const { wallet, identityKey } = useWallet()
+  const { redeem } = useIssuerMutations()
   const isAuditor = role === 'auditor'
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
   const [confirming, setConfirming] = useState(false)
   const [anchoring, setAnchoring] = useState(false)
+  const [settling, setSettling] = useState(false)
   const dualControl = useGovernance().dualControl
   const status = STATUS_STYLE[req.status]
 
@@ -261,13 +264,25 @@ function RedemptionRow({ req, fmt, readOnly }: { req: RedemptionRequest; fmt: (n
     }
   }
 
-  const settle = () => {
+  const settle = async () => {
     if (dualControl) {
       proposeSettlement({ id: req.id, assetId: req.assetId, amount: req.amount, currency: req.currency, holderName: req.holderName })
       toast.success('Sent for approval (dual control)')
-    } else {
+      return
+    }
+    if (asset == null) { toast.error('Select an instrument first.'); return }
+    if (settling) return
+    setSettling(true)
+    try {
+      // Settling at par burns the redeemed units on-chain, removing them from
+      // circulation so the backing ratio stays honest.
+      await redeem.mutateAsync({ asset, amount: req.amount })
       settleRedemption(req.id)
-      toast.success('Redeemed at par - units removed from circulation')
+      toast.success('Redeemed at par, units burned on-chain')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not burn units on-chain')
+    } finally {
+      setSettling(false)
     }
   }
 
@@ -292,7 +307,7 @@ function RedemptionRow({ req, fmt, readOnly }: { req: RedemptionRequest; fmt: (n
 
       {!readOnly && req.status === 'pending' && !rejecting && (
         <div className="mt-3 flex gap-2">
-          <Button onClick={settle} className="h-8 gap-1.5 px-3 text-[12.5px]">
+          <Button onClick={settle} loading={settling} loadingText="Burning…" className="h-8 gap-1.5 px-3 text-[12.5px]">
             <Check className="size-4" /> Settle at par
           </Button>
           <button type="button" onClick={() => setRejecting(true)} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-destructive/40 px-3 text-[12.5px] font-medium text-destructive transition-colors hover:bg-destructive/5">
