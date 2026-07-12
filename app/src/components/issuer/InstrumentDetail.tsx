@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { formatAmount } from '@bsv/mandala/amount'
@@ -14,6 +15,7 @@ import TabHeader from './TabHeader'
 import IssuerPanel from '../IssuerPanel'
 import RegulatoryControls from './RegulatoryControls'
 import OverlayActivity from './OverlayActivity'
+import LedgerView from './LedgerView'
 import BankingMock from './BankingMock'
 import { cn } from '@/lib/utils'
 
@@ -47,6 +49,7 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
   const [searchParams, setSearchParams] = useSearchParams()
   const paramTab = searchParams.get('tab')
   const tab: Tab = TABS.some(t => t.id === paramTab) ? (paramTab as Tab) : 'reserves'
+  const [ledgerView, setLedgerView] = useState<'chain' | 'accounting'>('chain')
   const setTab = (id: Tab) => setSearchParams(prev => {
     const next = new URLSearchParams(prev)
     next.set('tab', id)
@@ -154,11 +157,32 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
         </div>
       )}
       {tab === 'ledger' && (
-        <OverlayActivity
-          assetId={assetId}
-          decimals={Number(asset?.metadata?.decimals) || 0}
-          standalone
-        />
+        <div className="space-y-4">
+          <div className="inline-flex rounded-lg border border-border bg-card p-0.5">
+            {([['chain', 'On-chain activity'], ['accounting', 'Accounting ledger']] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setLedgerView(id)}
+                className={cn(
+                  'rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors',
+                  ledgerView === id ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {ledgerView === 'chain' ? (
+            <OverlayActivity
+              assetId={assetId}
+              decimals={Number(asset?.metadata?.decimals) || 0}
+              standalone
+            />
+          ) : (
+            <LedgerView assetId={assetId} asset={asset} decimals={Number(asset?.metadata?.decimals) || 0} />
+          )}
+        </div>
       )}
       {tab === 'sanctions' && (
         <div className="max-w-3xl space-y-6">
