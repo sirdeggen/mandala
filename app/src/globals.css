@@ -201,12 +201,23 @@ body {
   will-change: transform;
 }
 
+/* Gentle vertical bob (floating hub illustration). */
+@keyframes float-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+.animate-bob {
+  animation: float-bob 3.4s ease-in-out infinite;
+  will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-in,
   .animate-pop {
     animation: fade-in 0.2s ease-out;
   }
-  .animate-kenburns {
+  .animate-kenburns,
+  .animate-bob {
     animation: none;
   }
 }

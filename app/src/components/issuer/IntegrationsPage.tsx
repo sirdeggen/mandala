@@ -112,7 +112,7 @@ export default function IntegrationsPage() {
         <div>
           <h1 className="font-heading text-[26px] font-medium tracking-[-0.02em] text-foreground">Integrations</h1>
           <p className="mt-1 max-w-2xl text-[15px] text-muted-foreground">
-            Connect the KYC, sanctions, banking, custody and access providers that power compliance. Provider names are illustrative for this demo.
+            Connect the KYC, sanctions, banking, custody and access providers that power compliance.
           </p>
         </div>
         <Button onClick={() => openConnect('picker')} className="h-10 shrink-0 gap-1.5 px-3.5 text-[13px]">
@@ -379,9 +379,15 @@ function EmptyState({ onConnect, onBrowseAll }: { onConnect: (p: Provider) => vo
               <path d="M160 80 L262 130" />
             </g>
           </svg>
-          {/* hub */}
-          <div className="absolute left-1/2 top-1/2 grid size-16 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-pop)]">
-            <Plug className="size-7" strokeWidth={2} />
+          {/* hub - nudged down, gently bobbing, with a glossy gel sheen */}
+          <div className="absolute left-1/2 top-[calc(50%+8px)] -translate-x-1/2 -translate-y-1/2">
+            <div className="animate-bob relative grid size-16 place-items-center overflow-hidden rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-pop)]">
+              {/* gel: top-down gloss + a soft corner highlight */}
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/35 to-transparent" />
+              <div className="pointer-events-none absolute -left-2 -top-4 size-10 rounded-full bg-white/20 blur-md" />
+              <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10" />
+              <Plug className="relative size-7" strokeWidth={2} />
+            </div>
           </div>
           {/* provider logo tiles */}
           {[{ p: starters[0], x: 160, y: 22 }, { p: starters[1], x: 58, y: 130 }, { p: starters[2], x: 262, y: 130 }].map(({ p, x, y }) =>
@@ -396,13 +402,13 @@ function EmptyState({ onConnect, onBrowseAll }: { onConnect: (p: Provider) => vo
 
       <div className="mt-6 text-center">
         <h2 className="text-[17px] font-semibold text-foreground">Connect your first integration</h2>
-        <p className="mx-auto mt-1.5 max-w-lg text-balance text-[13.5px] leading-relaxed text-muted-foreground">
-          Your issuer identity is your on-chain identity key — there’s no separate login. KYC, sanctions screening and attestation are handled by the external providers you connect here.
+        <p className="mx-auto mt-1.5 max-w-md text-balance text-[13.5px] leading-relaxed text-muted-foreground">
+          Your identity is your on-chain key. KYC, sanctions and attestation are handled by the providers you connect here.
         </p>
       </div>
 
       {/* Three curated starters for a Swiss stablecoin issuer */}
-      <div className="mx-auto mt-6 grid max-w-2xl gap-3 text-left sm:grid-cols-3">
+      <div className="mx-auto mt-6 grid max-w-3xl gap-3 text-left sm:grid-cols-3">
         {starters.map(p => {
           const Icon = CATEGORY_ICON[p.category]
           return (
