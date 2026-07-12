@@ -5,6 +5,7 @@ import { BadgeCheck, Copy, Check, ChevronDown, Plug, X, Plus, Camera } from 'luc
 import { useWallet } from '../../context/WalletContext'
 import { useOnboarding, updateProfile, isReviewerRole } from '../../lib/onboarding'
 import { resetTour } from '../../lib/onboardingTour'
+import { useConfirmBeforeSigning, setConfirmBeforeSigning } from '../../lib/preferences'
 import { useActiveIntegration } from '../../lib/integrations'
 import { useUserAvatar, setUserAvatar } from '../../lib/userAvatar'
 import {
@@ -210,8 +211,8 @@ function ProfilePanel() {
         <BadgePanel identityKey={identityKey} isIndividual={isIndividual} />
       </Disclosure>
 
-      <Disclosure title="Product tour" summary="Replay the guided walkthrough">
-        <TourPanel />
+      <Disclosure title="Preferences" summary="Signing confirmations · guided tour">
+        <PreferencesPanel />
       </Disclosure>
     </div>
   )
@@ -219,20 +220,48 @@ function ProfilePanel() {
 
 // ── Product tour ────────────────────────────────────────────────────────────
 
-function TourPanel() {
+function PreferencesPanel() {
   const navigate = useNavigate()
+  const confirmSigning = useConfirmBeforeSigning()
   const restart = () => {
     resetTour()
     navigate('/')
     toast.success('Product tour restarted')
   }
   return (
-    <div className="space-y-3">
-      <p className="text-[13px] leading-relaxed text-muted-foreground">
-        Reopen the guided walkthrough for your role. It steps through the key
-        surfaces and highlights where to go next.
-      </p>
-      <Button type="button" variant="outline" onClick={restart}>Restart tour</Button>
+    <div className="space-y-5">
+      {/* Signing confirmation */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-[13px] font-medium text-foreground">Confirm before signing</div>
+          <p className="mt-0.5 text-[12.5px] leading-snug text-muted-foreground">
+            Show a confirmation popover before requesting a wallet signature for on-chain actions
+            (publishing pages, downloading reports). Turn off to sign in one click.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={confirmSigning}
+          aria-label="Confirm before signing on-chain events"
+          onClick={() => setConfirmBeforeSigning(!confirmSigning)}
+          className={cn('relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+            confirmSigning ? 'bg-primary' : 'bg-muted-foreground/40')}
+        >
+          <span className={cn('inline-block size-5 transform rounded-full bg-white shadow transition-transform', confirmSigning ? 'translate-x-[22px]' : 'translate-x-[2px]')} />
+        </button>
+      </div>
+
+      <div className="h-px bg-separator" />
+
+      {/* Product tour */}
+      <div className="space-y-2">
+        <p className="text-[13px] leading-relaxed text-muted-foreground">
+          Reopen the guided walkthrough for your role. It steps through the key surfaces and highlights
+          where to go next.
+        </p>
+        <Button type="button" variant="outline" onClick={restart}>Restart tour</Button>
+      </div>
     </div>
   )
 }

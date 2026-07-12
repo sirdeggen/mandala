@@ -6,6 +6,8 @@ import { useWallet } from '../../context/WalletContext'
 import { signStatement } from '../../lib/complianceSignature'
 import { anchorOnChain } from '../../lib/onchainAnchor'
 import { recordDownloadAuth, type ExportRecord } from '../../lib/exportHistory'
+import { useConfirmBeforeSigning } from '../../lib/preferences'
+import { recordSignedEvent } from '../../lib/signedEvents'
 import { FORMAT_LABEL } from '../../lib/exports'
 
 const fmtEvent = (iso: string): string => {
@@ -52,6 +54,7 @@ export function DownloadSignoffButton({ record, onDownload }: {
   onDownload: () => void
 }) {
   const { wallet, identityKey } = useWallet()
+  const confirm = useConfirmBeforeSigning()
   const [open, setOpen] = useState(false)
   const [signing, setSigning] = useState(false)
 
@@ -73,6 +76,7 @@ export function DownloadSignoffButton({ record, onDownload }: {
       const signature = await signStatement(wallet, `download:${record.id}:${at}`, message)
       const txid = await anchorOnChain(wallet, `download:${record.id}:${at}`, { message, signature, signerKey: identityKey }, `export download ${record.reportName}`)
       recordDownloadAuth(record.id, txid)
+      recordSignedEvent({ kind: 'download', label: `Downloaded report · ${record.reportName}`, signerKey: identityKey, at, txid })
       onDownload()
       setOpen(false)
       toast.success('Download authorised and anchored on-chain')
@@ -86,9 +90,10 @@ export function DownloadSignoffButton({ record, onDownload }: {
   const lastAuth = record.downloads?.[0]
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={confirm && open} onOpenChange={setOpen}>
       <PopoverTrigger
         aria-label="Download"
+        onClick={() => { if (!confirm) authorizeAndDownload() }}
         className="grid size-7 place-items-center rounded border border-border text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
       >
         <Download className="size-3.5" />

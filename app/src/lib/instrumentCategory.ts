@@ -62,6 +62,16 @@ const CURRENCY_FLAG: Record<string, string> = {
   DKK: 'dk', CNY: 'cn', INR: 'in',
 }
 
+/** flag-icons country code for a currency-prefixed ticker (USDX -> us, CHFX ->
+ *  ch), or null when the prefix is not a recognised fiat currency. */
+export function flagForTicker(ticker: string | null | undefined): string | null {
+  const t = String(ticker ?? '').toUpperCase()
+  for (const [code, flag] of Object.entries(CURRENCY_FLAG)) {
+    if (t.startsWith(code)) return flag
+  }
+  return null
+}
+
 /**
  * flag-icons country code for the fiat currency backing a stablecoin's
  * reserves, or null for non-stablecoins / unrecognised currencies. Matches the

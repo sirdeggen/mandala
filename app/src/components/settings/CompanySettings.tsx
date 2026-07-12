@@ -14,6 +14,8 @@ import { useWallet } from '../../context/WalletContext'
 import { signStatement } from '../../lib/complianceSignature'
 import { anchorOnChain } from '../../lib/onchainAnchor'
 import { useEntityTransparency, setEntityPublished, setEntityListed } from '../../lib/orgTransparency'
+import { useConfirmBeforeSigning } from '../../lib/preferences'
+import { recordSignedEvent } from '../../lib/signedEvents'
 import { CompanyAvatar } from '@/components/ui/company-avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -175,7 +177,9 @@ export default function CompanySettings() {
 
 function EntityTransparencySettings() {
   const { wallet, identityKey } = useWallet()
+  const { name } = useOnboarding()
   const { published, listed } = useEntityTransparency(identityKey ?? '')
+  const confirm = useConfirmBeforeSigning()
   const [copied, setCopied] = useState(false)
   const [signing, setSigning] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -199,9 +203,10 @@ function EntityTransparencySettings() {
       const at = new Date().toISOString()
       const message = JSON.stringify({ kind: 'entity-transparency-publish', entity: identityKey, published: nextPublished, signerKey: identityKey, at })
       const signature = await signStatement(wallet, `entity-transparency:${identityKey}:${at}`, message)
-      await anchorOnChain(wallet, `entity-transparency:${identityKey}:${at}`, { message, signature, signerKey: identityKey }, `entity transparency ${nextPublished ? 'publish' : 'unpublish'}`)
+      const txid = await anchorOnChain(wallet, `entity-transparency:${identityKey}:${at}`, { message, signature, signerKey: identityKey }, `entity transparency ${nextPublished ? 'publish' : 'unpublish'}`)
       setEntityPublished(identityKey, nextPublished)
       if (!nextPublished) setEntityListed(identityKey, false)
+      recordSignedEvent({ kind: 'transparency-entity', label: `${nextPublished ? 'Published' : 'Unpublished'} entity transparency page`, signerKey: identityKey, signerName: name.trim() || undefined, at, txid })
       setConfirmOpen(false)
       toast.success(nextPublished ? 'Transparency page published and anchored on-chain' : 'Transparency page unpublished and anchored on-chain')
     } catch {
@@ -232,13 +237,14 @@ function EntityTransparencySettings() {
             <div className="text-[13px] font-medium text-foreground">Publish transparency page</div>
             <p className="text-[11.5px] leading-snug text-muted-foreground">Signed with your wallet and anchored on-chain. Your entity page and its published instruments become visible to anyone with the link.</p>
           </div>
-          <Popover open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <Popover open={confirm && confirmOpen} onOpenChange={setConfirmOpen}>
             <PopoverTrigger asChild>
               <button
                 type="button"
                 role="switch"
                 aria-checked={published}
                 aria-label="Publish transparency page"
+                onClick={() => { if (!confirm) authorizePublish() }}
                 className={cn('relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
                   published ? 'bg-primary' : 'bg-muted-foreground/40')}
               >

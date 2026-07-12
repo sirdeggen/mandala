@@ -10,7 +10,8 @@ import { useAdminSummary } from '../../hooks/useAdminHistory'
 import { useAssetMetadata } from '../../hooks/usePublicInstrument'
 import { usePublicReserve } from '../../lib/publicReserve'
 import { useComplianceSnapshot } from '../../lib/compliance'
-import { CompanyAvatar } from '@/components/ui/company-avatar'
+import { InstrumentIcon } from '@/components/ui/instrument-icon'
+import { assetImage } from '@/lib/instrumentCategory'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
@@ -54,7 +55,7 @@ export function InstrumentTransparencyView({ assetId, asset }: { assetId: string
     <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <CompanyAvatar name={label} size={40} className="rounded-lg" />
+          <InstrumentIcon assetId={assetId} size={40} className="rounded-lg" image={asset != null ? assetImage(asset) : undefined} />
           <div>
             <div className="text-[17px] font-semibold text-foreground">{label}</div>
             {ticker !== '' && <div className="text-[12.5px] font-medium text-subtle-foreground">{ticker}</div>}

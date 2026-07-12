@@ -8,17 +8,22 @@ import { toast } from 'sonner'
 import { Copy, Check, ExternalLink, Eye, Globe, FileSignature, ShieldCheck } from 'lucide-react'
 import type { AdminAsset } from '@bsv/mandala/assets'
 import { useWallet } from '../../context/WalletContext'
+import { useOnboarding } from '../../lib/onboarding'
 import { signStatement } from '../../lib/complianceSignature'
 import { anchorOnChain } from '../../lib/onchainAnchor'
+import { recordSignedEvent } from '../../lib/signedEvents'
 import { useTransparencyPublished, setTransparencyPublished } from '../../lib/transparencySettings'
 import { InstrumentTransparencyView } from '../transparency/InstrumentTransparencyView'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import { useConfirmBeforeSigning } from '../../lib/preferences'
 import TabHeader from './TabHeader'
 import { cn } from '@/lib/utils'
 
 export default function InstrumentTransparencyTab({ assetId, asset }: { assetId: string; asset: AdminAsset | null }) {
   const { wallet, identityKey } = useWallet()
+  const { name } = useOnboarding()
   const published = useTransparencyPublished(assetId)
+  const confirm = useConfirmBeforeSigning()
   const [copied, setCopied] = useState(false)
   const [signing, setSigning] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -46,8 +51,9 @@ export default function InstrumentTransparencyTab({ assetId, asset }: { assetId:
       const at = new Date().toISOString()
       const message = JSON.stringify({ kind: 'transparency-publish', assetId, published: next, signerKey: identityKey, at })
       const signature = await signStatement(wallet, `transparency:${assetId}:${at}`, message)
-      await anchorOnChain(wallet, `transparency:${assetId}:${at}`, { message, signature, signerKey: identityKey }, `transparency ${next ? 'publish' : 'unpublish'}`)
+      const txid = await anchorOnChain(wallet, `transparency:${assetId}:${at}`, { message, signature, signerKey: identityKey }, `transparency ${next ? 'publish' : 'unpublish'}`)
       setTransparencyPublished(assetId, next)
+      recordSignedEvent({ kind: 'transparency-instrument', label: `${next ? 'Published' : 'Unpublished'} transparency page · ${asset?.label ?? 'instrument'}`, signerKey: identityKey, signerName: name.trim() || undefined, at, txid, assetId })
       setConfirmOpen(false)
       toast.success(next ? 'Transparency page published and anchored on-chain' : 'Transparency page unpublished and anchored on-chain')
     } catch {
@@ -82,13 +88,14 @@ export default function InstrumentTransparencyTab({ assetId, asset }: { assetId:
               </p>
             </div>
           </div>
-          <Popover open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <Popover open={confirm && confirmOpen} onOpenChange={setConfirmOpen}>
             <PopoverTrigger asChild>
               <button
                 type="button"
                 role="switch"
                 aria-checked={published}
                 aria-label="Toggle public transparency page"
+                onClick={() => { if (!confirm) authorize() }}
                 className={cn(
                   'relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
                   published ? 'bg-primary' : 'bg-muted-foreground/40',

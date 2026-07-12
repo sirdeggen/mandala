@@ -19,6 +19,8 @@ import { useEntityTransparency, useListedEntityKeys } from '../lib/orgTransparen
 import { useDiscoverInstruments } from '../hooks/useDiscoverInstruments'
 import { useAssetMetadata } from '../hooks/usePublicInstrument'
 import { useOrgName } from '../lib/orgDirectory'
+import { flagForTicker } from '../lib/instrumentCategory'
+import 'flag-icons/css/flag-icons.min.css'
 import { InstrumentTransparencyView } from './transparency/InstrumentTransparencyView'
 import { BrandMark } from './ui/BrandMark'
 import { CompanyAvatar } from '@/components/ui/company-avatar'
@@ -30,16 +32,18 @@ const compact = (n: number) => Intl.NumberFormat('en-US', { notation: 'compact',
 
 // ── Shared chrome ─────────────────────────────────────────────────────────────
 
-function Chrome({ children }: { children: React.ReactNode }) {
+function Chrome({ issuerKey, children }: { issuerKey?: string; children: React.ReactNode }) {
+  const orgName = useOrgName(issuerKey ?? '')
+  const showOrg = issuerKey != null && issuerKey !== ''
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex max-w-5xl flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <Link to="/transparency" className="flex items-center gap-3">
-            <BrandMark />
+          <Link to={showOrg ? `/transparency/${encodeURIComponent(issuerKey!)}` : '/transparency'} className="flex items-center gap-3">
+            {showOrg ? <CompanyAvatar name={orgName} size={40} className="rounded-lg" /> : <BrandMark />}
             <div>
-              <div className="text-[15px] font-semibold text-foreground">Reserve transparency</div>
-              <div className="text-[12.5px] text-muted-foreground">Verifiable on the public ledger</div>
+              <div className="text-[15px] font-semibold text-foreground">{showOrg ? orgName : 'Reserve transparency'}</div>
+              <div className="text-[12.5px] text-muted-foreground">{showOrg ? 'Reserve transparency' : 'Verifiable on the public ledger'}</div>
             </div>
           </Link>
           <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-background px-3.5 py-1.5 text-[13px] text-muted-foreground">
@@ -49,7 +53,7 @@ function Chrome({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-5 py-8 sm:px-8">{children}</main>
-      <footer className="border-t border-border py-6">
+      <footer className="py-6">
         <a href="/" className="mx-auto flex w-fit items-center gap-2 text-[12.5px] font-medium text-muted-foreground transition-colors hover:text-foreground">
           <img src="/icon-192.png" alt="" aria-hidden className="size-5 rounded" />
           Powered by <span className="font-handwritten text-[17px] font-bold leading-none text-foreground">Underwrite</span>
@@ -115,11 +119,33 @@ function DirectoryCard({ issuerKey, query }: { issuerKey: string; query: string 
       <CompanyAvatar name={name} size={40} className="rounded-lg" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-[15px] font-semibold text-foreground">{name}</div>
-        <div className="truncate text-[12px] text-muted-foreground">{issuerKey.slice(0, 12)}…{issuerKey.slice(-6)}</div>
+        <EntityFlags issuerKey={issuerKey} />
       </div>
       <ChevronRight className="size-4 shrink-0 text-faint-foreground" />
     </Link>
   )
+}
+
+/** A row of fiat-currency flags for an entity's stablecoins, falling back to the
+ *  short identity key. */
+function EntityFlags({ issuerKey }: { issuerKey: string }) {
+  const { data } = useDiscoverInstruments()
+  const instruments = data?.entities.find(e => (e.issuerKey || 'unknown') === issuerKey)?.instruments ?? []
+  if (instruments.length === 0) {
+    return <div className="truncate text-[12px] text-muted-foreground">{issuerKey.slice(0, 12)}…{issuerKey.slice(-6)}</div>
+  }
+  return (
+    <div className="mt-0.5 flex items-center gap-1.5">
+      {instruments.slice(0, 8).map(i => <AssetFlag key={i.assetId} assetId={i.assetId} />)}
+    </div>
+  )
+}
+
+function AssetFlag({ assetId }: { assetId: string }) {
+  const meta = useAssetMetadata(assetId)
+  const flag = flagForTicker(meta.data?.ticker as string | undefined)
+  if (flag == null) return null
+  return <span className={`fi fi-${flag} rounded-[2px] shadow-sm`} style={{ width: 18, height: 13 }} aria-hidden />
 }
 
 // ── Entity page ──────────────────────────────────────────────────────────────
@@ -135,7 +161,7 @@ export function TransparencyOrg() {
   const instruments = (group?.instruments ?? []).filter(i => published[i.assetId] === true)
 
   return (
-    <Chrome>
+    <Chrome issuerKey={issuer}>
       <Link to="/transparency" className="mb-6 inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground">
         <ArrowLeft className="size-4" /> Directory
       </Link>
@@ -209,7 +235,7 @@ export function TransparencyInstrument() {
   const unknown = asset == null && meta.data == null && !meta.isLoading
 
   return (
-    <Chrome>
+    <Chrome issuerKey={issuer}>
       <Link to={`/transparency/${encodeURIComponent(issuer)}`} className="mb-6 inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground">
         <ArrowLeft className="size-4" /> {name}
       </Link>

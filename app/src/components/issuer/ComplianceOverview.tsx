@@ -20,6 +20,7 @@ import {
 } from '../../lib/compliance'
 import { signAction, verifyActionSignature, actionMessage } from '../../lib/complianceSignature'
 import { anchorOnChain } from '../../lib/onchainAnchor'
+import { recordSignedEvent } from '../../lib/signedEvents'
 import { InstrumentIcon } from '@/components/ui/instrument-icon'
 import { assetImage } from '@/lib/instrumentCategory'
 import { GlobalSanctionLists } from './SanctionLists'
@@ -322,6 +323,7 @@ function AttestationSignRow({ att, assetLabel, auditorName, onOpen }: {
     try {
       const signature = await signAttestation(wallet, att)
       reviewAttestation(att.id, { status: 'signed', auditorName, note: note.trim() || undefined, auditorKey: identityKey, signature })
+      recordSignedEvent({ kind: 'attestation', label: `Signed attestation · ${assetLabel} · ${att.period}`, signerKey: identityKey, signerName: auditorName || undefined, at: new Date().toISOString(), assetId: att.assetId })
       toast.success('Attestation cryptographically signed')
     } catch {
       toast.error('Could not sign the attestation')
@@ -377,6 +379,7 @@ function ControlActionRow({ action, assetLabel, isAuditor, auditorName }: {
     try {
       const signature = await signAction(wallet, action)
       acknowledgeControlAction(action.id, { auditorName, auditorKey: identityKey, signature, note: note.trim() || undefined })
+      recordSignedEvent({ kind: 'control', label: `Signed off control · ${assetLabel} · ${action.detail ?? action.kind}`, signerKey: identityKey, signerName: auditorName || undefined, at: new Date().toISOString(), assetId: action.assetId })
       toast.success('Control action signed off')
     } catch {
       toast.error('Could not sign off the action')
