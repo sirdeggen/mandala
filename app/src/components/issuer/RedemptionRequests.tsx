@@ -1,14 +1,16 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Check, X, Plus, Clock } from 'lucide-react'
+import { Check, X, Plus, Clock, ShieldCheck, AlertTriangle } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
 import {
   useRedemptionPolicy, useRedemptionRequests, setRedemptionPolicy,
-  createRedemptionRequest, settleRedemption, rejectRedemption,
+  createRedemptionRequest, settleRedemption, rejectRedemption, attestRedemption,
   useGovernance, proposeSettlement,
   SETTLEMENT_WINDOW_LABEL, type RedemptionRequest, type SettlementWindow,
 } from '../../lib/compliance'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
+import { useWallet } from '../../context/WalletContext'
+import { signRedemption, verifyRedemptionSignature } from '../../lib/complianceSignature'
 import { IdentitySigil } from '@/components/ui/identity-sigil'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -210,10 +212,28 @@ const STATUS_STYLE: Record<RedemptionRequest['status'], { label: string; cls: st
 }
 
 function RedemptionRow({ req, fmt, readOnly }: { req: RedemptionRequest; fmt: (n: number) => string; readOnly: boolean }) {
+  const { role, name } = useOnboarding()
+  const { wallet, identityKey } = useWallet()
+  const isAuditor = role === 'auditor'
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
+  const [confirming, setConfirming] = useState(false)
   const dualControl = useGovernance().dualControl
   const status = STATUS_STYLE[req.status]
+
+  async function confirmAtPar() {
+    if (wallet == null || identityKey == null) { toast.error('Connect a wallet to confirm.'); return }
+    setConfirming(true)
+    try {
+      const signature = await signRedemption(wallet, req)
+      attestRedemption(req.id, { auditorName: name.trim() || 'Auditor', auditorKey: identityKey, signature })
+      toast.success('Confirmed settled at par')
+    } catch {
+      toast.error('Could not confirm the redemption')
+    } finally {
+      setConfirming(false)
+    }
+  }
 
   const settle = () => {
     if (dualControl) {
@@ -278,6 +298,51 @@ function RedemptionRow({ req, fmt, readOnly }: { req: RedemptionRequest; fmt: (n
           {req.note && <span className="truncate">· {req.note}</span>}
         </div>
       )}
+
+      {/* Auditor confirmation that the redemption was honoured at par. */}
+      {req.status === 'settled' && (
+        req.auditorSignature != null && req.auditorKey != null ? (
+          <RedemptionSignatureBadge req={req} />
+        ) : isAuditor ? (
+          <div className="mt-2">
+            <Button onClick={confirmAtPar} loading={confirming} loadingText="Confirming…" variant="ghost" className="h-7 gap-1.5 px-2 text-[11.5px]">
+              <ShieldCheck className="size-3.5" /> Confirm settled at par
+            </Button>
+          </div>
+        ) : null
+      )}
+    </div>
+  )
+}
+
+/** Verifies the auditor's signature confirming a redemption was honoured at par. */
+function RedemptionSignatureBadge({ req }: { req: RedemptionRequest }) {
+  const { wallet } = useWallet()
+  const [state, setState] = useState<'checking' | 'valid' | 'invalid'>('checking')
+
+  useEffect(() => {
+    let alive = true
+    if (wallet == null) { setState('invalid'); return }
+    verifyRedemptionSignature(wallet, req).then(ok => { if (alive) setState(ok ? 'valid' : 'invalid') })
+    return () => { alive = false }
+  }, [wallet, req])
+
+  const key = req.auditorKey ?? ''
+  const short = key.length > 12 ? `${key.slice(0, 5)}…${key.slice(-5)}` : key
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-[11.5px]">
+      {state === 'valid' ? (
+        <span className="inline-flex items-center gap-1.5 font-medium text-success"><ShieldCheck className="size-3.5" /> Confirmed at par by {req.auditorName}</span>
+      ) : state === 'checking' ? (
+        <span className="inline-flex items-center gap-1.5 text-muted-foreground"><ShieldCheck className="size-3.5" /> Verifying…</span>
+      ) : (
+        <span className="inline-flex items-center gap-1.5 font-medium text-destructive"><AlertTriangle className="size-3.5" /> Signature invalid</span>
+      )}
+      <span aria-hidden className="text-faint-foreground">·</span>
+      <span className="inline-flex items-center gap-1.5" title={key}>
+        <IdentitySigil value={key} size={14} className="rounded" />
+        <span className="font-mono text-[10.5px] text-subtle-foreground">{short}</span>
+      </span>
     </div>
   )
 }

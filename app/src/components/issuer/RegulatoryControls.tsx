@@ -21,6 +21,7 @@ import { isAdminAuthInFlight } from '@bsv/mandala/adminAuthGate'
 import { useAssetState, useInvalidateAssetState } from '../../hooks/useAssetState'
 import { useInvalidateAdminHistory } from '../../hooks/useAdminHistory'
 import { useAdvanceAdminAuth } from '../../hooks/useAdminAssets'
+import { logControlAction, type ControlActionKind } from '../../lib/compliance'
 
 interface Props {
   assets: AdminAsset[]
@@ -32,6 +33,17 @@ interface Props {
 }
 
 type ActionKey = 'pause' | 'accessMode' | 'freeze' | 'unfreeze' | 'blockIdentity' | 'unblockIdentity' | 'allowIdentity' | 'unallowIdentity' | 'reissue'
+
+/** Which admin actions are logged for auditor sign-off, and how they read. */
+const ACTION_META: Partial<Record<ActionKey, { kind: ControlActionKind; label: string }>> = {
+  pause: { kind: 'pause', label: 'Pause / unpause instrument' },
+  accessMode: { kind: 'accessMode', label: 'Change access mode' },
+  freeze: { kind: 'freeze', label: 'Freeze output' },
+  unfreeze: { kind: 'unfreeze', label: 'Unfreeze output' },
+  blockIdentity: { kind: 'blockIdentity', label: 'Ban a Badge ID' },
+  unblockIdentity: { kind: 'unblockIdentity', label: 'Lift a Badge ID ban' },
+  reissue: { kind: 'reissue', label: 'Reissue / recover units' },
+}
 
 export default function RegulatoryControls({ assets, onActionComplete, assetId: controlledAssetId, embedded = false }: Props) {
   const { wallet, messageBoxClient, identityKey } = useWallet()
@@ -66,7 +78,8 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   // Action picker: popover on desktop, bottom sheet on mobile.
   const [pickerOpen, setPickerOpen] = useState(false)
   const isMobile = useIsMobile()
-  const isAuditor = isReviewerRole(useOnboarding().role)
+  const onboarding = useOnboarding()
+  const isAuditor = isReviewerRole(onboarding.role)
 
   // Reissue
   const [reissueOutpoint, setReissueOutpoint] = useState('')
@@ -151,8 +164,21 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     }
     busyRef.current = true
     setBusyAction(action)
+    const reasonAtStart = reason.trim()
     try {
       await fn()
+      // Log the sensitive action for auditor sign-off (attributable + reasoned).
+      const meta = ACTION_META[action]
+      if (meta != null && identityKey != null) {
+        logControlAction({
+          assetId: asset.assetId,
+          kind: meta.kind,
+          detail: meta.label,
+          reason: reasonAtStart || 'No reason provided',
+          actorKey: identityKey,
+          actorName: onboarding.name.trim() || undefined,
+        })
+      }
       setReason('')
       // Refresh every cache this action can touch instead of a manual reload.
       await invalidateAssetState(activeAssetId)
@@ -168,7 +194,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
       busyRef.current = false
       setBusyAction(null)
     }
-  }, [wallet, identityKey, asset, activeAssetId, invalidateAssetState, invalidateAdminHistory, onActionComplete])
+  }, [wallet, identityKey, asset, activeAssetId, reason, onboarding.name, invalidateAssetState, invalidateAdminHistory, onActionComplete])
 
   // ---------------------------------------------------------------------------
   // Pause / unpause

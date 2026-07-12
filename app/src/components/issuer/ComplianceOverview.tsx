@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import {
   ShieldCheck, ClipboardCheck, HandCoins, ShieldAlert, GitPullRequestArrow,
@@ -15,8 +15,10 @@ import { signAttestation } from '../../lib/complianceSignature'
 import {
   useComplianceSnapshot, reservesTotalOf, useGovernance, setGovernance,
   approveProposal, rejectProposal, proposeGeneric, reviewAttestation,
-  type ReserveBucket, type Attestation, type Proposal,
+  useControlActions, acknowledgeControlAction,
+  type ReserveBucket, type Attestation, type Proposal, type ControlAction,
 } from '../../lib/compliance'
+import { signAction, verifyActionSignature } from '../../lib/complianceSignature'
 import { InstrumentIcon } from '@/components/ui/instrument-icon'
 import { assetImage } from '@/lib/instrumentCategory'
 import { Button } from '../ui/button'
@@ -46,6 +48,8 @@ export default function ComplianceOverview({ onOpenInstrument }: {
   const openRedemptions = snap.requests.filter(r => r.status === 'pending')
   const hits = Object.values(snap.holders).filter(h => h.sanctions === 'hit')
   const pendingProposals = snap.proposals.filter(p => p.status === 'pending')
+  const controlActions = useControlActions()
+  const pendingActions = controlActions.filter(a => a.status === 'pending')
 
   return (
     <div className="w-full max-w-4xl">
@@ -65,10 +69,22 @@ export default function ComplianceOverview({ onOpenInstrument }: {
         <Tile Icon={ClipboardCheck} label="Attestations to sign" value={String(pendingAtt.length)} tone={pendingAtt.length > 0 ? 'warning' : undefined} />
         <Tile Icon={HandCoins} label="Open redemptions" value={String(openRedemptions.length)} tone={openRedemptions.length > 0 ? 'warning' : undefined} />
         <Tile Icon={ShieldAlert} label="Sanctions hits" value={String(hits.length)} tone={hits.length > 0 ? 'destructive' : 'success'} />
+        <Tile Icon={ShieldCheck} label={isAuditor ? 'Actions to sign off' : 'Actions awaiting sign-off'} value={String(pendingActions.length)} tone={pendingActions.length > 0 ? 'warning' : undefined} />
         {!isAuditor && (
           <Tile Icon={GitPullRequestArrow} label="Pending approvals" value={String(pendingProposals.length)} tone={pendingProposals.length > 0 ? 'warning' : undefined} />
         )}
       </div>
+
+      {/* Control actions - sensitive admin operations, with auditor sign-off. */}
+      {controlActions.length > 0 && (
+        <Section title="Control actions">
+          <div className="space-y-2">
+            {controlActions.slice(0, 12).map(a => (
+              <ControlActionRow key={a.id} action={a} assetLabel={labelOf(assets, a.assetId)} isAuditor={isAuditor} auditorName={name.trim() || 'Auditor'} />
+            ))}
+          </div>
+        </Section>
+      )}
 
       {/* Auditor: attestations to sign */}
       {isAuditor && (
@@ -277,6 +293,74 @@ function AttestationSignRow({ att, assetLabel, auditorName, onOpen }: {
           <Flag className="size-4" /> Flag
         </button>
       </div>
+    </div>
+  )
+}
+
+// ── Control action row (auditor sign-off on sensitive admin operations) ───────
+
+function ControlActionRow({ action, assetLabel, isAuditor, auditorName }: {
+  action: ControlAction; assetLabel: string; isAuditor: boolean; auditorName: string
+}) {
+  const { wallet, identityKey } = useWallet()
+  const [note, setNote] = useState('')
+  const [signing, setSigning] = useState(false)
+  const [verify, setVerify] = useState<'checking' | 'valid' | 'invalid'>('checking')
+
+  useEffect(() => {
+    if (action.status !== 'acknowledged' || wallet == null) return
+    let alive = true
+    verifyActionSignature(wallet, action).then(ok => { if (alive) setVerify(ok ? 'valid' : 'invalid') })
+    return () => { alive = false }
+  }, [wallet, action])
+
+  const ack = async () => {
+    if (wallet == null || identityKey == null) { toast.error('Connect a wallet to sign off.'); return }
+    setSigning(true)
+    try {
+      const signature = await signAction(wallet, action)
+      acknowledgeControlAction(action.id, { auditorName, auditorKey: identityKey, signature, note: note.trim() || undefined })
+      toast.success('Control action signed off')
+    } catch {
+      toast.error('Could not sign off the action')
+    } finally {
+      setSigning(false)
+    }
+  }
+
+  const when = new Date(action.createdAt)
+  const whenStr = Number.isNaN(when.getTime()) ? '' : when.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[13px] font-semibold text-foreground">{action.detail}</span>
+        <MiniPill label={action.status === 'acknowledged' ? 'Signed off' : 'Awaiting sign-off'} tone={action.status === 'acknowledged' ? 'success' : 'warning'} />
+      </div>
+      <p className="mt-1 text-[12px] text-muted-foreground">{assetLabel} · {action.reason}</p>
+      <div className="mt-0.5 text-[11px] text-subtle-foreground">By {action.actorName || 'issuer'} · {whenStr}</div>
+
+      {action.status === 'acknowledged' && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11.5px]">
+          {verify === 'valid' ? (
+            <span className="inline-flex items-center gap-1 font-medium text-success"><ShieldCheck className="size-3.5" /> Signed off by {action.auditorName}</span>
+          ) : verify === 'invalid' ? (
+            <span className="inline-flex items-center gap-1 font-medium text-destructive"><X className="size-3.5" /> Signature invalid</span>
+          ) : (
+            <span className="text-muted-foreground">Verifying…</span>
+          )}
+          {action.auditorNote && <span className="text-muted-foreground">· “{action.auditorNote}”</span>}
+        </div>
+      )}
+
+      {isAuditor && action.status === 'pending' && (
+        <div className="mt-2 space-y-2">
+          <Input value={note} onChange={e => setNote(e.target.value)} placeholder="Sign-off note (optional)" className="h-8 text-[12px]" />
+          <Button onClick={ack} loading={signing} loadingText="Signing…" className="h-8 gap-1.5 px-3 text-[12.5px]">
+            <ShieldCheck className="size-4" /> Acknowledge &amp; sign
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
