@@ -403,7 +403,7 @@ function EmptyState({ onConnect, onBrowseAll }: { onConnect: (p: Provider) => vo
       <div className="mt-6 text-center">
         <h2 className="text-[17px] font-semibold text-foreground">Connect your first integration</h2>
         <p className="mx-auto mt-1.5 max-w-md text-balance text-[13.5px] leading-relaxed text-muted-foreground">
-          Your identity is your on-chain key. KYC, sanctions and attestation are handled by the providers you connect here.
+          Your identity is your on-chain identifier. KYC, sanctions and attestation are handled by the providers you connect here.
         </p>
       </div>
 
