@@ -366,6 +366,16 @@ export function useEntity(id: string | null): Entity | null {
   return id == null ? null : all.find(e => e.id === id) ?? null
 }
 
+/** Resolve an identity key to the person (and their organisation) it belongs
+ *  to, across all relationships - used to link report counterparties. */
+export function personByKey(entities: Entity[], key: string): { entity: Entity; person: Person } | null {
+  for (const e of entities) {
+    const person = e.people.find(p => p.badgeKey === key)
+    if (person != null) return { entity: e, person }
+  }
+  return null
+}
+
 /** Directory institutions not yet added as a relationship. */
 export function useAvailableEntities(): Entity[] {
   const added = new Set(useEntities().map(e => e.id))

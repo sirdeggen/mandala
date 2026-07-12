@@ -1,31 +1,28 @@
 import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { toast } from 'sonner'
-import { UserPlus, Check, Copy, ArrowRight } from 'lucide-react'
+import { Check, Copy, ArrowRight, Building2 } from 'lucide-react'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { IdentitySigil } from '@/components/ui/identity-sigil'
-import { Input } from '../ui/input'
-import { useWallet } from '../../context/WalletContext'
-import { useContactsData, useInvalidateContacts } from '../../hooks/useContactsData'
-import { saveContact } from '@bsv/mandala/contactsStore'
+import { useEntities, personByKey, SYSTEM_ROLE_LABEL } from '../../lib/entities'
 import { cn } from '@/lib/utils'
 
 const trunc = (k: string) => (k.length > 12 ? `${k.slice(0, 5)}…${k.slice(-5)}` : k)
 
 /**
- * A clickable identity key (sigil + short form) that opens a popover to add the
- * key to relationships (or update / open it if already saved). The data hooks
- * live in the content, which only mounts when the popover opens, so rendering
- * many of these in a table stays cheap.
+ * A clickable identity key (sigil + short form / resolved name) that opens a
+ * popover linking it to the relationship manager. If the key belongs to a person
+ * at one of your relationships, it shows who they are and links straight to that
+ * organisation; otherwise it offers to open Relationships.
  */
 export function IdentityKeyPopover({ value, size = 16, className, children }: {
   value: string
   size?: number
   className?: string
-  /** Custom trigger content; defaults to sigil + short key. */
+  /** Custom trigger content; defaults to sigil + resolved name / short key. */
   children?: ReactNode
 }) {
   const [open, setOpen] = useState(false)
+  const match = personByKey(useEntities(), value)
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
@@ -35,41 +32,23 @@ export function IdentityKeyPopover({ value, size = 16, className, children }: {
         {children ?? (
           <>
             <IdentitySigil value={value} size={size} className="rounded" />
-            <span className="font-mono text-[11px] text-subtle-foreground">{trunc(value)}</span>
+            {match != null
+              ? <span className="text-[11.5px] font-medium text-foreground">{match.person.name}</span>
+              : <span className="font-mono text-[11px] text-subtle-foreground">{trunc(value)}</span>}
           </>
         )}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 p-3">
-        <QuickAdd identityKey={value} onDone={() => setOpen(false)} />
+        <RelationshipLink identityKey={value} onDone={() => setOpen(false)} />
       </PopoverContent>
     </Popover>
   )
 }
 
-function QuickAdd({ identityKey, onDone }: { identityKey: string; onDone: () => void }) {
-  const { wallet } = useWallet()
-  const { data } = useContactsData()
-  const invalidate = useInvalidateContacts()
+function RelationshipLink({ identityKey, onDone }: { identityKey: string; onDone: () => void }) {
   const navigate = useNavigate()
-  const existing = data?.saved.find(c => c.identityKey === identityKey)
-  const [name, setName] = useState(existing?.name ?? '')
-  const [saving, setSaving] = useState(false)
+  const match = personByKey(useEntities(), identityKey)
   const [copied, setCopied] = useState(false)
-
-  const save = async () => {
-    if (wallet == null) { toast.error('Connect a wallet to save relationships.'); return }
-    setSaving(true)
-    try {
-      await saveContact(wallet as never, { identityKey, name: name.trim() || 'Unnamed relationship' })
-      invalidate()
-      toast.success(existing ? 'Relationship updated' : 'Added to relationships')
-      onDone()
-    } catch {
-      toast.error('Could not save relationship')
-    } finally {
-      setSaving(false)
-    }
-  }
 
   const copy = () => {
     navigator.clipboard?.writeText(identityKey).then(() => {
@@ -78,38 +57,52 @@ function QuickAdd({ identityKey, onDone }: { identityKey: string; onDone: () => 
     }).catch(() => { /* ignore */ })
   }
 
+  const keyRow = (
+    <button type="button" onClick={copy} className="flex items-center gap-1 font-mono text-[10.5px] text-subtle-foreground transition-colors hover:text-foreground">
+      {trunc(identityKey)} {copied ? <Check className="size-3 text-success" /> : <Copy className="size-3" />}
+    </button>
+  )
+
+  if (match != null) {
+    const { entity, person } = match
+    return (
+      <div className="space-y-2.5">
+        <div className="flex items-center gap-2">
+          <IdentitySigil value={identityKey} size={30} className="rounded-md" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[12.5px] font-semibold text-foreground">{person.name}</div>
+            <div className="truncate text-[11px] text-muted-foreground">{SYSTEM_ROLE_LABEL[person.systemRole]} · {entity.name}</div>
+          </div>
+        </div>
+        {keyRow}
+        <button
+          type="button"
+          onClick={() => { onDone(); navigate(`/issuer/relationships?rel=${entity.id}`) }}
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+        >
+          <Building2 className="size-3.5" /> Open {entity.name} <ArrowRight className="size-3.5" />
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-2.5">
       <div className="flex items-center gap-2">
         <IdentitySigil value={identityKey} size={30} className="rounded-md" />
         <div className="min-w-0 flex-1">
-          <div className="text-[12.5px] font-semibold text-foreground">{existing ? 'In your relationships' : 'Add to relationships'}</div>
-          <button type="button" onClick={copy} className="flex items-center gap-1 font-mono text-[10.5px] text-subtle-foreground transition-colors hover:text-foreground">
-            {trunc(identityKey)} {copied ? <Check className="size-3 text-success" /> : <Copy className="size-3" />}
-          </button>
+          <div className="text-[12.5px] font-semibold text-foreground">Not in your relationships</div>
+          {keyRow}
         </div>
       </div>
-      <div className="space-y-1">
-        <label htmlFor="rel-name" className="text-[11px] font-medium text-muted-foreground">Name</label>
-        <Input id="rel-name" value={name} onChange={e => setName(e.target.value)} placeholder="Relationship name" className="h-8 text-[12.5px]" autoFocus />
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving}
-          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          <UserPlus className="size-3.5" /> {existing ? 'Update' : 'Add'}
-        </button>
-        <button
-          type="button"
-          onClick={() => { onDone(); navigate('/issuer/relationships') }}
-          className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          Open <ArrowRight className="size-3.5" />
-        </button>
-      </div>
+      <p className="text-[11px] leading-snug text-muted-foreground">This counterparty isn’t linked to an institution in your relationships.</p>
+      <button
+        type="button"
+        onClick={() => { onDone(); navigate('/issuer/relationships') }}
+        className="inline-flex w-full items-center justify-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-[12px] font-medium text-foreground transition-colors hover:bg-muted"
+      >
+        Open Relationships <ArrowRight className="size-3.5" />
+      </button>
     </div>
   )
 }
