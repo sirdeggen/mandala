@@ -23,6 +23,7 @@ import { anchorOnChain } from '../../lib/onchainAnchor'
 import { InstrumentIcon } from '@/components/ui/instrument-icon'
 import { assetImage } from '@/lib/instrumentCategory'
 import { GlobalSanctionLists } from './SanctionLists'
+import { TransactionMonitoring } from './TransactionMonitoring'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { cn } from '@/lib/utils'
@@ -89,6 +90,11 @@ export default function ComplianceOverview({ onOpenInstrument }: {
           <Tile Icon={GitPullRequestArrow} label="Pending approvals" value={String(pendingProposals.length)} tone={pendingProposals.length > 0 ? 'warning' : undefined} />
         )}
       </div>
+
+      {/* Transaction monitoring - alert feed + case workflow. */}
+      <Section title="Transaction monitoring">
+        <TransactionMonitoring />
+      </Section>
 
       {/* Control actions - sensitive admin operations, with auditor sign-off. */}
       {controlActions.length > 0 && (
