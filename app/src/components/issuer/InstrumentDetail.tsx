@@ -157,7 +157,7 @@ export default function InstrumentDetail({ assetId, asset, assets, onReload }: P
         </div>
       )}
       {tab === 'ledger' && (
-        <div className="space-y-4">
+        <div className="max-w-3xl space-y-4">
           <div className="inline-flex rounded-lg border border-border bg-card p-0.5">
             {([['chain', 'On-chain activity'], ['accounting', 'Accounting ledger']] as const).map(([id, label]) => (
               <button

@@ -362,6 +362,7 @@ export default function IssuerDashboard() {
   const displayName = onboardingName.trim() !== ''
     ? onboardingName.trim()
     : (identityKey != null ? `${identityKey.slice(0, 10)}…` : 'Issuer')
+  const roleLabel = onboardingRole === 'auditor' ? 'AUDITOR' : onboardingRole === 'individual' ? 'VIEWER' : 'ISSUER'
 
   return (
     <SidebarProvider className="h-screen overflow-hidden bg-sidebar">
@@ -377,7 +378,7 @@ export default function IssuerDashboard() {
             <div className="grid flex-1 group-data-[collapsible=icon]:hidden">
               <span className="font-handwritten text-[22px] font-bold leading-none tracking-[-0.2px]">Underwrite</span>
               <span className="mt-[3px] text-[9px] font-medium leading-none tracking-[1px] text-sidebar-foreground/60">
-                ISSUER
+                {roleLabel}
               </span>
             </div>
             <SidebarTrigger className="size-8 shrink-0 text-muted-foreground hover:text-foreground" />

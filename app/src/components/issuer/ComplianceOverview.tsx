@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import {
   ShieldCheck, ClipboardCheck, HandCoins, ShieldAlert, GitPullRequestArrow,
-  Check, X, ArrowRight, ArrowUpRight, Plus, Flag, Signature, TriangleAlert, ChevronDown,
+  Check, X, ArrowRight, ArrowUpRight, Plus, Flag, Signature, TriangleAlert, ChevronDown, Activity,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
@@ -97,6 +97,7 @@ export default function ComplianceOverview({ onOpenInstrument }: {
         <Tile Icon={ClipboardCheck} label="Attestations to sign" value={String(pendingAtt.length)} tone={pendingAtt.length > 0 ? 'warning' : undefined} />
         <Tile Icon={HandCoins} label="Open redemptions" value={String(openRedemptions.length)} tone={openRedemptions.length > 0 ? 'warning' : undefined} />
         <Tile Icon={ShieldAlert} label="Sanctions hits" value={String(hits.length)} tone={hits.length > 0 ? 'destructive' : 'success'} />
+        <Tile Icon={Activity} label="Open alerts" value={String(openAlerts)} tone={openAlerts > 0 ? 'warning' : 'success'} />
         <Tile Icon={ShieldCheck} label={isAuditor ? 'Actions to sign off' : 'Actions awaiting sign-off'} value={String(pendingActions.length)} tone={pendingActions.length > 0 ? 'warning' : undefined} />
         {!isAuditor && (
           <Tile Icon={GitPullRequestArrow} label="Pending approvals" value={String(pendingProposals.length)} tone={pendingProposals.length > 0 ? 'warning' : undefined} />
