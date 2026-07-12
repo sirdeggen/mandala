@@ -7,6 +7,7 @@
  *     plus the automatic provider update feed and manual add/remove of lists.
  * Everything is demo data; screening remains simulated.
  */
+import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plug, Check, Plus, Minus, RefreshCw, X } from 'lucide-react'
 import {
@@ -16,7 +17,24 @@ import {
   type ListUpdate,
 } from '../../lib/sanctionsPolicy'
 import { useActiveIntegration } from '../../lib/integrations'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip'
 import { cn } from '@/lib/utils'
+
+/** Succinct hover explainer for a sanction list: authority, region, and what
+ *  the list covers. */
+function ListTooltip({ id, children }: { id: string; children: ReactNode }) {
+  const l = listById(id)
+  if (l == null) return <>{children}</>
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="top" className="max-w-64 text-center">
+        <span className="block font-medium">{l.authority} · {l.region}</span>
+        <span className="block text-primary-foreground/80">{l.blurb}</span>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
 
 const fmtWhen = (iso: string): string => {
   const d = new Date(iso)
@@ -170,6 +188,7 @@ export function InstrumentSanctionLists({ assetId, assetLabel }: { assetId: stri
   const pending = relevant.filter(u => u.status === 'pending')
 
   return (
+    <TooltipProvider delayDuration={150}>
     <div className="rounded-md border border-border bg-card p-[16px_18px]">
       <div className="flex items-center justify-between gap-3">
         <div className="text-[13.5px] font-semibold">Sanction lists</div>
@@ -201,9 +220,11 @@ export function InstrumentSanctionLists({ assetId, assetLabel }: { assetId: stri
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {effective.map(id => (
-                <span key={id} className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/5 px-2.5 py-0.5 text-[11.5px] font-medium text-foreground">
-                  <Check className="size-3 text-success" strokeWidth={3} /> {listById(id)?.name ?? id}
-                </span>
+                <ListTooltip key={id} id={id}>
+                  <span className="inline-flex cursor-help items-center gap-1 rounded-full border border-success/30 bg-success/5 px-2.5 py-0.5 text-[11.5px] font-medium text-foreground">
+                    <Check className="size-3 text-success" strokeWidth={3} /> {listById(id)?.name ?? id}
+                  </span>
+                </ListTooltip>
               ))}
             </div>
           )}
@@ -215,7 +236,9 @@ export function InstrumentSanctionLists({ assetId, assetLabel }: { assetId: stri
             return (
               <div key={l.id} className="flex items-center gap-3 py-2">
                 <div className="min-w-0 flex-1">
-                  <div className="text-[12.5px] font-medium text-foreground">{l.name}</div>
+                  <ListTooltip id={l.id}>
+                    <div className="inline-block cursor-help text-[12.5px] font-medium text-foreground">{l.name}</div>
+                  </ListTooltip>
                   <div className="truncate text-[11px] text-subtle-foreground">
                     {l.authority}{!global.includes(l.id) && on ? ' · added for this instrument' : ''}{global.includes(l.id) && !on ? ' · removed for this instrument' : ''}
                   </div>
@@ -248,5 +271,6 @@ export function InstrumentSanctionLists({ assetId, assetLabel }: { assetId: stri
         </div>
       </div>
     </div>
+    </TooltipProvider>
   )
 }
