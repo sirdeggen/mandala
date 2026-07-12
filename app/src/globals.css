@@ -191,10 +191,23 @@ body {
   animation: pop-in 0.2s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
+/* Slow, looping pan/zoom to give a still image a "video background" feel. */
+@keyframes ken-burns {
+  0%   { transform: scale(1) translate3d(0, 0, 0); }
+  100% { transform: scale(1.08) translate3d(0, -1.5%, 0); }
+}
+.animate-kenburns {
+  animation: ken-burns 20s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-in,
   .animate-pop {
     animation: fade-in 0.2s ease-out;
+  }
+  .animate-kenburns {
+    animation: none;
   }
 }
 

@@ -162,11 +162,23 @@ export default function IssueInstrumentDrawer({
                   </Link>
                 </div>
               </div>
-              {/* Tutorial video placeholder - drop an embed here later. */}
-              <div className="flex aspect-video w-full items-center justify-center rounded-lg border border-dashed border-border bg-muted/40">
-                <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
-                  <PlayCircle className="size-8" strokeWidth={1.5} />
-                  <span className="text-[12px]">Video tutorial coming soon</span>
+              {/* Selected instrument's template image as a subtly-animated
+                  "video" background (a still with a slow ken-burns pan). */}
+              <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-muted">
+                <img
+                  key={selectedTemplate.id}
+                  src={selectedTemplate.image}
+                  alt=""
+                  className="animate-kenburns absolute inset-0 h-full w-full object-cover"
+                />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 p-3">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-white/90 text-neutral-900">
+                    <PlayCircle className="size-4" strokeWidth={2} />
+                  </span>
+                  <span className="text-[12.5px] font-semibold text-white drop-shadow">
+                    {selectedTemplate.name || 'Custom instrument'}
+                  </span>
                 </div>
               </div>
             </div>

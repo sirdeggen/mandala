@@ -13,6 +13,7 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { RelationshipField } from './RelationshipField'
 import { IdentityKeyPopover } from './IdentityKeyPopover'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip'
 import { cn } from '@/lib/utils'
 
 /**
@@ -146,25 +147,34 @@ export default function HolderScreening({ assetId, asset }: { assetId: string; a
 
 // ── Holder row ────────────────────────────────────────────────────────────────
 
-const KYC_STYLE: Record<KycStatus, { label: string; cls: string }> = {
-  unverified: { label: 'Unverified', cls: 'bg-muted text-muted-foreground' },
-  pending: { label: 'KYC pending', cls: 'bg-warning/10 text-warning' },
-  verified: { label: 'KYC verified', cls: 'bg-success/10 text-success' },
-  rejected: { label: 'KYC rejected', cls: 'bg-destructive/10 text-destructive' },
+const KYC_STYLE: Record<KycStatus, { label: string; cls: string; tip: string }> = {
+  unverified: { label: 'Unverified', cls: 'bg-muted text-muted-foreground', tip: 'No identity verification on file for this holder yet.' },
+  pending: { label: 'KYC pending', cls: 'bg-warning/10 text-warning', tip: 'KYC documents submitted and awaiting review.' },
+  verified: { label: 'KYC verified', cls: 'bg-success/10 text-success', tip: 'Identity verified to KYC/AML standard.' },
+  rejected: { label: 'KYC rejected', cls: 'bg-destructive/10 text-destructive', tip: 'KYC checks failed - this holder is not verified.' },
 }
-const SANCTIONS_STYLE: Record<SanctionsResult, { label: string; cls: string }> = {
-  unscreened: { label: 'Unscreened', cls: 'bg-muted text-muted-foreground' },
-  clear: { label: 'Sanctions clear', cls: 'bg-success/10 text-success' },
-  hit: { label: 'Sanctions hit', cls: 'bg-destructive/10 text-destructive' },
+const SANCTIONS_STYLE: Record<SanctionsResult, { label: string; cls: string; tip: string }> = {
+  unscreened: { label: 'Unscreened', cls: 'bg-muted text-muted-foreground', tip: 'Not yet checked against the sanctions & PEP watchlist.' },
+  clear: { label: 'Sanctions clear', cls: 'bg-success/10 text-success', tip: 'No match against the sanctions watchlist.' },
+  hit: { label: 'Sanctions hit', cls: 'bg-destructive/10 text-destructive', tip: 'Matched a sanctions entry - review and ban before allowing activity.' },
 }
-const RISK_STYLE: Record<RiskRating, { label: string; cls: string }> = {
-  low: { label: 'Low risk', cls: 'bg-muted text-muted-foreground' },
-  medium: { label: 'Medium risk', cls: 'bg-warning/10 text-warning' },
-  high: { label: 'High risk', cls: 'bg-destructive/10 text-destructive' },
+const RISK_STYLE: Record<RiskRating, { label: string; cls: string; tip: string }> = {
+  low: { label: 'Low risk', cls: 'bg-muted text-muted-foreground', tip: 'Low AML risk rating - standard monitoring.' },
+  medium: { label: 'Medium risk', cls: 'bg-warning/10 text-warning', tip: 'Medium AML risk - keep activity under review.' },
+  high: { label: 'High risk', cls: 'bg-destructive/10 text-destructive', tip: 'High AML risk - enhanced due diligence required.' },
 }
 
-function Pill({ label, cls }: { label: string; cls: string }) {
-  return <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', cls)}>{label}</span>
+const PEP_TIP = 'Politically Exposed Person - enhanced due diligence applies.'
+
+function Pill({ label, cls, tip }: { label: string; cls: string; tip: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span tabIndex={0} className={cn('cursor-default rounded-full px-2 py-0.5 text-[10px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/60', cls)}>{label}</span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[220px] text-center">{tip}</TooltipContent>
+    </Tooltip>
+  )
 }
 
 function HolderRow({ holder, readOnly }: { holder: HolderRecord; readOnly: boolean }) {
@@ -193,12 +203,14 @@ function HolderRow({ holder, readOnly }: { holder: HolderRecord; readOnly: boole
         )}
       </div>
 
-      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-        <Pill {...KYC_STYLE[holder.kyc]} />
-        <Pill {...SANCTIONS_STYLE[holder.sanctions]} />
-        {holder.pep && <Pill label="PEP" cls="bg-warning/10 text-warning" />}
-        <Pill {...RISK_STYLE[holder.risk]} />
-      </div>
+      <TooltipProvider delayDuration={150}>
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+          <Pill {...KYC_STYLE[holder.kyc]} />
+          <Pill {...SANCTIONS_STYLE[holder.sanctions]} />
+          {holder.pep && <Pill label="PEP" cls="bg-warning/10 text-warning" tip={PEP_TIP} />}
+          <Pill {...RISK_STYLE[holder.risk]} />
+        </div>
+      </TooltipProvider>
 
       {hit && (
         <div className="mt-2.5 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2">

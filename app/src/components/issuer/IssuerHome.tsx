@@ -156,7 +156,7 @@ function CirculationStats({ instrumentCount }: { instrumentCount: number }) {
       <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-foreground">In circulation</h2>
       <p className="mt-0.5 text-[13.5px] text-muted-foreground">A snapshot of your instruments in the market.</p>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid grid-cols-1 gap-3 rounded-xl bg-sidebar p-3 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map(s => <StatCard key={s.key} stat={s} />)}
       </div>
     </div>
@@ -167,7 +167,7 @@ function StatCard({ stat }: { stat: Stat }) {
   const n = useCountUp(stat.value)
   const { Icon } = stat
   return (
-    <div className="flex flex-col justify-between rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
+    <div className="flex flex-col justify-between rounded-xl border border-border bg-card p-5">
       <div className="flex items-center justify-between">
         <span className={cn('grid size-9 place-items-center rounded-xl', stat.tint)}>
           <Icon className={cn('size-[18px]', stat.accent)} strokeWidth={2} />

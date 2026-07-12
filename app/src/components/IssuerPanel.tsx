@@ -11,7 +11,7 @@ import { useMockTransfers } from '../lib/mandala/mockBankStore'
 import TabHeader from './issuer/TabHeader'
 import { guardIssueSubmit, guardRedeemSubmit } from '@bsv/mandala/submitGuards'
 import { isAdminAuthInFlight } from '@bsv/mandala/adminAuthGate'
-import { Sparkles, Flame, ShieldCheck, Signature } from 'lucide-react'
+import { CirclePlus, CircleMinus, ShieldCheck, Signature } from 'lucide-react'
 import { Input } from './ui/input'
 import { SuggestField } from './issuer/SuggestField'
 import { BACKING_REF_SUGGESTIONS, SETTLEMENT_NOTE_SUGGESTIONS, bankForRef, type BackingRefSuggestion } from '@/content/banks'
@@ -161,8 +161,8 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
   const labelCls = 'block text-[11px] font-medium text-subtle-foreground mb-[7px]'
 
   const TABS = [
-    { id: 'issue' as const, label: 'Issue', Icon: Sparkles },
-    { id: 'redeem' as const, label: 'Redeem', Icon: Flame },
+    { id: 'issue' as const, label: 'Issue', Icon: CirclePlus },
+    { id: 'redeem' as const, label: 'Redeem', Icon: CircleMinus },
   ]
 
   const isAuditor = isReviewerRole(useOnboarding().role)

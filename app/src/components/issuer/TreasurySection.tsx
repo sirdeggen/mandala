@@ -132,12 +132,12 @@ export default function TreasurySection({ assetId, asset }: Props) {
               Treasury balance
             </span>
             {fullyBacked ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-white ring-1 ring-inset ring-white/25">
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-inset ring-emerald-600/25">
                 <ShieldCheck className="size-3" strokeWidth={2.5} />
                 Reserve-backed
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 rounded-full bg-warning/25 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-warning ring-1 ring-inset ring-warning/40">
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-500/30">
                 <AlertTriangle className="size-3" strokeWidth={2.5} />
                 Under-reserved
               </span>
