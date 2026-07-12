@@ -367,20 +367,20 @@ function EmptyState({ onConnect, onBrowseAll }: { onConnect: (p: Provider) => vo
   return (
     <div className="rounded-xl border border-border bg-card p-6 shadow-[var(--shadow-card)] sm:p-8">
       {/* Illustration - the platform hub wired to real providers (not a card) */}
-      <div className="mx-auto h-40 w-full max-w-[340px]">
-        <div className="relative mx-auto h-40 w-[320px]">
+      <div className="mx-auto h-48 w-full max-w-[360px]">
+        <div className="relative mx-auto h-48 w-[340px]">
           {/* soft glow behind the hub */}
-          <div className="absolute left-1/2 top-1/2 size-40 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--color-primary)_14%,transparent),transparent_70%)]" />
-          {/* dashed connectors from hub (160,80) to each provider */}
-          <svg viewBox="0 0 320 160" className="absolute inset-0 h-full w-full text-border" fill="none" aria-hidden>
+          <div className="absolute left-1/2 top-[calc(50%+12px)] size-44 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--color-primary)_14%,transparent),transparent_70%)]" />
+          {/* dashed connectors from hub (170,108) to each provider */}
+          <svg viewBox="0 0 340 192" className="absolute inset-0 h-full w-full text-border" fill="none" aria-hidden>
             <g stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 4">
-              <path d="M160 80 L160 22" />
-              <path d="M160 80 L58 130" />
-              <path d="M160 80 L262 130" />
+              <path d="M170 108 L170 26" />
+              <path d="M170 108 L52 168" />
+              <path d="M170 108 L288 168" />
             </g>
           </svg>
-          {/* hub - nudged down, gently bobbing, with a glossy gel sheen */}
-          <div className="absolute left-1/2 top-[calc(50%+8px)] -translate-x-1/2 -translate-y-1/2">
+          {/* hub - centred low, gently bobbing, with a glossy gel sheen */}
+          <div className="absolute left-1/2 top-[calc(50%+12px)] -translate-x-1/2 -translate-y-1/2">
             <div className="animate-bob relative grid size-16 place-items-center overflow-hidden rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-pop)]">
               {/* gel: top-down gloss + a soft corner highlight */}
               <div className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/35 to-transparent" />
@@ -390,7 +390,7 @@ function EmptyState({ onConnect, onBrowseAll }: { onConnect: (p: Provider) => vo
             </div>
           </div>
           {/* provider logo tiles */}
-          {[{ p: starters[0], x: 160, y: 22 }, { p: starters[1], x: 58, y: 130 }, { p: starters[2], x: 262, y: 130 }].map(({ p, x, y }) =>
+          {[{ p: starters[0], x: 170, y: 26 }, { p: starters[1], x: 52, y: 168 }, { p: starters[2], x: 288, y: 168 }].map(({ p, x, y }) =>
             p != null ? (
               <div key={p.id} className="absolute -translate-x-1/2 -translate-y-1/2 rounded-xl bg-card p-1 shadow-[var(--shadow-card)]" style={{ left: x, top: y }}>
                 <ProviderTile provider={p} size={40} />
@@ -408,7 +408,7 @@ function EmptyState({ onConnect, onBrowseAll }: { onConnect: (p: Provider) => vo
       </div>
 
       {/* Three curated starters for a Swiss stablecoin issuer */}
-      <div className="mx-auto mt-6 grid max-w-3xl gap-3 text-left sm:grid-cols-3">
+      <div className="mx-auto mt-6 grid max-w-4xl gap-3 text-left sm:grid-cols-3">
         {starters.map(p => {
           const Icon = CATEGORY_ICON[p.category]
           return (
