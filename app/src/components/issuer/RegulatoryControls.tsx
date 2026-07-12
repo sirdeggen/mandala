@@ -22,6 +22,7 @@ import { useAssetState, useInvalidateAssetState } from '../../hooks/useAssetStat
 import { useInvalidateAdminHistory } from '../../hooks/useAdminHistory'
 import { useAdvanceAdminAuth } from '../../hooks/useAdminAssets'
 import { logControlAction, type ControlActionKind } from '../../lib/compliance'
+import { InstrumentSanctionLists } from './SanctionLists'
 
 interface Props {
   assets: AdminAsset[]
@@ -520,6 +521,11 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
           </ul>
         )}
       </div>
+
+      {/* Sanction lists in force for this instrument, with provider updates */}
+      {asset != null && (
+        <InstrumentSanctionLists assetId={activeAssetId} assetLabel={asset.label} />
+      )}
 
       {/* Live state strip */}
       <div className="bg-card border border-border rounded-md px-5 py-[14px] flex items-center gap-0">

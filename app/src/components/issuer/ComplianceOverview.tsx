@@ -22,6 +22,7 @@ import { signAction, verifyActionSignature, actionMessage } from '../../lib/comp
 import { anchorOnChain } from '../../lib/onchainAnchor'
 import { InstrumentIcon } from '@/components/ui/instrument-icon'
 import { assetImage } from '@/lib/instrumentCategory'
+import { GlobalSanctionLists } from './SanctionLists'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { cn } from '@/lib/utils'
@@ -104,6 +105,11 @@ export default function ComplianceOverview({ onOpenInstrument }: {
           )}
         </Section>
       )}
+
+      {/* Sanction lists - org-wide policy + incoming provider updates */}
+      <Section title="Sanction lists">
+        <GlobalSanctionLists />
+      </Section>
 
       {/* Per-instrument compliance */}
       <Section title="By instrument">
