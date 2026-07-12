@@ -11,7 +11,7 @@ import { useMockTransfers } from '../lib/mandala/mockBankStore'
 import TabHeader from './issuer/TabHeader'
 import { guardIssueSubmit, guardRedeemSubmit } from '@bsv/mandala/submitGuards'
 import { isAdminAuthInFlight } from '@bsv/mandala/adminAuthGate'
-import { Sparkles, Flame, ShieldCheck } from 'lucide-react'
+import { Sparkles, Flame, ShieldCheck, Signature } from 'lucide-react'
 import { Input } from './ui/input'
 import { SuggestField } from './issuer/SuggestField'
 import { BACKING_REF_SUGGESTIONS, SETTLEMENT_NOTE_SUGGESTIONS, bankForRef, type BackingRefSuggestion } from '@/content/banks'
@@ -276,7 +276,7 @@ export default function IssuerPanel({ assetId: controlledAssetId }: IssuerPanelP
                 loadingText="Issuing…"
                 className="w-full rounded bg-primary text-primary-foreground"
               >
-                Issue units
+                <Signature /> Issue units
               </Button>
             </div>
           ) : (

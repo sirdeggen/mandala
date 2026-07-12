@@ -38,7 +38,7 @@ export function ExportFormatPicker({ onExport, disabled }: {
         type="button"
         onClick={() => selected.size > 0 && onExport([...selected])}
         disabled={disabled || selected.size === 0}
-        className="inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1 text-[12px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-2.5 py-1 text-[12px] font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-40"
       >
         <Download className="size-3.5" /> Download
       </button>

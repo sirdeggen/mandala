@@ -5,7 +5,7 @@ import { Button } from './ui/button'
 import { Select } from './ui/select'
 import { Spinner } from './ui/spinner'
 import { useWallet } from '../context/WalletContext'
-import { ChevronLeft, Search, CheckCircle2, Copy, QrCode, Send } from 'lucide-react'
+import { ChevronLeft, Search, CheckCircle2, Copy, QrCode, Send, Plus, X, Users } from 'lucide-react'
 import { noAutofill } from '../lib/noAutofill'
 import { cn } from '@/lib/utils'
 import { parseAmount, formatAmount, formatAmountPlain } from '@bsv/mandala/amount'
@@ -26,8 +26,20 @@ import QrScanModal from './QrScanModal'
 
 type Step = 'recipient' | 'amount' | 'review' | 'sending' | 'sent'
 
+/** A committed recipient in a (possibly multi-way) split. */
+interface Recipient { identityKey: string; name: string; avatarURL: string }
+
 /** A tappable recipient row in the recipient-step shortlist. */
 interface PickRow { identityKey: string; name?: string; avatarURL?: string; subtitle: string }
+
+/** Split a total (in base units) into `n` shares as evenly as possible, giving
+ *  the remainder to the earliest recipients so the shares always sum to total. */
+function splitEvenly(total: number, n: number): number[] {
+  if (n <= 0) return []
+  const base = Math.floor(total / n)
+  const rem = total - base * n
+  return Array.from({ length: n }, (_, i) => base + (i < rem ? 1 : 0))
+}
 
 /** Max recipients shown in the shortlist before it's truncated (recency-first). */
 const CONTACT_LIMIT = 12
@@ -58,9 +70,26 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
   const [assetId, setAssetId] = useState(lockedAssetId ?? '')
   const [amountStr, setAmountStr] = useState('')
   const [note, setNote] = useState('')
-  const [recipient, setRecipient] = useState('')
-  const [recipientName, setRecipientName] = useState('')
-  const [recipientAvatarURL, setRecipientAvatarURL] = useState('')
+
+  // Committed recipients. The amount entered is the *total*, split evenly across
+  // them (see splitEvenly). One recipient is the common case; the amount step
+  // lets you add more.
+  const [recipients, setRecipients] = useState<Recipient[]>([])
+  // When true, the recipient step appends the next pick instead of starting over.
+  const [addingRecipient, setAddingRecipient] = useState(false)
+  // The pending entry in the recipient step (typed / pasted key), not yet committed.
+  const [pendingKey, setPendingKey] = useState('')
+  const [pendingName, setPendingName] = useState('')
+  const [pendingAvatar, setPendingAvatar] = useState('')
+
+  // Primary recipient drives the single-recipient screens (header, review, receipt).
+  const primary = recipients[0] as Recipient | undefined
+  const recipient = primary?.identityKey ?? ''
+  const recipientName = primary?.name ?? ''
+  const recipientAvatarURL = primary?.avatarURL ?? ''
+
+  // Which recipient (1-based) is currently being sent, for batch progress.
+  const [batchIdx, setBatchIdx] = useState(0)
 
   // Async state
   const [sendError, setSendError] = useState('')
@@ -100,9 +129,7 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
     if (ir == null || ir.identityKey === '') return
     initRecipientRef.current = true
     const c = saved.find(s => s.identityKey === ir.identityKey)
-    setRecipient(ir.identityKey)
-    setRecipientName(ir.name || c?.name || '')
-    setRecipientAvatarURL(ir.avatarURL || c?.avatarURL || '')
+    setRecipients([{ identityKey: ir.identityKey, name: ir.name || c?.name || '', avatarURL: ir.avatarURL || c?.avatarURL || '' }])
     setStep('amount')
   }, [initialRecipient, saved])
 
@@ -192,7 +219,10 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
 
   const selectedBalance = balances.find(b => b.assetId === assetId)
   const decimals = decimalsFor(assetId)
+  // The entered amount is the *total*; each recipient gets an even share.
   const sendAmount = parseAmount(amountStr, decimals)
+  const shares = splitEvenly(sendAmount, recipients.length)
+  const isSplit = recipients.length > 1
 
   // Recipient shortlist shown under the search field - tap to pick, no search
   // needed. History counterparties come first (most recently sent-to/received-from,
@@ -219,15 +249,25 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
     return out.slice(0, CONTACT_LIMIT)
   }, [contacts, saved])
 
-  // Select a recipient from the shortlist / issuer shortcut and advance the wizard.
-  const pickRecipient = (identityKey: string, name = '', avatarURL = '') => {
-    setRecipient(identityKey)
-    setRecipientName(name)
-    setRecipientAvatarURL(avatarURL)
+  // Commit a recipient (from shortlist, search, paste or issuer shortcut) into
+  // the split and advance to the amount step. Appending when already present is
+  // a no-op, so double-adding the same identity can't skew the split.
+  const addRecipient = (identityKey: string, name = '', avatarURL = '') => {
+    if (identityKey.trim() === '') return
+    setRecipients(prev => prev.some(r => r.identityKey === identityKey) ? prev : [...prev, { identityKey, name, avatarURL }])
     setSearchInput('')
     setIdentities([])
+    setPendingKey(''); setPendingName(''); setPendingAvatar('')
+    setAddingRecipient(false)
     setStep('amount')
   }
+
+  const removeRecipient = (identityKey: string) => {
+    setRecipients(prev => prev.filter(r => r.identityKey !== identityKey))
+  }
+
+  // Backwards-compatible alias used by the shortlist / issuer shortcut.
+  const pickRecipient = (identityKey: string, name = '', avatarURL = '') => addRecipient(identityKey, name, avatarURL)
 
   // Tapping a search result is an explicit choice - advance immediately, same
   // as the contacts shortlist. The Amount step's "To: <name>" header is the
@@ -237,21 +277,21 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
   }
 
   // One handler for typed, pasted, and clipboard-button input - a full valid
-  // identity key selects the recipient; anything else feeds the fuzzy search.
+  // identity key marks a pending recipient; anything else feeds the fuzzy search.
   const applyRecipientText = (raw: string) => {
     setSearchInput(raw)
     const trimmed = raw.trim()
     if (isIdentityKey(trimmed)) {
       try {
         PublicKey.fromString(trimmed)
-        setRecipient(trimmed)
-        setRecipientName('')
-        setRecipientAvatarURL('')
+        setPendingKey(trimmed)
+        setPendingName('')
+        setPendingAvatar('')
       } catch {
-        setRecipient('')
+        setPendingKey('')
       }
     } else {
-      setRecipient('')
+      setPendingKey('')
     }
   }
 
@@ -263,8 +303,8 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
   }
 
   const confirmRecipient = () => {
-    if (!recipient.trim()) return
-    setStep('amount')
+    if (!pendingKey.trim()) return
+    addRecipient(pendingKey, pendingName, pendingAvatar)
   }
 
   const handleKeypad = useCallback((key: string) => {
@@ -312,14 +352,22 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
   // same tick still sees step === 'review'. This ref + sendFlight close that gap.
   const sendStartedRef = useRef(false)
 
-  const handleConfirmAndSend = () => {
+  // Send the total, split evenly across every recipient. One recipient is a
+  // single send (unchanged behaviour); multiple recipients send sequentially -
+  // each share is its own transfer, so the split is real on-chain, not cosmetic.
+  const handleConfirmAndSend = async () => {
     if (sendStartedRef.current || sendMutation.isPending || sendFlight.isHeld()) return
     if (step === 'sending' || step === 'sent') return
+    if (recipients.length === 0) return
 
+    const total = sendAmount
+    const parts = splitEvenly(total, recipients.length)
+
+    // Validate the whole transfer up front (paused / balance / wallet).
     const gate = guardSendSubmit({
       assetId,
       recipientKey: recipient,
-      amount: sendAmount,
+      amount: total,
       balance: selectedBalance?.amount ?? 0,
       isPaused,
       pauseBypass: devMode,
@@ -329,6 +377,10 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
       setSendError(gate.reason)
       return
     }
+    if (parts.some(s => s <= 0)) {
+      setSendError('Amount is too small to split across every recipient.')
+      return
+    }
 
     setSendError('')
     sendStartedRef.current = true
@@ -336,31 +388,43 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
     // runs behind the Sending screen. Overlay accept → Sent; reject → back to
     // Review with the error (the wallet action was aborted, inputs released).
     setStep('sending')
-    sendMutation.mutate(
-      { assetId, amount: sendAmount, recipientKey: recipient },
-      {
-        onSuccess: res => {
-          setSentTxid(res.txid)
-          setStep('sent')
-          // Keep sendStartedRef true until reset - prevents re-send of same review.
-        },
-        onError: e => {
-          sendStartedRef.current = false
-          // Lost the race to another in-flight send (e.g. a second mounted
-          // send flow). This instance never started a pipeline - return it to
-          // review; advancing to 'sending' would strand a screen with no
-          // pipeline and no exit.
-          if (e instanceof BusyError) {
-            setSendError(e.message)
-            setStep('review')
-            return
-          }
-          console.error('Send error:', e)
-          setSendError(e instanceof Error ? e.message : 'Send failed. Please try again.')
-          setStep('review')
-        }
+
+    const sent: string[] = []
+    let sentBase = 0
+    try {
+      let last = ''
+      for (let i = 0; i < recipients.length; i++) {
+        setBatchIdx(i + 1)
+        const res = await sendMutation.mutateAsync({ assetId, amount: parts[i], recipientKey: recipients[i].identityKey })
+        last = res.txid
+        sent.push(recipients[i].identityKey)
+        sentBase += parts[i]
       }
-    )
+      setSentTxid(last)
+      setStep('sent')
+      // Keep sendStartedRef true until reset - prevents re-send of same review.
+    } catch (e) {
+      sendStartedRef.current = false
+      // Drop anyone already paid and reduce the remaining total, so a retry only
+      // covers who's left (a mid-batch failure must never double-pay).
+      if (sent.length > 0) {
+        setRecipients(prev => prev.filter(r => !sent.includes(r.identityKey)))
+        setAmountStr(formatAmountPlain(Math.max(0, total - sentBase), decimals))
+      }
+      const back: Step = sent.length > 0 ? 'amount' : 'review'
+      if (e instanceof BusyError) {
+        setSendError(e.message)
+        setStep(back)
+        return
+      }
+      console.error('Send error:', e)
+      setSendError(sent.length > 0
+        ? `Sent to ${sent.length} of ${recipients.length}. ${e instanceof Error ? e.message : 'Send failed.'} Review the remaining recipients and retry.`
+        : (e instanceof Error ? e.message : 'Send failed. Please try again.'))
+      setStep(back)
+    } finally {
+      setBatchIdx(0)
+    }
   }
 
   const resetFlow = () => {
@@ -369,9 +433,10 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
     setAssetId(lockedAssetId ?? '')
     setAmountStr('')
     setNote('')
-    setRecipient('')
-    setRecipientName('')
-    setRecipientAvatarURL('')
+    setRecipients([])
+    setAddingRecipient(false)
+    setPendingKey(''); setPendingName(''); setPendingAvatar('')
+    setBatchIdx(0)
     setSentTxid('')
     setSendError('')
     setSearchInput('')
@@ -448,6 +513,14 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
     // No in-card heading - the page/tab context already says "Send"; the
     // search field is the action (mirrors the header-less Receive card).
     <div className="flex flex-col min-h-0 flex-1">
+      {/* When adding an extra recipient to a split, offer a way back to the
+          amount step without committing a new pick. */}
+      {addingRecipient && (
+        <div className="flex items-center gap-3 px-5 pt-4">
+          <BackButton onClick={() => { setAddingRecipient(false); setSearchInput(''); setIdentities([]); setPendingKey(''); setStep('amount') }} />
+          <div className="text-[15px] font-semibold">Add recipient</div>
+        </div>
+      )}
       {/* Search bar - one field for both name/@handle/email search and a
           pasted identity key, so there's no second input further down. */}
       <div className="px-5 pt-5">
@@ -461,7 +534,7 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
               type="text"
               value={searchInput}
               onChange={e => applyRecipientText(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && recipient) confirmRecipient() }}
+              onKeyDown={e => { if (e.key === 'Enter' && pendingKey) confirmRecipient() }}
               placeholder="Name, @handle, email or Badge ID"
               className="min-w-0 flex-1 bg-transparent text-[13.5px] text-foreground placeholder:text-subtle-foreground outline-none"
             />
@@ -487,11 +560,11 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
           // "recipient selected" card (or flag the bad key) so the paste
           // visibly landed before the user commits.
           if (pastedKey) {
-            return recipient ? (
+            return pendingKey ? (
               <div className="mt-3 rounded-md border border-border bg-card px-4 py-3.5">
                 <div className="flex items-center gap-3">
                   <div className="grid h-9 w-9 flex-none place-items-center rounded-full bg-primary text-[12px] font-semibold text-primary-foreground">
-                    {recipient.slice(0, 2).toUpperCase()}
+                    {pendingKey.slice(0, 2).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 text-[13px] font-semibold text-success">
@@ -499,12 +572,12 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
                       Valid Badge ID
                     </div>
                     <div className="tabular truncate text-[12px] text-subtle-foreground mt-0.5">
-                      {recipient.slice(0, 20)}…{recipient.slice(-6)}
+                      {pendingKey.slice(0, 20)}…{pendingKey.slice(-6)}
                     </div>
                   </div>
                 </div>
                 <Button onClick={confirmRecipient} className="mt-3 w-full" size="lg">
-                  Continue
+                  {addingRecipient ? 'Add recipient' : 'Continue'}
                 </Button>
               </div>
             ) : (
@@ -597,15 +670,7 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
         <div className="px-5 pt-4">
           <button
             type="button"
-            onClick={() => {
-              const iss = metas[assetId].issuer as string
-              setRecipient(iss)
-              setRecipientName('Issuer')
-              setRecipientAvatarURL('')
-              setSearchInput('')
-              setIdentities([])
-                        setStep('amount')
-            }}
+            onClick={() => addRecipient(metas[assetId].issuer as string, 'Issuer', '')}
             className="flex w-full items-center justify-center gap-2 rounded-md border border-border bg-card px-3.5 py-2.5 text-[14px] font-medium text-foreground transition-colors hover:bg-accent active:scale-[0.97]"
           >
             <Send className="h-[15px] w-[15px]" /> Return to issuer
@@ -625,19 +690,67 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
 
   const renderAmount = () => (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* Header with back + recipient chip */}
+      {/* Header with back + recipient chip. The chip is a button: tap it to add
+          another recipient and split the amount across everyone. */}
       <div className="flex items-center gap-3 px-5 pt-4">
-        <BackButton onClick={() => setStep('recipient')} />
-        <div className="flex items-center gap-2.5">
-          <RecipientAvatar size="sm" />
-          <div>
+        <BackButton onClick={() => { setRecipients([]); setStep('recipient') }} />
+        <button
+          type="button"
+          onClick={() => { setAddingRecipient(true); setSearchInput(''); setIdentities([]); setPendingKey(''); setStep('recipient') }}
+          className="group -mx-2 flex items-center gap-2.5 rounded-full border border-transparent px-2 py-1 transition-colors hover:border-border hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {isSplit ? (
+            <div className="grid h-9 w-9 flex-none place-items-center rounded-full bg-primary/10 text-primary">
+              <Users className="size-[18px]" />
+            </div>
+          ) : <RecipientAvatar size="sm" />}
+          <div className="text-left">
             <div className="text-[10.5px] text-subtle-foreground leading-none">To</div>
             <div className="text-[14px] font-semibold leading-tight mt-0.5">
-              {recipientName || (recipient.slice(0, 12) + '…')}
+              {isSplit ? `${recipients.length} recipients` : (recipientName || (recipient.slice(0, 12) + '…'))}
             </div>
           </div>
-        </div>
+          <span className="ml-1 inline-flex items-center gap-1 text-[11px] font-medium text-subtle-foreground transition-colors group-hover:text-foreground">
+            <Plus className="size-3.5" /> Add
+          </span>
+        </button>
       </div>
+
+      {/* Split breakdown - who gets what, with remove. Shown once there's more
+          than one recipient; each share is the entered total divided evenly. */}
+      {isSplit && (
+        <div className="mx-5 mt-4 overflow-hidden rounded-lg border border-border">
+          <div className="flex items-center justify-between bg-muted/50 px-3 py-2 text-[10.5px] font-medium uppercase tracking-[1px] text-subtle-foreground">
+            <span>Split · {recipients.length} ways</span>
+            <span>Each receives</span>
+          </div>
+          {recipients.map((r, i) => (
+            <div key={r.identityKey} className="flex items-center gap-2.5 border-t border-separator px-3 py-2">
+              {r.avatarURL ? (
+                <img src={r.avatarURL} alt={r.name} className="h-7 w-7 flex-none rounded-full object-cover" />
+              ) : (
+                <div className="grid h-7 w-7 flex-none place-items-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                  {getInitials(r.name, r.identityKey)}
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] font-medium">{r.name || `${r.identityKey.slice(0, 14)}…`}</div>
+              </div>
+              <span className="tabular text-[12.5px] font-semibold">
+                {formatAmount(shares[i] ?? 0, decimals)}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeRecipient(r.identityKey)}
+                aria-label={`Remove ${r.name || 'recipient'}`}
+                className="grid size-6 flex-none place-items-center rounded-full text-subtle-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Token selector (only when not locked) */}
       {!locked && (
@@ -738,11 +851,12 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
 
         <Button
           onClick={() => {
-            if (!assetId || !sendAmount || sendAmount <= 0) return
+            if (!assetId || !sendAmount || sendAmount <= 0 || recipients.length === 0) return
             if (!selectedBalance || selectedBalance.amount < sendAmount) return
+            if (sendAmount < recipients.length) return
             setStep('review')
           }}
-          disabled={!assetId || !sendAmount || sendAmount <= 0 || !selectedBalance || selectedBalance.amount < sendAmount}
+          disabled={!assetId || !sendAmount || sendAmount <= 0 || recipients.length === 0 || !selectedBalance || selectedBalance.amount < sendAmount || sendAmount < recipients.length}
           size="lg"
           className="mt-3 w-full"
         >
@@ -767,27 +881,52 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
       {/* Review card */}
       <div className="px-5 pt-[22px]">
         <div className="rounded-lg border border-border bg-card overflow-hidden shadow-[var(--shadow-card)]">
-          {/* Recipient row */}
-          <div className="flex items-center gap-3 px-[18px] py-4">
-            <RecipientAvatar size="md" />
-            <div className="flex-1 min-w-0">
-              <div className="text-[15px] font-semibold truncate">
-                {recipientName || 'Unknown'}
+          {/* Recipient(s) row */}
+          {isSplit ? (
+            <div>
+              <div className="flex items-center justify-between px-[18px] pt-4 pb-1.5 text-[10.5px] font-medium uppercase tracking-[1px] text-subtle-foreground">
+                <span>Recipients · split {recipients.length} ways</span>
               </div>
-              <div className="tabular text-[12px] text-subtle-foreground mt-[3px] truncate">
-                {recipient.slice(0, 24)}…
-              </div>
+              {recipients.map((r, i) => (
+                <div key={r.identityKey} className="flex items-center gap-3 px-[18px] py-2.5">
+                  {r.avatarURL ? (
+                    <img src={r.avatarURL} alt={r.name} className="h-8 w-8 flex-none rounded-full object-cover" />
+                  ) : (
+                    <div className="grid h-8 w-8 flex-none place-items-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
+                      {getInitials(r.name, r.identityKey)}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13.5px] font-semibold">{r.name || `${r.identityKey.slice(0, 18)}…`}</div>
+                  </div>
+                  <span className="tabular text-[13.5px] font-semibold">
+                    {formatAmount(shares[i] ?? 0, decimals)} {labelFor(assetId)}
+                  </span>
+                </div>
+              ))}
             </div>
-            <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-success bg-success/10 px-2 py-1 rounded-sm">
-              <CheckCircle2 className="h-[11px] w-[11px]" />
-              Verified
-            </span>
-          </div>
+          ) : (
+            <div className="flex items-center gap-3 px-[18px] py-4">
+              <RecipientAvatar size="md" />
+              <div className="flex-1 min-w-0">
+                <div className="text-[15px] font-semibold truncate">
+                  {recipientName || 'Unknown'}
+                </div>
+                <div className="tabular text-[12px] text-subtle-foreground mt-[3px] truncate">
+                  {recipient.slice(0, 24)}…
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-success bg-success/10 px-2 py-1 rounded-sm">
+                <CheckCircle2 className="h-[11px] w-[11px]" />
+                Verified
+              </span>
+            </div>
+          )}
 
           {/* Detail rows */}
           <div className="px-[18px] pb-2.5">
             <div className="flex items-center justify-between py-3 border-t border-separator">
-              <span className="text-[12.5px] text-subtle-foreground">Amount</span>
+              <span className="text-[12.5px] text-subtle-foreground">{isSplit ? 'Total' : 'Amount'}</span>
               <span className="tabular text-[17px] font-semibold">
                 {formatAmount(sendAmount, decimals)} {labelFor(assetId)}
               </span>
@@ -851,7 +990,7 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
           className="w-full"
         >
           <Send className="h-[17px] w-[17px]" />
-          Send {formatAmount(sendAmount, decimals)} {labelFor(assetId)}
+          Send {formatAmount(sendAmount, decimals)} {labelFor(assetId)}{isSplit ? ` to ${recipients.length}` : ''}
         </Button>
       </div>
     </div>
@@ -871,12 +1010,14 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
             <Spinner size="lg" tone="brand" />
           </div>
         </div>
-        <div className="text-[11px] font-medium tracking-[2px] uppercase text-subtle-foreground">Sending</div>
+        <div className="text-[11px] font-medium tracking-[2px] uppercase text-subtle-foreground">
+          {isSplit && batchIdx > 0 ? `Sending ${batchIdx} of ${recipients.length}` : 'Sending'}
+        </div>
         <div className="tabular mt-3 text-[44px] font-semibold leading-none tracking-[-1.5px]">
           {formatAmount(sendAmount, decimals)}
         </div>
         <div className="text-[14px] text-muted-foreground mt-2.5 leading-snug">
-          {labelFor(assetId)} to {recipientName || (recipient.slice(0, 12) + '…')}
+          {labelFor(assetId)} to {isSplit ? `${recipients.length} recipients` : (recipientName || (recipient.slice(0, 12) + '…'))}
         </div>
       </div>
     </div>
@@ -905,7 +1046,7 @@ export default function SendTokens({ lockedAssetId, initialRecipient, bare = fal
           {formatAmount(sendAmount, decimals)}
         </div>
         <div className="text-[14px] text-muted-foreground mt-2.5 leading-snug">
-          {labelFor(assetId)} to {recipientName || (recipient.slice(0, 12) + '…')}
+          {labelFor(assetId)} to {isSplit ? `${recipients.length} recipients` : (recipientName || (recipient.slice(0, 12) + '…'))}
         </div>
         {sentTxid && (
           <div className="mt-4 text-[12px] text-subtle-foreground">

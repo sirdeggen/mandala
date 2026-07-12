@@ -15,8 +15,8 @@ import { anchorOnChain } from '../../lib/onchainAnchor'
 import { IdentitySigil } from '@/components/ui/identity-sigil'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-import { Select } from '../ui/select'
 import { Label } from '../ui/label'
+import { PopoverSelect } from './PopoverSelect'
 import { EditablePresetField } from './EditablePresetField'
 import { RelationshipField } from './RelationshipField'
 import { cn } from '@/lib/utils'
@@ -27,6 +27,14 @@ import { cn } from '@/lib/utils'
  * units from circulation, so the Attestations backing ratio stays honest.
  * Redemption at par on demand is a core obligation under MiCA and the GENIUS Act.
  */
+/** Succinct subheadings shown under each settlement-window option. */
+const SETTLEMENT_WINDOW_DESCRIPTION: Record<SettlementWindow, string> = {
+  instant: 'Settled the moment a request is approved.',
+  t1: 'Settled by the end of the next business day.',
+  t2: 'Settled within two business days.',
+  t3: 'Settled within three business days.',
+}
+
 export default function RedemptionRequests({ assetId, asset }: { assetId: string; asset: AdminAsset | null }) {
   const policy = useRedemptionPolicy(assetId)
   const requests = useRedemptionRequests(assetId)
@@ -72,17 +80,17 @@ export default function RedemptionRequests({ assetId, asset }: { assetId: string
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="rdm-window" className="text-[11px]">Settlement window</Label>
-            <Select
-              id="rdm-window"
+            <PopoverSelect
               value={policy.window}
+              onChange={w => setRedemptionPolicy(assetId, { window: w })}
               disabled={!policy.enabled || isAuditor}
-              onChange={e => setRedemptionPolicy(assetId, { window: e.target.value as SettlementWindow })}
-              className="h-10 text-[13px]"
-            >
-              {(Object.keys(SETTLEMENT_WINDOW_LABEL) as SettlementWindow[]).map(w => (
-                <option key={w} value={w}>{SETTLEMENT_WINDOW_LABEL[w]}</option>
-              ))}
-            </Select>
+              className="h-10 w-full text-[13px]"
+              options={(Object.keys(SETTLEMENT_WINDOW_LABEL) as SettlementWindow[]).map(w => ({
+                value: w,
+                label: SETTLEMENT_WINDOW_LABEL[w],
+                description: SETTLEMENT_WINDOW_DESCRIPTION[w],
+              }))}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="rdm-min" className="text-[11px]">Minimum amount ({currency})</Label>
