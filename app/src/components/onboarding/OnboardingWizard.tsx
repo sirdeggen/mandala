@@ -335,7 +335,6 @@ function PreviewCard({ step, seal, entityName, placeholder, country, role, ident
       <div key="role" className="animate-in rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-semibold uppercase tracking-[1px] text-faint-foreground">User login</span>
-          <ShieldCheck className="h-4 w-4 text-success" />
         </div>
         <div className="mt-4 flex items-center gap-3">
           <IdentitySigil value={identityKey ?? name ?? 'user'} size={40} className="rounded-full" />
@@ -354,7 +353,6 @@ function PreviewCard({ step, seal, entityName, placeholder, country, role, ident
         <span className="text-[11px] font-semibold uppercase tracking-[1px] text-faint-foreground">
           {role === 'auditor' ? 'Stablecoin auditor' : 'Stablecoin issuer'}
         </span>
-        <ShieldCheck className="h-4 w-4 text-success" />
       </div>
 
       <div className="mt-4 flex items-center gap-3">
