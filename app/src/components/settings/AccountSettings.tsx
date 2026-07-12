@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { BadgeCheck, Copy, Check, ChevronDown, Plug, X } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
@@ -22,52 +22,13 @@ import { cn } from '@/lib/utils'
  * the wallet-derived Badge sits in a collapsible section under the profile form.
  */
 
-type Tab = 'profile' | 'company'
-
 export default function AccountSettings() {
-  const { role } = useOnboarding()
-  const [searchParams, setSearchParams] = useSearchParams()
-
-  const TABS: { id: Tab, label: string }[] = [
-    { id: 'profile', label: 'Profile' },
-    ...(role === 'issuer' ? [{ id: 'company' as const, label: 'Company' }] : []),
-  ]
-
-  const paramTab = searchParams.get('tab')
-  const tab: Tab = TABS.some(t => t.id === paramTab) ? (paramTab as Tab) : 'profile'
-  const setTab = (id: Tab) => setSearchParams(prev => {
-    const next = new URLSearchParams(prev)
-    next.set('tab', id)
-    return next
-  }, { replace: true })
-
   return (
     <div className="mx-auto w-full max-w-2xl">
       <h1 className="mb-8 font-heading text-[32px] font-medium leading-[40px] tracking-[-0.03em] text-foreground">
-        Settings
+        Account settings
       </h1>
-
-      {/* Tab bar */}
-      <div className="flex gap-5 overflow-x-auto border-b border-border">
-        {TABS.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setTab(id)}
-            className={cn(
-              '-mb-px whitespace-nowrap border-b-[1.5px] pb-3 pt-2 text-[14px] font-medium transition-colors',
-              tab === id ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
-            )}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="pt-8">
-        {tab === 'profile' && <ProfilePanel />}
-        {tab === 'company' && <CompanyPanel />}
-      </div>
+      <ProfilePanel />
     </div>
   )
 }
@@ -348,56 +309,3 @@ function RequestCategoriesBody({ authority, onClose }: { authority: string; onCl
   )
 }
 
-// ── Company (issuer entity details) ───────────────────────────────────────────
-
-const COUNTRIES = [
-  'Switzerland', 'Germany', 'France', 'Netherlands', 'Ireland', 'Luxembourg',
-  'Spain', 'Italy', 'Belgium', 'Austria', 'United Kingdom', 'United States', 'Other',
-]
-
-function CompanyPanel() {
-  const { entity } = useOnboarding()
-  const [legalName, setLegalName] = useState(entity?.legalName ?? '')
-  const [country, setCountry] = useState(entity?.country ?? '')
-  const [address, setAddress] = useState(entity?.address ?? '')
-
-  const dirty =
-    legalName.trim() !== (entity?.legalName ?? '') ||
-    country !== (entity?.country ?? '') ||
-    address.trim() !== (entity?.address ?? '')
-
-  function save(e: React.FormEvent) {
-    e.preventDefault()
-    updateProfile({ entity: { legalName: legalName.trim(), country, address: address.trim() } })
-    toast.success('Company details updated')
-  }
-
-  return (
-    <form onSubmit={save} className="space-y-6">
-      <div className="space-y-2">
-        <Label htmlFor="set-legal">Legal entity name</Label>
-        <Input id="set-legal" placeholder="Acme Digital Money Ltd" autoComplete="off" value={legalName} onChange={e => setLegalName(e.target.value)} />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="set-country">Country</Label>
-        <select
-          id="set-country"
-          value={country}
-          onChange={e => setCountry(e.target.value)}
-          className="h-11 w-full rounded border border-input-border bg-input px-3 text-[15px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-        >
-          <option value="" disabled>Select country…</option>
-          {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="set-address">Registered address</Label>
-        <Input id="set-address" placeholder="Street, city, postal code" autoComplete="off" value={address} onChange={e => setAddress(e.target.value)} />
-      </div>
-
-      <Button type="submit" disabled={!dirty}>Update</Button>
-    </form>
-  )
-}

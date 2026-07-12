@@ -31,9 +31,10 @@ import ComplianceOverview from './ComplianceOverview'
 import ReportsPage from './ReportsPage'
 import IntegrationsPage from './IntegrationsPage'
 import AccountSettings from '../settings/AccountSettings'
+import CompanySettings from '../settings/CompanySettings'
 import RelationshipsPage from './RelationshipsPage'
 
-type Section = 'home' | 'overview' | 'relationships' | 'compliance' | 'reports' | 'integrations' | 'instrument' | 'settings'
+type Section = 'home' | 'overview' | 'relationships' | 'compliance' | 'reports' | 'integrations' | 'instrument' | 'settings' | 'company'
 
 type NavItem = {
   key: string
@@ -224,11 +225,12 @@ function AccountMenuItem({ icon: Icon, label, onClick, danger }: {
 }
 
 /** Issuer identity + account actions - the footer button opens a popover menu. */
-function AccountMenu({ seed, displayName, verified, onSettings }: {
+function AccountMenu({ seed, displayName, verified, onSettings, onCompany }: {
   seed: string
   displayName: string
   verified: boolean
   onSettings: () => void
+  onCompany: () => void
 }) {
   return (
     <Popover>
@@ -257,6 +259,7 @@ function AccountMenu({ seed, displayName, verified, onSettings }: {
         </div>
         {/* Actions */}
         <div className="border-t border-border p-1.5">
+          <AccountMenuItem icon={Building2} label="Company" onClick={onCompany} />
           <AccountMenuItem icon={Settings} label="Account settings" onClick={onSettings} />
           <AccountMenuItem icon={LogOut} label="Sign out" danger onClick={() => toast.info('Disconnect in your wallet to sign out.')} />
         </div>
@@ -269,7 +272,7 @@ function AccountMenu({ seed, displayName, verified, onSettings }: {
 
 // `home` / `overview` are nav-backed; `instrument` is reached by selecting an
 // instrument; `settings` is reached from the account menu.
-const VALID_SECTIONS = ['home', 'overview', 'relationships', 'compliance', 'reports', 'integrations', 'instrument', 'settings']
+const VALID_SECTIONS = ['home', 'overview', 'relationships', 'compliance', 'reports', 'integrations', 'instrument', 'settings', 'company']
 
 export default function IssuerDashboard() {
   const { identityKey } = useWallet()
@@ -419,7 +422,7 @@ export default function IssuerDashboard() {
           </SidebarMenu>
 
           {/* Issuer identity + account menu */}
-          <AccountMenu seed={identityKey ?? 'issuer'} displayName={displayName} verified={verified} onSettings={() => goSection('settings')} />
+          <AccountMenu seed={identityKey ?? 'issuer'} displayName={displayName} verified={verified} onSettings={() => goSection('settings')} onCompany={() => goSection('company')} />
         </SidebarFooter>
 
         <SidebarRail />
@@ -472,6 +475,9 @@ export default function IssuerDashboard() {
             )}
             {section === 'settings' && (
               <AccountSettings />
+            )}
+            {section === 'company' && (
+              <CompanySettings />
             )}
           </div>
         </div>
