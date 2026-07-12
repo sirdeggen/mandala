@@ -17,6 +17,21 @@ import { cn } from '@/lib/utils'
 const KIND_LABEL: Record<string, string> = { issue: 'Issued', redeem: 'Redeemed', transfer: 'Transfer', self: 'Self' }
 const short = (s: string) => (s.length > 12 ? `${s.slice(0, 6)}…${s.slice(-4)}` : s)
 
+const fmtWhen = (when: string | number | undefined): string => {
+  if (when == null) return ''
+  const d = new Date(when)
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+/** The counterparties on a ledger entry - what an auditor matches a bank leg to. */
+const partyLine = (e: { kind: string; from?: string | null; to?: string | null }): string => {
+  if (e.kind === 'issue') return 'Minted to treasury'
+  if (e.kind === 'redeem') return 'Burned from circulation'
+  const from = e.from != null && e.from !== '' ? short(e.from) : 'mint'
+  const to = e.to != null && e.to !== '' ? short(e.to) : 'burn'
+  return `${from} → ${to}`
+}
+
 /** className for the icon+text trigger, styled to reflect linked state. */
 function triggerCls(count: number): string {
   return cn(
@@ -195,34 +210,47 @@ export function BankReconcileButton({ assetId, transferId, amount, decimals }: {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[320px] p-0">
         <div className="border-b border-border p-2">
-          <div className="mb-1.5 px-1 text-[11px] font-semibold text-foreground">Link ledger statements</div>
+          <div className="px-1 text-[11px] font-semibold text-foreground">Link ledger statements</div>
+          <div className="mb-1.5 px-1 text-[10.5px] text-muted-foreground">Matching bank leg of <span className="tabular font-medium text-foreground">{formatAmount(amount, decimals)}</span></div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-faint-foreground" />
-            <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search ledger…" className="h-8 pl-7 text-[12px]" />
+            <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by type or hash…" className="h-8 pl-7 text-[12px]" />
           </div>
         </div>
-        <div className="max-h-64 overflow-y-auto p-1">
+        <div className="max-h-72 overflow-y-auto p-1">
           {candidates.length === 0 ? (
             <p className="px-2 py-3 text-center text-[12px] text-muted-foreground">No ledger statements loaded.</p>
           ) : candidates.map(e => {
             const linked = linkedTxids.has(e.txid)
-            const sameAmt = e.amount === amount
+            const variance = e.amount - amount
+            const exact = variance === 0
             return (
               <button
                 key={e.txid}
                 type="button"
                 onClick={() => toggle(e.txid, e.amount)}
-                className={cn('flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent', linked && 'bg-accent')}
+                className={cn('flex w-full items-start gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent', linked && 'bg-accent')}
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12px] font-medium text-foreground">{KIND_LABEL[e.kind] ?? e.kind}</span>
-                  <span className="block truncate font-mono text-[10.5px] text-subtle-foreground">{short(e.txid)}</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-[12px] font-medium text-foreground">{KIND_LABEL[e.kind] ?? e.kind}</span>
+                    <span className="text-[10px] text-subtle-foreground">{fmtWhen(e.when as string | number | undefined)}</span>
+                  </span>
+                  <span className="mt-0.5 block truncate text-[10.5px] text-muted-foreground">{partyLine(e)}</span>
+                  <span className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-faint-foreground">
+                    <span className="truncate">{short(e.txid)}</span>
+                    {e.proofs != null && e.proofs.length > 0 && (
+                      <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-success/10 px-1 py-px font-sans text-[9px] font-medium text-success"><ShieldCheck className="size-2.5" /> linkage</span>
+                    )}
+                  </span>
                 </span>
-                <span className="shrink-0 text-right">
-                  <span className={cn('block tabular text-[11.5px] font-semibold', sameAmt ? 'text-success' : 'text-foreground')}>{formatAmount(e.amount, decimals)}</span>
-                  {sameAmt && <span className="block text-[9px] font-medium uppercase text-success">match</span>}
+                <span className="shrink-0 pt-0.5 text-right">
+                  <span className={cn('block tabular text-[11.5px] font-semibold', exact ? 'text-success' : 'text-foreground')}>{formatAmount(e.amount, decimals)}</span>
+                  {exact
+                    ? <span className="block text-[9px] font-medium uppercase text-success">Exact match</span>
+                    : <span className="block text-[9px] font-medium text-warning">Δ {variance > 0 ? '+' : ''}{formatAmount(variance, decimals)}</span>}
                 </span>
-                {linked && <Check className="size-3.5 shrink-0 text-success" />}
+                {linked && <Check className="mt-0.5 size-3.5 shrink-0 text-success" />}
               </button>
             )
           })}
