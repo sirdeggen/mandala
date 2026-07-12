@@ -229,7 +229,7 @@ function BadgePanel({ identityKey }: { identityKey: string | null }) {
           </button>
         </div>
         <p className="text-[12.5px] text-muted-foreground">
-          Your Badge is your on-chain identity, authenticated by your BRC-100 wallet - there's no password to manage. To sign out, disconnect in your wallet.
+          Your Badge is a cryptographically verified digital identifier, authenticated by your wallet. There's no password to manage; to sign out, disconnect in your wallet.
         </p>
       </div>
 
@@ -244,8 +244,8 @@ function BadgePanel({ identityKey }: { identityKey: string | null }) {
         </div>
 
         {granted ? (
-          <p className="text-[12.5px] text-muted-foreground">
-            Authorised by <span className="font-medium text-foreground">{licensing!.providerName}</span>. This Badge may issue the categories below. Authorisation is granted by the licensing authority — not self-assigned.
+          <p className="text-balance text-[12.5px] text-muted-foreground">
+            Authorised by <span className="font-medium text-foreground">{licensing!.providerName}</span>. This Badge may issue the categories below. Authorisation is granted by the licensing authority, not self-assigned.
           </p>
         ) : (
           <div className="rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2.5">
