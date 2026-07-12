@@ -19,7 +19,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { useOnboarding } from '../../lib/onboarding'
 import {
-  PROVIDERS, providerById, popularProviders, CATEGORY_LABEL, CATEGORY_ORDER, AUTH_LABEL,
+  PROVIDERS, providerById, starterProviders, logoUrl, CATEGORY_LABEL, CATEGORY_ORDER, AUTH_LABEL,
   STATUS_LABEL, useConnections, addConnection, removeConnection, recordTest, recordSync, rotateKey,
   type Provider, type Connection, type ConnectionStatus, type IntegrationCategory,
 } from '../../lib/integrations'
@@ -54,13 +54,18 @@ const fmtWhen = (iso?: string): string => {
 // ── Small pieces ──────────────────────────────────────────────────────────────
 
 function ProviderTile({ provider, size = 40 }: { provider: Provider; size?: number }) {
+  const [broken, setBroken] = useState(false)
+  const logo = logoUrl(provider)
+  const showLogo = logo != null && !broken
   return (
     <span
-      className="grid shrink-0 place-items-center rounded-lg font-semibold text-white"
-      style={{ width: size, height: size, backgroundColor: provider.color, fontSize: size * 0.34 }}
+      className="grid shrink-0 place-items-center overflow-hidden rounded-lg border border-border/60 font-semibold text-white"
+      style={{ width: size, height: size, backgroundColor: showLogo ? '#fff' : provider.color, fontSize: size * 0.34 }}
       aria-hidden
     >
-      {provider.monogram}
+      {showLogo ? (
+        <img src={logo} alt="" loading="lazy" onError={() => setBroken(true)} style={{ width: size * 0.66, height: size * 0.66, objectFit: 'contain' }} />
+      ) : provider.monogram}
     </span>
   )
 }
@@ -112,14 +117,6 @@ export default function IntegrationsPage() {
         <Button onClick={() => openConnect('picker')} className="h-10 shrink-0 gap-1.5 px-3.5 text-[13px]">
           <Plus className="size-4" /> Add connection
         </Button>
-      </div>
-
-      {/* Demo disclosure */}
-      <div className="mt-4 flex items-start gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-[12px] leading-snug text-muted-foreground">
-        <Info className="mt-0.5 size-4 shrink-0" />
-        <p>
-          Connections here are illustrative and stored only in your browser — no real API calls, keys or OAuth handshakes occur. This shows exactly where each provider would be wired in production; connecting one relabels the matching simulated area (e.g. screening → “via ComplyAdvantage”).
-        </p>
       </div>
 
       {/* View toggle + filters */}
@@ -272,32 +269,53 @@ function MenuItem({ Icon, label, onClick, danger }: { Icon: LucideIcon; label: s
 // ── Empty state ───────────────────────────────────────────────────────────────
 
 function EmptyState({ onConnect, onBrowseAll }: { onConnect: (p: Provider) => void; onBrowseAll: () => void }) {
-  const common = popularProviders()
+  const starters = starterProviders()
   return (
-    <div className="rounded-xl border border-border bg-card p-6 text-center shadow-[var(--shadow-card)] sm:p-8">
-      <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary">
-        <Plug className="size-6" />
-      </span>
-      <h2 className="mt-3 text-[17px] font-semibold text-foreground">Connect your first integration</h2>
-      <p className="mx-auto mt-1 max-w-md text-balance text-[13.5px] text-muted-foreground">
-        Wire in the providers that handle identity, sanctions, reserves and access. Start with a common one below or browse the full catalogue.
-      </p>
+    <div className="rounded-xl border border-border bg-card p-6 shadow-[var(--shadow-card)] sm:p-8">
+      {/* Illustration - a ghost "connections" preview of the end state */}
+      <div className="mx-auto w-full max-w-[300px]">
+        <div className="rounded-xl border border-border bg-sidebar p-3">
+          <div className="flex items-center justify-between px-1 text-[8px] font-bold tracking-wide text-faint-foreground">
+            <span>PROVIDER</span><span>STATUS</span>
+          </div>
+          <div className="my-2 h-px w-full bg-border" />
+          <div className="space-y-2">
+            {starters.map(p => (
+              <div key={p.id} className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-2.5 py-2">
+                <ProviderTile provider={p} size={26} />
+                <div className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground">{p.name}</div>
+                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-success">
+                  <span className="size-1.5 rounded-full bg-success" /> Connected
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
-      <div className="mt-6 grid gap-3 text-left sm:grid-cols-2 lg:grid-cols-3">
-        {common.map(p => {
+      <div className="mt-6 text-center">
+        <h2 className="text-[17px] font-semibold text-foreground">Connect your first integration</h2>
+        <p className="mx-auto mt-1.5 max-w-lg text-balance text-[13.5px] leading-relaxed text-muted-foreground">
+          Your issuer identity is your on-chain identity key — there’s no separate login. KYC, sanctions screening and attestation are handled by the external providers you connect here.
+        </p>
+      </div>
+
+      {/* Three curated starters for a Swiss stablecoin issuer */}
+      <div className="mx-auto mt-6 grid max-w-2xl gap-3 text-left sm:grid-cols-3">
+        {starters.map(p => {
           const Icon = CATEGORY_ICON[p.category]
           return (
             <div key={p.id} className="flex flex-col rounded-xl border border-border bg-sidebar p-4">
-              <div className="flex items-center gap-3">
-                <ProviderTile provider={p} size={38} />
+              <div className="flex items-center gap-2.5">
+                <ProviderTile provider={p} size={36} />
                 <div className="min-w-0">
-                  <div className="truncate text-[13.5px] font-semibold text-foreground">{p.name}</div>
-                  <div className="flex items-center gap-1 text-[11px] text-subtle-foreground">
+                  <div className="truncate text-[13px] font-semibold text-foreground">{p.name}</div>
+                  <div className="flex items-center gap-1 text-[10.5px] text-subtle-foreground">
                     <Icon className="size-3" /> {CATEGORY_LABEL[p.category]}
                   </div>
                 </div>
               </div>
-              <p className="mt-2 line-clamp-2 flex-1 text-[12px] leading-snug text-muted-foreground">{p.blurb}</p>
+              <p className="mt-2 line-clamp-2 flex-1 text-[11.5px] leading-snug text-muted-foreground">{p.blurb}</p>
               <Button variant="outline" onClick={() => onConnect(p)} className="mt-3 h-8 w-full gap-1.5 text-[12.5px]">
                 <Plus className="size-3.5" /> Connect
               </Button>
@@ -306,9 +324,11 @@ function EmptyState({ onConnect, onBrowseAll }: { onConnect: (p: Provider) => vo
         })}
       </div>
 
-      <button type="button" onClick={onBrowseAll} className="mt-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-primary hover:underline">
-        Browse all {PROVIDERS.length} apps <ArrowLeft className="size-3.5 rotate-180" />
-      </button>
+      <div className="mt-5 text-center">
+        <button type="button" onClick={onBrowseAll} className="inline-flex items-center gap-1.5 text-[13px] font-medium text-primary hover:underline">
+          Browse all {PROVIDERS.length} apps <ArrowLeft className="size-3.5 rotate-180" />
+        </button>
+      </div>
     </div>
   )
 }

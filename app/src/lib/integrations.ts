@@ -47,7 +47,9 @@ export interface Provider {
   blurb: string
   authType: AuthType
   monogram: string
-  color: string          // brand-ish tile colour (no external logos - CSP blocks them)
+  color: string          // brand-ish tile colour, used as the logo fallback
+  /** Domain used to fetch the real product logo (falls back to the monogram). */
+  domain?: string
   scopes: string[]
   /** Human description of what it powers in Underwrite. */
   powers: string
@@ -59,42 +61,53 @@ export interface Provider {
 
 export const PROVIDERS: Provider[] = [
   // KYC / identity verification
-  { id: 'onfido', name: 'Onfido', category: 'kyc', authType: 'api_key', monogram: 'On', color: '#3a3ad6', popular: true, subsystem: 'kyc', powers: 'Holder identity verification & document checks', blurb: 'Automated identity document and biometric verification for holder onboarding.', scopes: ['applicants.read', 'checks.write', 'watchlist.read'] },
-  { id: 'jumio', name: 'Jumio', category: 'kyc', authType: 'oauth2', monogram: 'Ju', color: '#0a7d3d', subsystem: 'kyc', powers: 'ID verification & liveness', blurb: 'ID verification, liveness detection and AML screening in one flow.', scopes: ['identity.verify', 'aml.read'] },
-  { id: 'persona', name: 'Persona', category: 'kyc', authType: 'api_key', monogram: 'Pe', color: '#4a55f0', subsystem: 'kyc', powers: 'Configurable KYC/KYB flows', blurb: 'Configurable KYC/KYB verification with reusable identities.', scopes: ['inquiries.write', 'accounts.read'] },
-  { id: 'sumsub', name: 'Sumsub', category: 'kyc', authType: 'api_key', monogram: 'Su', color: '#ff5a1f', subsystem: 'kyc', powers: 'KYC/KYB & ongoing monitoring', blurb: 'Full-cycle verification with ongoing AML monitoring.', scopes: ['applicant.write', 'aml.monitor'] },
+  { id: 'onfido', name: 'Onfido', category: 'kyc', authType: 'api_key', monogram: 'On', color: '#3a3ad6', domain: 'onfido.com', popular: true, subsystem: 'kyc', powers: 'Holder identity verification & document checks', blurb: 'Automated identity document and biometric verification for holder onboarding.', scopes: ['applicants.read', 'checks.write', 'watchlist.read'] },
+  { id: 'jumio', name: 'Jumio', category: 'kyc', authType: 'oauth2', monogram: 'Ju', color: '#0a7d3d', domain: 'jumio.com', subsystem: 'kyc', powers: 'ID verification & liveness', blurb: 'ID verification, liveness detection and AML screening in one flow.', scopes: ['identity.verify', 'aml.read'] },
+  { id: 'persona', name: 'Persona', category: 'kyc', authType: 'api_key', monogram: 'Pe', color: '#4a55f0', domain: 'withpersona.com', subsystem: 'kyc', powers: 'Configurable KYC/KYB flows', blurb: 'Configurable KYC/KYB verification with reusable identities.', scopes: ['inquiries.write', 'accounts.read'] },
+  { id: 'sumsub', name: 'Sumsub', category: 'kyc', authType: 'api_key', monogram: 'Su', color: '#ff5a1f', domain: 'sumsub.com', subsystem: 'kyc', powers: 'KYC/KYB & ongoing monitoring', blurb: 'Full-cycle verification with ongoing AML monitoring.', scopes: ['applicant.write', 'aml.monitor'] },
 
   // Sanctions / PEP / AML
-  { id: 'complyadvantage', name: 'ComplyAdvantage', category: 'sanctions', authType: 'api_key', monogram: 'CA', color: '#0b8f7a', popular: true, subsystem: 'screening', powers: 'Sanctions, PEP & adverse-media screening', blurb: 'Real-time sanctions, PEP and adverse-media screening with ongoing monitoring.', scopes: ['search.write', 'monitors.write', 'webhooks.read'] },
-  { id: 'worldcheck', name: 'Refinitiv World-Check', category: 'sanctions', authType: 'mtls', monogram: 'WC', color: '#e8601c', subsystem: 'screening', powers: 'Sanctions & PEP reference data', blurb: 'Structured sanctions, PEP and watchlist reference data from LSEG.', scopes: ['screening.case', 'references.read'] },
+  { id: 'complyadvantage', name: 'ComplyAdvantage', category: 'sanctions', authType: 'api_key', monogram: 'CA', color: '#0b8f7a', domain: 'complyadvantage.com', popular: true, subsystem: 'screening', powers: 'Sanctions, PEP & adverse-media screening', blurb: 'Real-time sanctions, PEP and adverse-media screening with ongoing monitoring.', scopes: ['search.write', 'monitors.write', 'webhooks.read'] },
+  { id: 'worldcheck', name: 'Refinitiv World-Check', category: 'sanctions', authType: 'mtls', monogram: 'WC', color: '#e8601c', domain: 'lseg.com', subsystem: 'screening', powers: 'Sanctions & PEP reference data', blurb: 'Structured sanctions, PEP and watchlist reference data from LSEG.', scopes: ['screening.case', 'references.read'] },
   { id: 'ofac-feed', name: 'OFAC / EU / UN list feed', category: 'sanctions', authType: 'webhook', monogram: 'GL', color: '#334155', subsystem: 'screening', powers: 'Official consolidated sanctions lists', blurb: 'Direct consolidated sanctions list ingestion (OFAC SDN, EU, UN, HMT).', scopes: ['lists.read'] },
 
   // Blockchain analytics
-  { id: 'chainalysis', name: 'Chainalysis', category: 'analytics', authType: 'api_key', monogram: 'Ch', color: '#1355ff', popular: true, powers: 'Wallet risk scoring & transaction monitoring', blurb: 'On-chain risk scoring, exposure analysis and transaction monitoring.', scopes: ['kyt.write', 'address.screen'] },
-  { id: 'elliptic', name: 'Elliptic', category: 'analytics', authType: 'api_key', monogram: 'El', color: '#12b3a6', powers: 'On-chain AML & wallet screening', blurb: 'Wallet and transaction screening with source-of-funds analytics.', scopes: ['wallet.screen', 'tx.screen'] },
+  { id: 'chainalysis', name: 'Chainalysis', category: 'analytics', authType: 'api_key', monogram: 'Ch', color: '#1355ff', domain: 'chainalysis.com', popular: true, powers: 'Wallet risk scoring & transaction monitoring', blurb: 'On-chain risk scoring, exposure analysis and transaction monitoring.', scopes: ['kyt.write', 'address.screen'] },
+  { id: 'elliptic', name: 'Elliptic', category: 'analytics', authType: 'api_key', monogram: 'El', color: '#12b3a6', domain: 'elliptic.co', powers: 'On-chain AML & wallet screening', blurb: 'Wallet and transaction screening with source-of-funds analytics.', scopes: ['wallet.screen', 'tx.screen'] },
 
   // Banking, reserves & custody
-  { id: 'fireblocks', name: 'Fireblocks', category: 'banking', authType: 'mtls', monogram: 'Fb', color: '#f5820b', popular: true, subsystem: 'reserves', powers: 'Reserve custody & wallet operations', blurb: 'MPC custody for reserve assets with policy-governed transfers.', scopes: ['vaults.read', 'transactions.write', 'policy.read'] },
-  { id: 'modern-treasury', name: 'Modern Treasury', category: 'banking', authType: 'api_key', monogram: 'MT', color: '#5b3df5', popular: true, subsystem: 'reserves', powers: 'Reserve bank accounts & payment ops', blurb: 'Bank account balances, statements and payment operations across reserve banks.', scopes: ['accounts.read', 'ledgers.read', 'payments.write'] },
+  { id: 'fireblocks', name: 'Fireblocks', category: 'banking', authType: 'mtls', monogram: 'Fb', color: '#f5820b', domain: 'fireblocks.com', popular: true, subsystem: 'reserves', powers: 'Reserve custody & wallet operations', blurb: 'MPC custody for reserve assets with policy-governed transfers.', scopes: ['vaults.read', 'transactions.write', 'policy.read'] },
+  { id: 'modern-treasury', name: 'Modern Treasury', category: 'banking', authType: 'api_key', monogram: 'MT', color: '#5b3df5', domain: 'moderntreasury.com', popular: true, subsystem: 'reserves', powers: 'Reserve bank accounts & payment ops', blurb: 'Bank account balances, statements and payment operations across reserve banks.', scopes: ['accounts.read', 'ledgers.read', 'payments.write'] },
   { id: 'core-banking', name: 'Core banking (ISO 20022)', category: 'banking', authType: 'mtls', monogram: 'CB', color: '#1f6feb', subsystem: 'reserves', powers: 'Reserve balances & statement feed', blurb: 'Direct ISO 20022 balance and statement feed from your reserve bank.', scopes: ['balances.read', 'statements.read'] },
-  { id: 'swift-gpi', name: 'SWIFT gpi', category: 'banking', authType: 'mtls', monogram: 'SW', color: '#0f2d52', subsystem: 'reserves', powers: 'Cross-border settlement tracking', blurb: 'Track cross-border reserve settlements end to end.', scopes: ['payments.track'] },
+  { id: 'swift-gpi', name: 'SWIFT gpi', category: 'banking', authType: 'mtls', monogram: 'SW', color: '#0f2d52', domain: 'swift.com', subsystem: 'reserves', powers: 'Cross-border settlement tracking', blurb: 'Track cross-border reserve settlements end to end.', scopes: ['payments.track'] },
 
   // Access control / SSO
-  { id: 'okta', name: 'Okta', category: 'sso', authType: 'oauth2', monogram: 'Ok', color: '#0a66ff', popular: true, subsystem: 'rbac', powers: 'Operator SSO & role-based access', blurb: 'Single sign-on and role-based access for issuer, approver and auditor teams.', scopes: ['openid', 'profile', 'groups.read'] },
-  { id: 'entra', name: 'Microsoft Entra ID', category: 'sso', authType: 'oauth2', monogram: 'MS', color: '#2f6fed', subsystem: 'rbac', powers: 'Enterprise SSO & directory', blurb: 'Enterprise SSO, directory and conditional-access policy.', scopes: ['openid', 'User.Read', 'Directory.Read'] },
+  { id: 'okta', name: 'Okta', category: 'sso', authType: 'oauth2', monogram: 'Ok', color: '#0a66ff', domain: 'okta.com', popular: true, subsystem: 'rbac', powers: 'Operator SSO & role-based access', blurb: 'Single sign-on and role-based access for issuer, approver and auditor teams.', scopes: ['openid', 'profile', 'groups.read'] },
+  { id: 'entra', name: 'Microsoft Entra ID', category: 'sso', authType: 'oauth2', monogram: 'MS', color: '#2f6fed', domain: 'microsoft.com', subsystem: 'rbac', powers: 'Enterprise SSO & directory', blurb: 'Enterprise SSO, directory and conditional-access policy.', scopes: ['openid', 'User.Read', 'Directory.Read'] },
 
   // Attestation / proof-of-reserves
   { id: 'auditor-portal', name: 'Auditor portal', category: 'attestation', authType: 'oauth2', monogram: 'AP', color: '#7c3aed', powers: 'Independent auditor sign-off', blurb: 'Route attestations to an external audit firm for independent, signed sign-off.', scopes: ['attestations.read', 'signoff.write'] },
-  { id: 'por-oracle', name: 'Proof-of-Reserves oracle', category: 'attestation', authType: 'api_key', monogram: 'PoR', color: '#0891b2', subsystem: 'reserves', powers: 'On-chain reserve attestation', blurb: 'Publish signed reserve attestations to an on-chain proof-of-reserves oracle.', scopes: ['feeds.write'] },
+  { id: 'por-oracle', name: 'Proof-of-Reserves oracle', category: 'attestation', authType: 'api_key', monogram: 'PoR', color: '#0891b2', domain: 'chain.link', subsystem: 'reserves', powers: 'On-chain reserve attestation', blurb: 'Publish signed reserve attestations to an on-chain proof-of-reserves oracle.', scopes: ['feeds.write'] },
 
   // Reporting & alerts
   { id: 'reg-reporting', name: 'Regulatory report filer', category: 'reporting', authType: 'api_key', monogram: 'RR', color: '#475569', subsystem: 'reporting', powers: 'MiCA / GENIUS periodic filings', blurb: 'File periodic reserve and transparency reports to your regulator.', scopes: ['filings.write'] },
-  { id: 'slack', name: 'Slack', category: 'reporting', authType: 'oauth2', monogram: 'Sl', color: '#611f69', powers: 'Compliance & operations alerts', blurb: 'Route sanctions hits, redemptions and control-action alerts to a channel.', scopes: ['chat:write', 'channels:read'] },
+  { id: 'slack', name: 'Slack', category: 'reporting', authType: 'oauth2', monogram: 'Sl', color: '#611f69', domain: 'slack.com', powers: 'Compliance & operations alerts', blurb: 'Route sanctions hits, redemptions and control-action alerts to a channel.', scopes: ['chat:write', 'channels:read'] },
   { id: 'webhooks', name: 'Outbound webhooks', category: 'reporting', authType: 'webhook', monogram: '{}', color: '#334155', powers: 'Push events to your systems', blurb: 'Signed webhook events for issuance, redemption and compliance changes.', scopes: ['events.subscribe'] },
 ]
 
 export const providerById = (id: string): Provider | undefined => PROVIDERS.find(p => p.id === id)
 export const popularProviders = (): Provider[] => PROVIDERS.filter(p => p.popular)
+
+/** Curated starter set surfaced in the empty state - the providers a Swiss bank
+ *  issuing stablecoins is most likely to wire first: AML screening, reserve
+ *  custody, and holder identity verification. */
+const STARTER_IDS = ['complyadvantage', 'fireblocks', 'onfido']
+export const starterProviders = (): Provider[] =>
+  STARTER_IDS.map(id => providerById(id)).filter((p): p is Provider => p != null)
+
+/** Real product logo URL for a provider (Clearbit), or null to use the monogram. */
+export const logoUrl = (provider: Provider): string | null =>
+  provider.domain != null ? `https://logo.clearbit.com/${provider.domain}?size=128` : null
 
 // ── Connections (mock, persisted) ─────────────────────────────────────────────
 

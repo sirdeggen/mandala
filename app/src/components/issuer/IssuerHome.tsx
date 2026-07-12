@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import 'flag-icons/css/flag-icons.min.css'
-import { ChevronRight, FileText, ShieldCheck, Layers, Users, ArrowLeftRight } from 'lucide-react'
+import { ChevronRight, FileText, ShieldCheck, Signature, Users, Coins } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useOnboarding } from '../../lib/onboarding'
+import { useComplianceSnapshot, reservesTotalOf } from '../../lib/compliance'
+import { useAdminSummaries } from '../../hooks/useAdminHistory'
 import { ICON_BY_NAME } from '@/lib/instrumentIcons'
 import { INSTRUMENT_TEMPLATES, TEMPLATE_CATEGORIES, type InstrumentTemplate } from '@/content/instrumentTemplates'
 import IssueInstrumentDrawer, { type IssuePrefill } from './IssueInstrumentDrawer'
@@ -80,7 +83,7 @@ export default function IssuerHome({ assets, onReload, onOpenInstrument }: {
       </div>
 
       {/* In-circulation financial stats */}
-      {assets.length > 0 && <CirculationStats instrumentCount={assets.length} />}
+      {assets.length > 0 && <CirculationStats assets={assets} />}
 
       <IssueInstrumentDrawer
         open={drawerOpen}
@@ -102,7 +105,8 @@ interface Stat {
   Icon: LucideIcon
   accent: string          // tailwind text color for the icon
   tint: string            // tailwind bg for the icon chip
-  sample?: boolean        // true → number is illustrative, not yet from live data
+  hint?: string           // small secondary line under the value
+  to?: string             // route to navigate to on click
 }
 
 /** Animated count-up driven by requestAnimationFrame (no animation dependency).
@@ -129,62 +133,94 @@ function useCountUp(to: number, duration = 1400): number {
   return val
 }
 
-function CirculationStats({ instrumentCount }: { instrumentCount: number }) {
-  // Live where we can derive it (instrument count); clearly-labelled sample
-  // figures for metrics that need a data pipeline not yet wired up.
+function CirculationStats({ assets }: { assets: AdminAsset[] }) {
+  const navigate = useNavigate()
+  const snap = useComplianceSnapshot()
+  const summaries = useAdminSummaries(assets.map(a => a.assetId))
+
+  // Aggregate real figures across every issued instrument. Circulation comes
+  // from the overlay summaries (issued − redeemed); reserves from the compliance
+  // reserve buckets; holders from the global screened-holder set.
+  const agg = useMemo(() => {
+    let reserves = 0
+    let circulation = 0
+    for (const a of assets) {
+      const decimals = Number(a.metadata?.decimals) || 0
+      const bucket = snap.buckets[a.assetId]
+      if (bucket != null) reserves += reservesTotalOf(bucket)
+      const s = summaries[a.assetId]
+      if (s != null) circulation += (s.totalIssued - s.totalRedeemed) / 10 ** decimals
+    }
+    const backing = circulation > 0 ? (reserves / circulation) * 100 : (reserves > 0 ? 100 : 0)
+    const holders = Object.keys(snap.holders).length
+    return { reserves, circulation, backing, holders }
+  }, [assets, snap, summaries])
+
+  const compact = (n: number) => Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
+
   const stats: Stat[] = [
     {
-      key: 'instruments', value: instrumentCount, format: n => String(Math.round(n)),
-      label: 'Instruments in circulation', Icon: Layers, accent: 'text-indigo-600', tint: 'bg-indigo-500/10',
+      key: 'instruments', value: assets.length, format: n => String(Math.round(n)),
+      label: 'Instruments in circulation', Icon: Signature, accent: 'text-indigo-600', tint: 'bg-indigo-500/10',
+      to: '/issuer/overview',
     },
     {
-      key: 'backing', value: 100, format: n => `${Math.round(n)}%`,
-      label: 'Reserves backing', Icon: ShieldCheck, accent: 'text-success', tint: 'bg-success/10',
+      key: 'backing', value: agg.backing, format: n => `${Math.round(n)}%`,
+      label: 'Reserves backing', hint: 'Across all instruments', Icon: ShieldCheck, accent: 'text-success', tint: 'bg-success/10',
+      to: '/issuer/compliance',
     },
     {
-      key: 'holders', value: 1284, format: n => Math.round(n).toLocaleString('en-US'),
-      label: 'Holders', Icon: Users, accent: 'text-amber-600', tint: 'bg-amber-500/10', sample: true,
+      key: 'holders', value: agg.holders, format: n => Math.round(n).toLocaleString('en-US'),
+      label: 'Holders', hint: 'Screened, all instruments', Icon: Users, accent: 'text-amber-600', tint: 'bg-amber-500/10',
+      to: '/issuer/relationships',
     },
     {
-      key: 'settlement', value: 4.2, format: n => `$${n.toFixed(1)}M`,
-      label: 'Settlement volume · 30d', Icon: ArrowLeftRight, accent: 'text-sky-600', tint: 'bg-sky-500/10', sample: true,
+      key: 'circulation', value: agg.circulation, format: n => compact(n),
+      label: 'Total in circulation', hint: 'Issued − redeemed', Icon: Coins, accent: 'text-sky-600', tint: 'bg-sky-500/10',
+      to: '/issuer/reports',
     },
   ]
 
   return (
     <div className="mt-12">
       <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-foreground">In circulation</h2>
-      <p className="mt-0.5 text-[13.5px] text-muted-foreground">A snapshot of your instruments in the market.</p>
+      <p className="mt-0.5 text-[13.5px] text-muted-foreground">A live snapshot across every instrument you’ve issued.</p>
 
       <div className="mt-4 grid grid-cols-1 gap-3 rounded-xl bg-sidebar p-3 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map(s => <StatCard key={s.key} stat={s} />)}
+        {stats.map(s => <StatCard key={s.key} stat={s} onClick={s.to != null ? () => navigate(s.to!) : undefined} />)}
       </div>
     </div>
   )
 }
 
-function StatCard({ stat }: { stat: Stat }) {
+function StatCard({ stat, onClick }: { stat: Stat; onClick?: () => void }) {
   const n = useCountUp(stat.value)
   const { Icon } = stat
+  const clickable = onClick != null
   return (
-    <div className="flex flex-col justify-between rounded-xl border border-border bg-card p-5">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!clickable}
+      className={cn(
+        'flex flex-col justify-between rounded-xl border border-border bg-card p-5 text-left transition-colors',
+        clickable && 'group hover:border-muted-foreground/40 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60'
+      )}
+    >
       <div className="flex items-center justify-between">
         <span className={cn('grid size-9 place-items-center rounded-xl', stat.tint)}>
           <Icon className={cn('size-[18px]', stat.accent)} strokeWidth={2} />
         </span>
-        {stat.sample && (
-          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9.5px] font-medium uppercase tracking-wide text-faint-foreground">
-            sample
-          </span>
-        )}
+        {clickable && <ChevronRight className="size-4 text-faint-foreground transition-colors group-hover:text-foreground" />}
       </div>
       <div className="mt-6">
         <div className="tabular text-[32px] font-semibold leading-none tracking-[-0.02em] text-foreground">
           {stat.format(n)}
         </div>
         <div className="mt-1.5 text-[13px] text-muted-foreground">{stat.label}</div>
+        {stat.hint != null && <div className="mt-0.5 text-[11px] text-faint-foreground">{stat.hint}</div>}
       </div>
-    </div>
+    </button>
   )
 }
 
