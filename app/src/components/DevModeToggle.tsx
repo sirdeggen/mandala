@@ -27,8 +27,8 @@ export default function DevModeToggle() {
     toast[ok ? 'success' : 'info'](ok ? 'Demo scenario loaded' : 'Demo already loaded. Reset first to reload.')
   }
 
-  // Treat anything that isn't explicitly 'auditor' as issuer for the switch.
-  const isAuditor = role === 'auditor'
+  // Anything that isn't explicitly auditor/individual is treated as issuer.
+  const activeRole: OnboardingRole = role === 'auditor' ? 'auditor' : role === 'individual' ? 'individual' : 'issuer'
 
   const setRole = (next: OnboardingRole) => updateProfile({ role: next })
 
@@ -51,29 +51,27 @@ export default function DevModeToggle() {
           Developer
         </div>
 
-        {/* Role switch */}
-        <div className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5">
-          <span className="text-[13px] font-medium text-foreground">
-            {isAuditor ? 'Auditor' : 'Issuer'}
-          </span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={isAuditor}
-            aria-label="Toggle Issuer / Auditor"
-            onClick={() => setRole(isAuditor ? 'issuer' : 'auditor')}
-            className={cn(
-              'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
-              isAuditor ? 'bg-primary' : 'bg-muted-foreground/40'
-            )}
-          >
-            <span
-              className={cn(
-                'inline-block size-4 transform rounded-full bg-white shadow transition-transform',
-                isAuditor ? 'translate-x-[18px]' : 'translate-x-[2px]'
-              )}
-            />
-          </button>
+        {/* Role toggle group */}
+        <div className="rounded-lg px-2 py-1.5">
+          <span className="text-[13px] font-medium text-foreground">Role</span>
+          <div className="mt-1.5 grid grid-cols-3 gap-0.5 rounded-lg bg-muted p-0.5" role="group" aria-label="Preview role">
+            {(['issuer', 'auditor', 'individual'] as OnboardingRole[]).map(r => (
+              <button
+                key={r}
+                type="button"
+                aria-pressed={activeRole === r}
+                onClick={() => setRole(r)}
+                className={cn(
+                  'rounded-md px-1.5 py-1 text-[11px] font-medium capitalize transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+                  activeRole === r
+                    ? 'bg-card text-foreground shadow-[var(--shadow-card)]'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Full-reserve enforcement (global; on by default) */}
