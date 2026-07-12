@@ -91,6 +91,7 @@ export default function IntegrationsPage() {
   const [statusFilter, setStatusFilter] = useState<ConnectionStatus | 'all'>('all')
   const [connectProvider, setConnectProvider] = useState<Provider | null | 'picker'>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
+  const [requestCategory, setRequestCategory] = useState<IntegrationCategory | null>(null)
 
   const q = query.trim().toLowerCase()
 
@@ -169,7 +170,7 @@ export default function IntegrationsPage() {
       {/* Body */}
       <div className="mt-4">
         {view === 'apps' ? (
-          <AppsCatalog query={q} connections={connections} onConnect={openConnect} onOpenDetail={setDetailId} />
+          <AppsCatalog query={q} connections={connections} onConnect={openConnect} onOpenDetail={setDetailId} onRequest={setRequestCategory} />
         ) : connections.length === 0 ? (
           <EmptyState onConnect={openConnect} onBrowseAll={() => setView('apps')} />
         ) : (
@@ -184,7 +185,100 @@ export default function IntegrationsPage() {
         onConnected={id => { setConnectProvider(null); setView('connections'); setDetailId(id) }}
       />
       <DetailDrawer connection={detail} onClose={() => setDetailId(null)} />
+      <RequestDrawer category={requestCategory} onClose={() => setRequestCategory(null)} />
     </div>
+  )
+}
+
+// ── Request-integration drawer ────────────────────────────────────────────────
+
+function RequestDrawer({ category, onClose }: { category: IntegrationCategory | null; onClose: () => void }) {
+  return (
+    <Sheet open={category != null} onOpenChange={o => { if (!o) onClose() }}>
+      <SheetContent side="right" className="w-full sm:max-w-md">
+        <SheetTitle className="sr-only">Request an integration</SheetTitle>
+        {category != null && <RequestBody category={category} onClose={onClose} />}
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+function RequestBody({ category, onClose }: { category: IntegrationCategory; onClose: () => void }) {
+  const [appName, setAppName] = useState('')
+  const [email, setEmail] = useState('')
+  const [note, setNote] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [done, setDone] = useState(false)
+  const Icon = CATEGORY_ICON[category]
+
+  const submit = () => {
+    if (appName.trim() === '') { toast.error('Enter the provider name.'); return }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { toast.error('Enter a valid work email.'); return }
+    setSubmitting(true)
+    window.setTimeout(() => { setSubmitting(false); setDone(true) }, 650)
+  }
+
+  if (done) {
+    return (
+      <>
+        <DrawerHeader title="Request received" onClose={onClose} />
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 py-10 text-center">
+          <span className="grid size-14 place-items-center rounded-2xl bg-success/10 text-success">
+            <Check className="size-7" strokeWidth={2.5} />
+          </span>
+          <h3 className="mt-4 text-[16px] font-semibold text-foreground">Thanks — we’re on it</h3>
+          <p className="mt-1.5 max-w-xs text-balance text-[13px] leading-relaxed text-muted-foreground">
+            We’ll review <span className="font-medium text-foreground">{appName.trim()}</span> for {CATEGORY_LABEL[category].toLowerCase()} and follow up at <span className="font-medium text-foreground">{email.trim()}</span>.
+          </p>
+          <Button variant="outline" onClick={onClose} className="mt-6 h-9 px-5 text-[13px]">Done</Button>
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <DrawerHeader title="Request an integration" subtitle={CATEGORY_LABEL[category]} onClose={onClose} />
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        <p className="text-[12.5px] leading-snug text-muted-foreground">
+          Tell us which provider you need and we’ll prioritise wiring it up.
+        </p>
+
+        <div>
+          <FieldLabel>Category</FieldLabel>
+          <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-[12.5px] font-medium text-foreground">
+            <Icon className="size-3.5 text-muted-foreground" /> {CATEGORY_LABEL[category]}
+          </div>
+        </div>
+
+        <div>
+          <FieldLabel>Provider / app name</FieldLabel>
+          <Input autoFocus value={appName} onChange={e => setAppName(e.target.value)} placeholder="e.g. Sygnum, Metaco, Trulioo…" className="mt-1.5 h-10 text-[13px]" />
+        </div>
+
+        <div>
+          <FieldLabel>Work email</FieldLabel>
+          <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@bank.example" className="mt-1.5 h-10 text-[13px]" />
+        </div>
+
+        <div>
+          <FieldLabel>What do you need it for? (optional)</FieldLabel>
+          <textarea
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            rows={3}
+            placeholder="How you’d use this integration…"
+            className="mt-1.5 w-full resize-none rounded-md border border-input-border bg-input px-3 py-2 text-[13px] text-foreground outline-none placeholder:text-subtle-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+          />
+        </div>
+      </div>
+
+      <div className="border-t border-border px-5 py-3">
+        <Button onClick={submit} loading={submitting} loadingText="Sending…" size="lg" className="w-full gap-1.5">
+          <Plus className="size-4" /> Send request
+        </Button>
+      </div>
+    </>
   )
 }
 
@@ -342,8 +436,8 @@ function EmptyState({ onConnect, onBrowseAll }: { onConnect: (p: Provider) => vo
 
 // ── Apps catalogue ────────────────────────────────────────────────────────────
 
-function AppsCatalog({ query, connections, onConnect, onOpenDetail }: {
-  query: string; connections: Connection[]; onConnect: (p: Provider) => void; onOpenDetail: (id: string) => void
+function AppsCatalog({ query, connections, onConnect, onOpenDetail, onRequest }: {
+  query: string; connections: Connection[]; onConnect: (p: Provider) => void; onOpenDetail: (id: string) => void; onRequest: (cat: IntegrationCategory) => void
 }) {
   const connByProvider = useMemo(() => {
     const m = new Map<string, Connection>()
@@ -400,11 +494,28 @@ function AppsCatalog({ query, connections, onConnect, onOpenDetail }: {
                   </div>
                 )
               })}
+              <RequestCard onRequest={() => onRequest(cat)} />
             </div>
           </div>
         )
       })}
     </div>
+  )
+}
+
+function RequestCard({ onRequest }: { onRequest: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onRequest}
+      className="flex min-h-[128px] flex-col items-start justify-center rounded-xl border border-dashed border-border bg-transparent p-4 text-left transition-colors hover:border-muted-foreground/50 hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+    >
+      <span className="grid size-9 place-items-center rounded-lg bg-muted text-muted-foreground">
+        <Plus className="size-4.5" />
+      </span>
+      <div className="mt-2 text-[13px] font-semibold text-foreground">Request an integration</div>
+      <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">Don’t see the provider you use? Ask us to add it.</p>
+    </button>
   )
 }
 
