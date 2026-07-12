@@ -228,7 +228,7 @@ function BadgePanel({ identityKey }: { identityKey: string | null }) {
             {copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
           </button>
         </div>
-        <p className="text-[12.5px] text-muted-foreground">
+        <p className="text-balance text-[12.5px] text-muted-foreground">
           Your Badge is a cryptographically verified digital identifier, authenticated by your wallet. There's no password to manage; to sign out, disconnect in your wallet.
         </p>
       </div>

@@ -22,6 +22,8 @@ import {
   type SystemRole, type PersonStatus,
 } from '../../lib/entities'
 import { useCompanyLogo } from '../../lib/companyLogo'
+import { useOnboarding } from '../../lib/onboarding'
+import { CompanyAvatar } from '../ui/company-avatar'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Sheet, SheetContent, SheetTitle } from '../ui/sheet'
@@ -47,8 +49,14 @@ const fmtActive = (iso: string): string => {
 function Monogram({ entity, size = 40 }: { entity: Pick<Entity, 'id' | 'monogram' | 'color' | 'own'>; size?: number }) {
   const [broken, setBroken] = useState(false)
   const companyLogo = useCompanyLogo()
+  const { entity: onb } = useOnboarding()
   const logo = entity.own ? companyLogo : entityLogo(entity.id)
   const showLogo = logo != null && !broken
+  // Own organisation with no uploaded logo falls back to a Bauhaus tile,
+  // matching the Company settings page; external orgs fall back to a monogram.
+  if (!showLogo && entity.own) {
+    return <CompanyAvatar name={onb?.legalName || 'Your organisation'} size={size} className="shrink-0 rounded-lg" />
+  }
   return (
     <span
       className="grid shrink-0 place-items-center overflow-hidden rounded-lg border border-border/60 font-semibold text-white"

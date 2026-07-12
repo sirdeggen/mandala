@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { Building2, Lock, ArrowRight, Users, Plus, Camera } from 'lucide-react'
 import { useOnboarding, updateProfile, isReviewerRole } from '../../lib/onboarding'
 import { useCompanyLogo, setCompanyLogo } from '../../lib/companyLogo'
+import { CompanyAvatar } from '@/components/ui/company-avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -78,7 +79,7 @@ export default function CompanySettings() {
               <span className="grid size-16 place-items-center overflow-hidden rounded-xl border border-border bg-card">
                 {logo != null
                   ? <img src={logo} alt="" className="h-[70%] w-[70%] object-contain" />
-                  : <Building2 className="size-6 text-muted-foreground" />}
+                  : <CompanyAvatar name={entity?.legalName || 'Your organisation'} size={64} />}
               </span>
               {isAdmin && (
                 <>
