@@ -124,7 +124,7 @@ function DirectoryCard({ issuerKey, query }: { issuerKey: string; query: string 
   return (
     <Link
       to={`/transparency/${encodeURIComponent(issuerKey)}`}
-      className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-card)] transition-colors hover:bg-muted/40"
+      className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-card)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-card hover:shadow-[0_10px_24px_-12px_rgba(16,24,40,0.25)]"
     >
       <CompanyAvatar name={name} size={40} className="rounded-lg" />
       <div className="min-w-0 flex-1">
@@ -222,7 +222,7 @@ function InstrumentRow({ issuer, assetId }: { issuer: string; assetId: string })
   return (
     <Link
       to={`/transparency/${encodeURIComponent(issuer)}/${encodeURIComponent(assetId)}`}
-      className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-card)] transition-colors hover:bg-muted/40"
+      className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-card)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-card hover:shadow-[0_10px_24px_-12px_rgba(16,24,40,0.25)]"
     >
       <InstrumentIcon assetId={assetId} size={40} className="rounded-lg" image={asset != null ? assetImage(asset) : undefined} />
       <div className="min-w-0 flex-1">
