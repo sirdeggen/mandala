@@ -10,6 +10,7 @@ import { AdminAsset } from '@bsv/mandala/assets'
 import { useAdminAssets, useInvalidateAdminAssets } from '../../hooks/useAdminAssets'
 import { useAdminSummary } from '../../hooks/useAdminHistory'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
+import { recordOrgName } from '../../lib/orgDirectory'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { useUserAvatar } from '../../lib/userAvatar'
 import {
@@ -281,8 +282,14 @@ const VALID_SECTIONS = ['home', 'overview', 'relationships', 'compliance', 'repo
 
 export default function IssuerDashboard() {
   const { identityKey } = useWallet()
-  const { name: onboardingName, role: onboardingRole } = useOnboarding()
+  const { name: onboardingName, role: onboardingRole, entity } = useOnboarding()
   const navigate = useNavigate()
+
+  // Keep the org directory current so reviewers / public pages resolve this
+  // issuer's key to their real name (covers profiles onboarded before it existed).
+  useEffect(() => {
+    if (identityKey != null && entity?.legalName) recordOrgName(identityKey, entity.legalName)
+  }, [identityKey, entity?.legalName])
   const params = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: assetsData } = useAdminAssets()

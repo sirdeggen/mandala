@@ -14,6 +14,7 @@ import { useWallet } from '../../context/WalletContext'
 import { useOnboarding } from '../../lib/onboarding'
 import { useUserAvatar } from '../../lib/userAvatar'
 import { useWatchlist, toggleWatch } from '../../lib/watchlist'
+import { useOrgName } from '../../lib/orgDirectory'
 import { useDiscoverInstruments, type DiscoveredEntity } from '../../hooks/useDiscoverInstruments'
 import { useAssetMetadata } from '../../hooks/usePublicInstrument'
 import { useAdminSummary } from '../../hooks/useAdminHistory'
@@ -37,7 +38,6 @@ type Section = 'discover' | 'instrument' | 'settings'
 const VALID: Section[] = ['discover', 'instrument', 'settings']
 
 const compact = (n: number) => Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n)
-const shortKey = (k: string) => (k.length > 14 ? `${k.slice(0, 8)}…${k.slice(-4)}` : k)
 
 /** Minimal AdminAsset synthesised from public metadata for read-only reuse. */
 function publicAsset(assetId: string, meta: { label?: string; ticker?: unknown; decimals?: unknown } | null): AdminAsset {
@@ -203,11 +203,11 @@ function DiscoverPanel({ onOpen }: { onOpen: (id: string) => void }) {
 }
 
 function EntityGroup({ entity, onOpen }: { entity: DiscoveredEntity; onOpen: (id: string) => void }) {
-  const entityName = entity.issuerKey === 'unknown' || entity.issuerKey === '' ? 'Unknown issuer' : `Issuer ${shortKey(entity.issuerKey)}`
+  const entityName = useOrgName(entity.issuerKey)
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">
-        <CompanyAvatar name={entity.issuerKey || 'unknown'} size={24} className="rounded-md" />
+        <CompanyAvatar name={entityName} size={24} className="rounded-md" />
         <span className="text-[13px] font-semibold text-foreground">{entityName}</span>
         <span className="text-[12px] text-muted-foreground">· {entity.instruments.length} instrument{entity.instruments.length === 1 ? '' : 's'}</span>
       </div>

@@ -15,6 +15,7 @@ import { usePublicReserve } from '../lib/publicReserve'
 import { useTransparencyPublished, usePublishedMap } from '../lib/transparencySettings'
 import { useDiscoverInstruments } from '../hooks/useDiscoverInstruments'
 import { useAssetMetadata } from '../hooks/usePublicInstrument'
+import { useOrgName } from '../lib/orgDirectory'
 import { InstrumentTransparencyView } from './transparency/InstrumentTransparencyView'
 import { BrandMark } from './ui/BrandMark'
 import { CompanyAvatar } from '@/components/ui/company-avatar'
@@ -22,8 +23,6 @@ import { Spinner } from './ui/spinner'
 import { cn } from '@/lib/utils'
 
 const compact = (n: number) => Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n)
-const shortKey = (k: string) => (k.length > 14 ? `${k.slice(0, 8)}…${k.slice(-4)}` : k)
-const orgName = (issuerKey: string) => (issuerKey === '' || issuerKey === 'unknown' ? 'Unknown issuer' : `Issuer ${shortKey(issuerKey)}`)
 
 // ── Shared chrome ─────────────────────────────────────────────────────────────
 
@@ -84,20 +83,7 @@ export function TransparencyOverview() {
         <p className="mt-10 rounded-xl border border-dashed border-border px-4 py-12 text-center text-[13.5px] text-muted-foreground">No instruments in circulation yet.</p>
       ) : (
         <div className="mt-8 space-y-3">
-          {entities.map(e => (
-            <Link
-              key={e.issuerKey}
-              to={`/transparency/org/${encodeURIComponent(e.issuerKey || 'unknown')}`}
-              className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-card)] transition-colors hover:bg-muted/40"
-            >
-              <CompanyAvatar name={e.issuerKey || 'unknown'} size={40} className="rounded-lg" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[15px] font-semibold text-foreground">{orgName(e.issuerKey)}</div>
-                <div className="text-[12.5px] text-muted-foreground">{e.instruments.length} instrument{e.instruments.length === 1 ? '' : 's'}</div>
-              </div>
-              <ChevronRight className="size-4 shrink-0 text-faint-foreground" />
-            </Link>
-          ))}
+          {entities.map(e => <OrgCard key={e.issuerKey} issuerKey={e.issuerKey} count={e.instruments.length} />)}
         </div>
       )}
 
@@ -113,12 +99,30 @@ export function TransparencyOverview() {
   )
 }
 
+function OrgCard({ issuerKey, count }: { issuerKey: string; count: number }) {
+  const name = useOrgName(issuerKey)
+  return (
+    <Link
+      to={`/transparency/org/${encodeURIComponent(issuerKey || 'unknown')}`}
+      className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-card)] transition-colors hover:bg-muted/40"
+    >
+      <CompanyAvatar name={name} size={40} className="rounded-lg" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[15px] font-semibold text-foreground">{name}</div>
+        <div className="text-[12.5px] text-muted-foreground">{count} instrument{count === 1 ? '' : 's'}</div>
+      </div>
+      <ChevronRight className="size-4 shrink-0 text-faint-foreground" />
+    </Link>
+  )
+}
+
 // ── Org page ─────────────────────────────────────────────────────────────────
 
 export function TransparencyOrg() {
   const { issuer = '' } = useParams()
   const { data, isLoading } = useDiscoverInstruments()
   const published = usePublishedMap()
+  const name = useOrgName(issuer)
 
   const entity = data?.entities.find(e => (e.issuerKey || 'unknown') === issuer)
   const instruments = (entity?.instruments ?? []).filter(i => published[i.assetId] !== false)
@@ -130,9 +134,9 @@ export function TransparencyOrg() {
       </Link>
 
       <div className="flex items-center gap-3">
-        <CompanyAvatar name={issuer || 'unknown'} size={44} className="rounded-xl" />
+        <CompanyAvatar name={name} size={44} className="rounded-xl" />
         <div>
-          <h1 className="text-[22px] font-semibold tracking-[-0.01em] text-foreground">{orgName(issuer)}</h1>
+          <h1 className="text-[22px] font-semibold tracking-[-0.01em] text-foreground">{name}</h1>
           <div className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground"><Building2 className="size-3.5" /> Issuing entity</div>
         </div>
       </div>

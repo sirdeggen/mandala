@@ -10,6 +10,7 @@ import { IdentitySigil } from '@/components/ui/identity-sigil'
 import { cn } from '@/lib/utils'
 import { CompanyAvatar } from '@/components/ui/company-avatar'
 import { completeOnboarding, type OnboardingRole } from '@/lib/onboarding'
+import { recordOrgName } from '@/lib/orgDirectory'
 import { useWallet } from '@/context/WalletContext'
 
 /**
@@ -96,13 +97,17 @@ export default function OnboardingWizard() {
   const canContinueRole = role != null && (role === 'individual' || name.trim().length > 0)
 
   function complete() {
+    const orgLegalName = legalName.trim() || name.trim()
+    // Record this issuer's org name against their identity so reviewers and the
+    // public transparency pages show a real name instead of a raw key.
+    if (role === 'issuer') recordOrgName(identityKey, orgLegalName)
     completeOnboarding({
       role,
       name: name.trim(),
       email: '',
       title: '',
       entity: role === 'issuer'
-        ? { legalName: legalName.trim() || name.trim(), country, address: inferred ? `${inferred.street}, ${inferred.city} ${postalCode.trim()}` : postalCode.trim() }
+        ? { legalName: orgLegalName, country, address: inferred ? `${inferred.street}, ${inferred.city} ${postalCode.trim()}` : postalCode.trim() }
         : null
     })
   }
