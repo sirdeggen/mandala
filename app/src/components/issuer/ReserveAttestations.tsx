@@ -67,11 +67,14 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
       />
 
       {/* Transparency summary */}
-      <div className={cn('rounded-xl border p-4', fullyBacked ? 'border-success/30 bg-success/5' : 'border-warning/30 bg-warning/5')}>
+      <div className={cn('relative overflow-hidden rounded-xl border p-4', fullyBacked ? 'border-success/30 bg-success/5' : 'border-warning/30 bg-warning/5')}>
+        {/* Subtle diagonal tint - green when backed, red when under-collateralised */}
+        <div aria-hidden className={cn('pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent', fullyBacked ? 'from-success/12' : 'from-destructive/12')} />
+        <div className="relative">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className={cn('grid size-10 place-items-center rounded-xl', fullyBacked ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning')}>
-              <ShieldCheck className="size-5" strokeWidth={2} />
+              {fullyBacked ? <ShieldCheck className="size-5" strokeWidth={2} /> : <AlertTriangle className="size-5" strokeWidth={2} />}
             </div>
             <div>
               <div className="text-[22px] font-semibold leading-none tracking-[-0.02em] tabular text-foreground">
@@ -102,6 +105,7 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
           ) : (
             <span>Awaiting an auditor-signed attestation.</span>
           )}
+        </div>
         </div>
       </div>
 

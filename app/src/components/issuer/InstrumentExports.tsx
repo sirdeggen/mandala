@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
-  Eye, Download, Trash2, X,
+  Eye, Trash2, X,
   ListOrdered, Layers, BadgeCheck, HandCoins, ShieldAlert, Link2, GaugeCircle, Lock,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { ExportFormatPicker } from './ExportFormatPicker'
+import { DownloadSignoffButton } from './DownloadSignoffButton'
 import { ReportCell, isNowrapColumn } from './ReportCell'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useOverlayActivity } from '../../hooks/useOverlayActivity'
@@ -82,19 +83,18 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
     formats.forEach(f => exportBundle(`${scopeLabel} all reports`, f, sections))
   }
 
-  // Download the selected file types and log the export (re-downloadable below).
+  // The picker only logs the export to Recent exports; the actual download is a
+  // controlled, wallet-signed action taken from the Recent exports row.
   const runReport = (r: ReportView, formats: ExportFormat[]) => {
     if (r.table.rows.length === 0) { toast.error('No rows to export yet.'); return }
-    doDownloadReport(r, formats)
     logExport({ assetId, reportKey: r.key, reportName: r.name, formats, rowCount: r.table.rows.length })
-    toast.success(`Exported ${r.name} · ${fmtList(formats)}`)
+    toast.success(`${r.name} added to Recent exports`, { description: `Sign off below to download (${fmtList(formats)}).` })
   }
   const runAll = (formats: ExportFormat[]) => {
     const rows = reports.reduce((n, r) => n + r.table.rows.length, 0)
     if (rows === 0) { toast.error('Nothing to export yet.'); return }
-    doDownloadAll(formats)
     logExport({ assetId, reportKey: 'summary', reportName: 'All reports', formats, rowCount: rows, bundle: true })
-    toast.success(`Exported all reports · ${fmtList(formats)}`)
+    toast.success(`All reports added to Recent exports`, { description: `Sign off below to download (${fmtList(formats)}).` })
   }
 
   return (
@@ -166,16 +166,10 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
                   <div className="text-right tabular text-muted-foreground">{h.rowCount}</div>
                   <div className="truncate text-right text-[11.5px] text-subtle-foreground">{fmtDate(h.createdAt)}</div>
                   <div className="flex justify-end gap-1">
-                    <button
-                      type="button"
-                      aria-label="Download all files"
-                      title={`Download ${fmtList(h.formats)}`}
-                      disabled={!h.bundle && report == null}
-                      onClick={() => { if (h.bundle) doDownloadAll(h.formats); else if (report != null) doDownloadReport(report, h.formats) }}
-                      className="grid size-7 place-items-center rounded border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
-                    >
-                      <Download className="size-3.5" />
-                    </button>
+                    <DownloadSignoffButton
+                      record={h}
+                      onDownload={() => { if (h.bundle) doDownloadAll(h.formats); else if (report != null) doDownloadReport(report, h.formats) }}
+                    />
                     <button
                       type="button"
                       aria-label="Delete"

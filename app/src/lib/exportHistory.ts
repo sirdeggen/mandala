@@ -17,6 +17,8 @@ export interface ExportRecord {
   createdAt: string   // ISO
   /** True when this record is a bundle of every report, not a single one. */
   bundle?: boolean
+  /** Wallet-signed, on-chain-anchored authorisations each time it was downloaded. */
+  downloads?: { txid: string; at: string }[]
 }
 
 const KEY = 'underwrite.exportHistory.v2'
@@ -56,6 +58,13 @@ export function logExport(rec: Omit<ExportRecord, 'id' | 'createdAt'>): void {
 
 export function removeExport(id: string): void {
   persist(current.filter(e => e.id !== id))
+}
+
+/** Record a wallet-signed, on-chain-anchored download authorisation. */
+export function recordDownloadAuth(id: string, txid: string): void {
+  persist(current.map(e => e.id === id
+    ? { ...e, downloads: [{ txid, at: new Date().toISOString() }, ...(e.downloads ?? [])] }
+    : e))
 }
 
 export function useExportHistory(assetId: string): ExportRecord[] {

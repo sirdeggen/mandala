@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Search, Download, Trash2 } from 'lucide-react'
+import { Search, Trash2 } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
 import type { ActivityEntry } from '@bsv/mandala/overlayActivity'
 import { useAdminAssets } from '../../hooks/useAdminAssets'
@@ -16,6 +16,7 @@ import { exportReport, exportBundle, FORMAT_LABEL, type ReportTable, type Export
 import { logExport, removeExport, useExportHistory } from '../../lib/exportHistory'
 import { YearSelect, availableYears } from './YearSelect'
 import { ExportFormatPicker } from './ExportFormatPicker'
+import { DownloadSignoffButton } from './DownloadSignoffButton'
 import { PopoverSelect } from './PopoverSelect'
 import { ReportCell, isNowrapColumn } from './ReportCell'
 import { Input } from '../ui/input'
@@ -144,22 +145,21 @@ export default function ReportsPage() {
     formats.forEach(f => exportBundle(`${scopeName} all reports ${periodName}`, f, sections))
   }
 
-  // Download the selected file types and log the export (re-downloadable below).
+  // The picker only logs to Recent exports; downloading is a wallet-signed,
+  // on-chain-anchored action taken from the Recent exports row.
   const exportOne = (key: ReportKey, formats: ExportFormat[]) => {
     const spec = REPORT_SPECS.find(s => s.key === key)!
     const table = tablesByKey[key]
     if (table.rows.length === 0) { toast.error('No rows to export.'); return }
-    downloadOne(key, formats)
     logExport({ assetId: historyAssetId, reportKey: key, reportName: `${scopeName} · ${spec.name}`, formats, rowCount: table.rows.length })
-    toast.success(`Exported ${spec.name} · ${fmtList(formats)}`)
+    toast.success(`${spec.name} added to Recent exports`, { description: `Sign off to download (${fmtList(formats)}).` })
   }
 
   const exportAll = (formats: ExportFormat[]) => {
     const rows = REPORT_SPECS.reduce((n, s) => n + tablesByKey[s.key].rows.length, 0)
     if (rows === 0) { toast.error('No rows to export for this selection.'); return }
-    downloadAllBundle(formats)
     logExport({ assetId: historyAssetId, reportKey: 'summary', reportName: `${scopeName} · all reports`, formats, rowCount: rows, bundle: true })
-    toast.success(`Exported all reports · ${fmtList(formats)}`)
+    toast.success(`All reports added to Recent exports`, { description: `Sign off to download (${fmtList(formats)}).` })
   }
 
   if (assets.length === 0) {
@@ -307,15 +307,10 @@ export default function ReportsPage() {
                       <div className="text-right tabular text-muted-foreground">{h.rowCount}</div>
                       <div className="truncate text-right text-[11.5px] text-subtle-foreground">{fmtDateTime(h.createdAt)}</div>
                       <div className="flex justify-end gap-1">
-                        <button
-                          type="button"
-                          aria-label="Download all files"
-                          title={`Download ${fmtList(h.formats)}`}
-                          onClick={() => { if (h.bundle) downloadAllBundle(h.formats); else downloadOne(h.reportKey as ReportKey, h.formats) }}
-                          className="grid size-7 place-items-center rounded border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        >
-                          <Download className="size-3.5" />
-                        </button>
+                        <DownloadSignoffButton
+                          record={h}
+                          onDownload={() => { if (h.bundle) downloadAllBundle(h.formats); else downloadOne(h.reportKey as ReportKey, h.formats) }}
+                        />
                         <button
                           type="button"
                           aria-label="Delete"

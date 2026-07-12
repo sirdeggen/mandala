@@ -64,7 +64,7 @@ export default function ComplianceOverview({ onOpenInstrument }: {
       </div>
 
       {/* Summary tiles - inset on a light panel */}
-      <div className="grid grid-cols-2 gap-3 rounded-xl bg-sidebar p-3 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 rounded-xl bg-sidebar p-3 sm:grid-cols-3 lg:grid-cols-4">
         <Tile Icon={Layers} label="Instruments" value={String(assets.length)} />
         <Tile Icon={ShieldCheck} label="Fully backed" value={`${backedCount}/${assets.length}`} tone={assets.length > 0 && backedCount === assets.length ? 'success' : 'warning'} />
         <Tile Icon={ClipboardCheck} label="Attestations to sign" value={String(pendingAtt.length)} tone={pendingAtt.length > 0 ? 'warning' : undefined} />
