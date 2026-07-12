@@ -131,7 +131,7 @@ export default function OnboardingWizard() {
                     id="ob-name"
                     autoFocus
                     autoComplete="off"
-                    placeholder="Your name"
+                    placeholder="e.g. Dr. Anna Weber, Head of Issuance"
                     value={name}
                     onChange={e => setName(e.target.value)}
                   />
