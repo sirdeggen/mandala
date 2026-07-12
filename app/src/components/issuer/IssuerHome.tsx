@@ -279,7 +279,7 @@ function TemplateCard({ template, index, onUse }: {
         className="absolute inset-0 h-full w-full bg-muted object-cover transition-transform duration-500 group-hover:scale-[1.05]"
       />
       {/* Dark → transparent gradient the label sits on */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent" />
 
       {/* Icon glyph */}
       <span className="absolute left-3 top-3 grid size-7 place-items-center rounded-lg bg-black/35 text-white backdrop-blur-sm">
@@ -295,7 +295,7 @@ function TemplateCard({ template, index, onUse }: {
 
       {/* Label over the gradient */}
       <div className="absolute inset-x-0 bottom-0 p-4">
-        <p className="text-[10.5px] font-semibold uppercase tracking-[0.7px] text-white/70">{template.category}</p>
+        <p className="text-[10.5px] font-semibold uppercase tracking-[0.7px] text-white/90">{template.category}</p>
         <p className="mt-0.5 flex items-center gap-2 text-[16px] font-semibold leading-tight text-white">
           {template.flag != null && (
             <span className={`fi fi-${template.flag} shrink-0 rounded-[3px] shadow-sm`} aria-hidden="true" />
