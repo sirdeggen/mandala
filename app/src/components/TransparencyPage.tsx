@@ -19,10 +19,11 @@ import { useEntityTransparency, useListedEntityKeys } from '../lib/orgTransparen
 import { useDiscoverInstruments } from '../hooks/useDiscoverInstruments'
 import { useAssetMetadata } from '../hooks/usePublicInstrument'
 import { useOrgName } from '../lib/orgDirectory'
-import { flagForTicker } from '../lib/instrumentCategory'
+import { flagForTicker, assetImage } from '../lib/instrumentCategory'
 import 'flag-icons/css/flag-icons.min.css'
 import { InstrumentTransparencyView } from './transparency/InstrumentTransparencyView'
 import { BrandMark } from './ui/BrandMark'
+import { InstrumentIcon } from '@/components/ui/instrument-icon'
 import { CompanyAvatar } from '@/components/ui/company-avatar'
 import { Input } from '@/components/ui/input'
 import { Spinner } from './ui/spinner'
@@ -32,12 +33,19 @@ const compact = (n: number) => Intl.NumberFormat('en-US', { notation: 'compact',
 
 // ── Shared chrome ─────────────────────────────────────────────────────────────
 
-function Chrome({ issuerKey, children }: { issuerKey?: string; children: React.ReactNode }) {
+function Chrome({ issuerKey, background = false, children }: { issuerKey?: string; background?: boolean; children: React.ReactNode }) {
   const orgName = useOrgName(issuerKey ?? '')
   const showOrg = issuerKey != null && issuerKey !== ''
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
+    <div className={cn('relative min-h-screen', !background && 'bg-background')}>
+      {background && (
+        <div aria-hidden className="pointer-events-none fixed inset-0 z-0">
+          <img src="/backgrounds/transparencybg.jpg" alt="" className="h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-background/72 backdrop-blur-sm" />
+        </div>
+      )}
+      <div className="relative z-10">
+      <header className="border-b border-border bg-card/95 backdrop-blur">
         <div className="mx-auto flex max-w-5xl flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <Link to={showOrg ? `/transparency/${encodeURIComponent(issuerKey!)}` : '/transparency'} className="flex items-center gap-3">
             {showOrg ? <CompanyAvatar name={orgName} size={40} className="rounded-lg" /> : <BrandMark />}
@@ -54,11 +62,12 @@ function Chrome({ issuerKey, children }: { issuerKey?: string; children: React.R
       </header>
       <main className="mx-auto max-w-5xl px-5 py-8 sm:px-8">{children}</main>
       <footer className="py-6">
-        <a href="/" className="mx-auto flex w-fit items-center gap-2 text-[12.5px] font-medium text-muted-foreground transition-colors hover:text-foreground">
+        <a href="/" className="mx-auto flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-[12.5px] font-medium text-muted-foreground shadow-[var(--shadow-card)] transition-colors hover:text-foreground">
           <img src="/icon-192.png" alt="" aria-hidden className="size-5 rounded" />
           Powered by <span className="font-handwritten text-[17px] font-bold leading-none text-foreground">Underwrite</span>
         </a>
       </footer>
+      </div>
     </div>
   )
 }
@@ -80,18 +89,18 @@ export function TransparencyDirectory() {
       </p>
 
       <div className="relative mt-6 max-w-md">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint-foreground" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Search by institution name or identity key"
+          placeholder="Search by institution name or entity ID"
           className="pl-9"
         />
       </div>
 
       {looksLikeKey && (
         <Link to={`/transparency/${encodeURIComponent(query.trim())}`} className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-medium text-primary hover:underline">
-          Open entity page for this identity key <ChevronRight className="size-4" />
+          Open entity page for this entity ID <ChevronRight className="size-4" />
         </Link>
       )}
 
@@ -142,8 +151,10 @@ function EntityFlags({ issuerKey }: { issuerKey: string }) {
 }
 
 function AssetFlag({ assetId }: { assetId: string }) {
+  const asset = (useAdminAssets().data ?? []).find(a => a.assetId === assetId) ?? null
   const meta = useAssetMetadata(assetId)
-  const flag = flagForTicker(meta.data?.ticker as string | undefined)
+  const ticker = String(asset?.metadata?.ticker ?? meta.data?.ticker ?? '')
+  const flag = flagForTicker(ticker)
   if (flag == null) return null
   return <span className={`fi fi-${flag} rounded-[2px] shadow-sm`} style={{ width: 18, height: 13 }} aria-hidden />
 }
@@ -161,7 +172,7 @@ export function TransparencyOrg() {
   const instruments = (group?.instruments ?? []).filter(i => published[i.assetId] === true)
 
   return (
-    <Chrome issuerKey={issuer}>
+    <Chrome issuerKey={issuer} background={entity.published}>
       <Link to="/transparency" className="mb-6 inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground">
         <ArrowLeft className="size-4" /> Directory
       </Link>
@@ -192,13 +203,16 @@ export function TransparencyOrg() {
   )
 }
 
-/** One instrument row on an entity page: public metadata + supply + backing. */
+/** One instrument row on an entity page: prefers the in-browser admin asset
+ *  (richer metadata + icon), falling back to the public genesis lookup. */
 function InstrumentRow({ issuer, assetId }: { issuer: string; assetId: string }) {
+  const asset = (useAdminAssets().data ?? []).find(a => a.assetId === assetId) ?? null
   const meta = useAssetMetadata(assetId)
   const summary = useAdminSummary(assetId).data
-  const label = meta.data?.label ?? 'Instrument'
-  const ticker = String(meta.data?.ticker ?? '').toUpperCase()
-  const decimals = Number(meta.data?.decimals ?? 0) || 0
+  const label = asset?.label ?? meta.data?.label ?? 'Instrument'
+  const ticker = String(asset?.metadata?.ticker ?? meta.data?.ticker ?? '').toUpperCase()
+  const decimals = Number(asset?.metadata?.decimals ?? meta.data?.decimals ?? 0) || 0
+  const flag = flagForTicker(ticker)
   const circulation = summary != null ? (summary.totalIssued - summary.totalRedeemed) / 10 ** decimals : 0
   const reserve = usePublicReserve(assetId, circulation)
   const backing = circulation > 0 ? (reserve.total / circulation) * 100 : (reserve.total > 0 ? 100 : null)
@@ -209,9 +223,12 @@ function InstrumentRow({ issuer, assetId }: { issuer: string; assetId: string })
       to={`/transparency/${encodeURIComponent(issuer)}/${encodeURIComponent(assetId)}`}
       className="flex items-center gap-4 rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-card)] transition-colors hover:bg-muted/40"
     >
-      <CompanyAvatar name={label} size={40} className="rounded-lg" />
+      <InstrumentIcon assetId={assetId} size={40} className="rounded-lg" image={asset != null ? assetImage(asset) : undefined} />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[15px] font-semibold text-foreground">{label}</div>
+        <div className="flex items-center gap-2">
+          <span className="truncate text-[15px] font-semibold text-foreground">{label}</span>
+          {flag != null && <span className={`fi fi-${flag} shrink-0 rounded-[2px] shadow-sm`} style={{ width: 18, height: 13 }} aria-hidden />}
+        </div>
         <div className="text-[12.5px] text-muted-foreground">{compact(circulation)} {ticker} in circulation</div>
       </div>
       <span className={cn('hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold sm:inline-flex',
@@ -235,7 +252,7 @@ export function TransparencyInstrument() {
   const unknown = asset == null && meta.data == null && !meta.isLoading
 
   return (
-    <Chrome issuerKey={issuer}>
+    <Chrome issuerKey={issuer} background={published}>
       <Link to={`/transparency/${encodeURIComponent(issuer)}`} className="mb-6 inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground">
         <ArrowLeft className="size-4" /> {name}
       </Link>
