@@ -39,9 +39,11 @@ export default function AccountSettings() {
 
 // ── Collapsible disclosure ────────────────────────────────────────────────────
 
-function Disclosure({ title, children, defaultOpen = false }: {
+function Disclosure({ title, children, summary, defaultOpen = false }: {
   title: string
   children: React.ReactNode
+  /** One-line summary shown in the header while collapsed. */
+  summary?: React.ReactNode
   defaultOpen?: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -51,9 +53,12 @@ function Disclosure({ title, children, defaultOpen = false }: {
         type="button"
         onClick={() => setOpen(o => !o)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between px-4 py-3.5 text-left"
+        className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left"
       >
-        <span className="text-[14px] font-medium text-foreground">{title}</span>
+        <span className="min-w-0">
+          <span className="block text-[14px] font-medium text-foreground">{title}</span>
+          {!open && summary != null && <span className="mt-0.5 block truncate text-[12.5px] text-muted-foreground">{summary}</span>}
+        </span>
         <ChevronDown className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
       </button>
       {open && <div className="space-y-5 border-t border-border px-4 py-5">{children}</div>}
@@ -80,6 +85,7 @@ function ProfilePanel() {
   const isAdmin = !isReviewerRole(role)
   const systemRole = isAdmin ? 'admin' : 'auditor'
   const permissions = ROLE_DEFAULT_PERMISSIONS[systemRole]
+  const licensing = useActiveIntegration('licensing')
 
   function save(e: React.FormEvent) {
     e.preventDefault()
@@ -98,8 +104,15 @@ function ProfilePanel() {
     reader.readAsDataURL(file)
   }
 
+  const profileSummary = `${nameDraft.trim() || 'Your account'}${titleDraft.trim() !== '' ? ` · ${titleDraft.trim()}` : ''}`
+  const accessSummary = `${SYSTEM_ROLE_LABEL[systemRole]} · ${permissions.length} permission${permissions.length === 1 ? '' : 's'}`
+  const badgeSummary = identityKey != null
+    ? `${shortKey(identityKey)} · ${licensing != null ? `Authorised by ${licensing.providerName}` : 'Not yet authorised'}`
+    : 'No Badge connected'
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
+      <Disclosure title="Profile" defaultOpen summary={profileSummary}>
       <form onSubmit={save} className="space-y-6">
         <div className="flex items-center gap-4">
           <div className="group relative size-14 shrink-0">
@@ -144,36 +157,34 @@ function ProfilePanel() {
 
         <Button type="submit" disabled={!dirty}>Update</Button>
       </form>
+      </Disclosure>
 
       {/* Access - role, status & permissions within the organisation (read-only) */}
-      <div className="space-y-2">
-        <Label>Access</Label>
-        <div className="space-y-4 rounded-xl border border-border p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11.5px] font-medium text-primary">{SYSTEM_ROLE_LABEL[systemRole]}</span>
-            <span className="inline-flex items-center gap-1 text-[11.5px] font-medium text-success"><span className="size-1.5 rounded-full bg-current" /> Active</span>
-          </div>
-          <div className="space-y-0.5">
-            {ALL_PERMISSIONS.map(perm => {
-              const on = permissions.includes(perm)
-              return (
-                <div key={perm} className="flex items-start gap-2.5 py-1.5">
-                  <span className={cn('mt-0.5 grid size-[18px] shrink-0 place-items-center rounded-[5px] border', on ? 'border-primary bg-primary text-primary-foreground' : 'border-input-border bg-input')}>
-                    {on && <Check className="size-3" strokeWidth={3} />}
-                  </span>
-                  <span className={cn('min-w-0', !on && 'opacity-50')}>
-                    <span className="block text-[13px] font-medium text-foreground">{PERMISSION_LABEL[perm]}</span>
-                    <span className="block text-[11.5px] leading-snug text-muted-foreground">{PERMISSION_DESCRIPTION[perm]}</span>
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-          <p className="text-[11.5px] text-faint-foreground">Your role and permissions are assigned by your company administrator.</p>
+      <Disclosure title="Access" summary={accessSummary}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11.5px] font-medium text-primary">{SYSTEM_ROLE_LABEL[systemRole]}</span>
+          <span className="inline-flex items-center gap-1 text-[11.5px] font-medium text-success"><span className="size-1.5 rounded-full bg-current" /> Active</span>
         </div>
-      </div>
+        <div className="space-y-0.5">
+          {ALL_PERMISSIONS.map(perm => {
+            const on = permissions.includes(perm)
+            return (
+              <div key={perm} className="flex items-start gap-2.5 py-1.5">
+                <span className={cn('mt-0.5 grid size-[18px] shrink-0 place-items-center rounded-[5px] border', on ? 'border-primary bg-primary text-primary-foreground' : 'border-input-border bg-input')}>
+                  {on && <Check className="size-3" strokeWidth={3} />}
+                </span>
+                <span className={cn('min-w-0', !on && 'opacity-50')}>
+                  <span className="block text-[13px] font-medium text-foreground">{PERMISSION_LABEL[perm]}</span>
+                  <span className="block text-[11.5px] leading-snug text-muted-foreground">{PERMISSION_DESCRIPTION[perm]}</span>
+                </span>
+              </div>
+            )
+          })}
+        </div>
+        <p className="text-[11.5px] text-faint-foreground">Your role and permissions are assigned by your company administrator.</p>
+      </Disclosure>
 
-      <Disclosure title="Badge & authorisation">
+      <Disclosure title="Badge & authorisation" summary={badgeSummary}>
         <BadgePanel identityKey={identityKey} />
       </Disclosure>
     </div>
