@@ -48,6 +48,16 @@ export const PERMISSION_LABEL: Record<Permission, string> = {
   issue: 'Issue', redeem: 'Redeem', attest: 'Attest & sign-off', reserves: 'Manage reserves',
   screening: 'Screening & KYC', controls: 'Freeze & controls', integrations: 'Integrations', reports: 'Reports & exports',
 }
+export const PERMISSION_DESCRIPTION: Record<Permission, string> = {
+  issue: 'Put new units into circulation.',
+  redeem: 'Take units out of circulation at par.',
+  attest: 'Sign reserve attestations and control actions.',
+  reserves: 'Record and manage reserve composition.',
+  screening: 'Screen holders and manage KYC/sanctions.',
+  controls: 'Pause, freeze and manage access controls.',
+  integrations: 'Connect and manage external providers.',
+  reports: 'View and export compliance reports.',
+}
 export const ALL_PERMISSIONS: Permission[] = ['issue', 'redeem', 'attest', 'reserves', 'screening', 'controls', 'integrations', 'reports']
 
 export const ROLE_DEFAULT_PERMISSIONS: Record<SystemRole, Permission[]> = {
@@ -81,6 +91,9 @@ export interface Entity {
   status: EntityStatus
   monogram: string
   color: string
+  /** True for our own organisation - whose members we manage. External orgs
+   *  are view-only (they manage their own members). */
+  own?: boolean
   /** Real product logo bundled under src/assets/entities/<id>.png, if any. */
   domain?: string
   sinceAt: string         // ISO
@@ -121,6 +134,17 @@ function seed(): Entity[] {
     }
   }
   return [
+    {
+      id: 'self', name: 'Your organisation', type: 'reserve-bank', relationship: 'reserve', own: true,
+      jurisdiction: 'Switzerland', status: 'active', monogram: 'YO', color: '#0f172a', sinceAt: days(now, 600),
+      instruments: ['CHFD', 'EURD', 'USDX'],
+      people: [
+        p('Anna Weber', 'Head of Issuance', 'admin', 'active', 0),
+        p('Marc Bianchi', 'Compliance Lead', 'approver', 'active', 3),
+        p('Sofia Meier', 'Treasury Operations', 'operator', 'active', 8),
+        p('Daniel Roth', 'Internal Audit', 'auditor', 'active', 26),
+      ],
+    },
     {
       id: 'sygnum', name: 'Sygnum Bank', type: 'reserve-bank', relationship: 'reserve',
       jurisdiction: 'Switzerland', status: 'active', monogram: 'Sy', color: '#111827', domain: 'sygnum.com', sinceAt: days(now, 420),
@@ -185,31 +209,6 @@ function seed(): Entity[] {
       ],
     },
     {
-      id: 'bitcoinsuisse', name: 'Bitcoin Suisse', type: 'exchange', relationship: 'distribution',
-      jurisdiction: 'Switzerland', status: 'active', monogram: 'BS', color: '#e8622c', domain: 'bitcoinsuisse.com', sinceAt: days(now, 130),
-      instruments: ['CHFD', 'USDX'],
-      people: [
-        p('David Iten', 'Brokerage Desk', 'operator', 'active', 3),
-        p('Priya Nair', 'Onboarding', 'viewer', 'active', 26),
-      ],
-    },
-    {
-      id: 'cumberland', name: 'Cumberland', type: 'market-maker', relationship: 'liquidity',
-      jurisdiction: 'United States', status: 'active', monogram: 'Cu', color: '#0b3d91', domain: 'cumberland.io', sinceAt: days(now, 120),
-      instruments: ['USDX'],
-      people: [
-        p('Camille Girard', 'Liquidity Partner', 'operator', 'active', 12),
-      ],
-    },
-    {
-      id: 'wintermute', name: 'Wintermute', type: 'market-maker', relationship: 'liquidity',
-      jurisdiction: 'United Kingdom', status: 'active', monogram: 'Wi', color: '#00d1b2', domain: 'wintermute.com', sinceAt: days(now, 95),
-      instruments: ['EURD', 'USDX'],
-      people: [
-        p('Louis Favre', 'Trading', 'operator', 'active', 6),
-      ],
-    },
-    {
       id: 'pwc', name: 'PwC Switzerland', type: 'auditor', relationship: 'audit',
       jurisdiction: 'Switzerland', status: 'active', monogram: 'Pw', color: '#d04a02', domain: 'pwc.ch', sinceAt: days(now, 300),
       instruments: ['CHFD', 'EURD', 'USDX'],
@@ -239,7 +238,7 @@ function seed(): Entity[] {
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
-const KEY = 'underwrite.entities.v2'
+const KEY = 'underwrite.entities.v3'
 const listeners = new Set<() => void>()
 
 function read(): Entity[] {

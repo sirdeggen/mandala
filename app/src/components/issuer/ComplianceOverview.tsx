@@ -239,12 +239,14 @@ const TONE = {
 
 function Tile({ Icon, label, value, tone }: { Icon: LucideIcon; label: string; value: string; tone?: keyof typeof TONE }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <span className={cn('grid size-8 place-items-center rounded-lg', tone ? TONE[tone] : 'bg-muted text-muted-foreground')}>
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+      <span className={cn('grid size-9 shrink-0 place-items-center rounded-lg', tone ? TONE[tone] : 'bg-muted text-muted-foreground')}>
         <Icon className="size-4" strokeWidth={2} />
       </span>
-      <div className="mt-3 tabular text-[24px] font-semibold leading-none tracking-[-0.02em] text-foreground">{value}</div>
-      <div className="mt-1 text-[12.5px] text-muted-foreground">{label}</div>
+      <div className="min-w-0">
+        <div className="tabular text-[24px] font-semibold leading-none tracking-[-0.02em] text-foreground">{value}</div>
+        <div className="mt-1 text-[12.5px] text-muted-foreground">{label}</div>
+      </div>
     </div>
   )
 }

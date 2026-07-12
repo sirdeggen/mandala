@@ -17,13 +17,14 @@ import {
   useEntities, useEntity, entityLogo, addEntity, removeEntity, setEntityStatus,
   addPerson, removePerson, setPersonRole, togglePersonPermission, setPersonStatus,
   ENTITY_TYPE_LABEL, RELATIONSHIP_LABEL, ENTITY_STATUS_LABEL, SYSTEM_ROLE_LABEL,
-  PERMISSION_LABEL, ALL_PERMISSIONS, PERSON_STATUS_LABEL,
+  PERMISSION_LABEL, PERMISSION_DESCRIPTION, ALL_PERMISSIONS, PERSON_STATUS_LABEL,
   type Entity, type Person, type EntityType, type RelationshipKind, type EntityStatus,
   type SystemRole, type PersonStatus,
 } from '../../lib/entities'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Sheet, SheetContent, SheetTitle } from '../ui/sheet'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
@@ -90,11 +91,14 @@ function PermissionPill({ perm, on, onClick }: { perm: (typeof ALL_PERMISSIONS)[
       <BadgeCheck className={cn('size-3.5', on ? 'text-success' : 'text-faint-foreground')} strokeWidth={2.4} /> {PERMISSION_LABEL[perm]}
     </>
   )
-  if (onClick == null) {
-    return <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11.5px] font-medium', cls)}>{inner}</span>
-  }
+  const trigger = onClick == null
+    ? <span tabIndex={0} className={cn('inline-flex cursor-default items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11.5px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/60', cls)}>{inner}</span>
+    : <button type="button" onClick={onClick} className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11.5px] font-medium outline-none transition-colors hover:border-muted-foreground/40 focus-visible:ring-2 focus-visible:ring-ring/60', cls)}>{inner}</button>
   return (
-    <button type="button" onClick={onClick} className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11.5px] font-medium transition-colors hover:border-muted-foreground/40', cls)}>{inner}</button>
+    <Tooltip>
+      <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[220px] text-center">{PERMISSION_DESCRIPTION[perm]}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -178,11 +182,14 @@ function EntityList({ onOpen }: { onOpen: (id: string) => void }) {
                 <button type="button" onClick={() => onOpen(e.id)} className="flex min-w-0 items-center gap-3 text-left">
                   <Monogram entity={e} size={34} />
                   <div className="min-w-0">
-                    <div className="truncate text-[13.5px] font-medium text-foreground hover:underline">{e.name}</div>
-                    <div className="truncate text-[11.5px] text-subtle-foreground">{ENTITY_TYPE_LABEL[e.type]}</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-[13.5px] font-medium text-foreground hover:underline">{e.name}</span>
+                      {e.own && <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-primary">You</span>}
+                    </div>
+                    <div className="truncate text-[11.5px] text-subtle-foreground">{e.own ? 'Your organisation' : ENTITY_TYPE_LABEL[e.type]}</div>
                   </div>
                 </button>
-                <div className="truncate text-[12.5px] text-muted-foreground">{RELATIONSHIP_LABEL[e.relationship]}</div>
+                <div className="truncate text-[12.5px] text-muted-foreground">{e.own ? '—' : RELATIONSHIP_LABEL[e.relationship]}</div>
                 <div className="truncate text-[12.5px] text-muted-foreground">{e.jurisdiction}</div>
                 <button type="button" onClick={() => onOpen(e.id)} className="flex items-center gap-2"><PeopleFacepile people={e.people} /></button>
                 <div><StatusBadge status={e.status} /></div>
@@ -230,11 +237,13 @@ function RowMenu({ entity, onOpen }: { entity: Entity; onOpen: () => void }) {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-44 p-1">
         <MenuItem Icon={Building2} label="Open" onClick={() => act(onOpen)} />
-        {entity.status !== 'suspended'
+        {!entity.own && (entity.status !== 'suspended'
           ? <MenuItem Icon={Ban} label="Suspend" onClick={() => act(() => { setEntityStatus(entity.id, 'suspended'); toast.success('Relationship suspended') })} />
-          : <MenuItem Icon={Check} label="Reactivate" onClick={() => act(() => { setEntityStatus(entity.id, 'active'); toast.success('Relationship reactivated') })} />}
-        <div className="my-1 h-px bg-border" />
-        <MenuItem Icon={Trash2} label="Remove" danger onClick={() => act(() => { removeEntity(entity.id); toast.success('Relationship removed') })} />
+          : <MenuItem Icon={Check} label="Reactivate" onClick={() => act(() => { setEntityStatus(entity.id, 'active'); toast.success('Relationship reactivated') })} />)}
+        {!entity.own && <>
+          <div className="my-1 h-px bg-border" />
+          <MenuItem Icon={Trash2} label="Remove" danger onClick={() => act(() => { removeEntity(entity.id); toast.success('Relationship removed') })} />
+        </>}
       </PopoverContent>
     </Popover>
   )
@@ -254,6 +263,7 @@ function EntityDetail({ entity, onBack }: { entity: Entity; onBack: () => void }
   const [addPersonOpen, setAddPersonOpen] = useState(false)
   const [managed, setManaged] = useState<Person | null>(null)
   const managedLive = managed != null ? entity.people.find(p => p.id === managed.id) ?? null : null
+  const own = entity.own === true
 
   return (
     <div className="w-full max-w-5xl">
@@ -269,18 +279,26 @@ function EntityDetail({ entity, onBack }: { entity: Entity; onBack: () => void }
             <div className="min-w-0">
               <h1 className="text-[22px] font-semibold tracking-[-0.01em] text-foreground">{entity.name}</h1>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground">
-                <span>{ENTITY_TYPE_LABEL[entity.type]}</span><span className="text-faint-foreground">·</span>
-                <span>{RELATIONSHIP_LABEL[entity.relationship]}</span><span className="text-faint-foreground">·</span>
-                <span>{entity.jurisdiction}</span>
+                {own ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11.5px] font-medium text-primary">Your organisation</span>
+                ) : (
+                  <>
+                    <span>{ENTITY_TYPE_LABEL[entity.type]}</span><span className="text-faint-foreground">·</span>
+                    <span>{RELATIONSHIP_LABEL[entity.relationship]}</span><span className="text-faint-foreground">·</span>
+                    <span>{entity.jurisdiction}</span>
+                  </>
+                )}
               </div>
               <div className="mt-2"><StatusBadge status={entity.status} /></div>
             </div>
           </div>
-          <div className="flex shrink-0 gap-2">
-            {entity.status !== 'suspended'
-              ? <Button variant="outline" onClick={() => { setEntityStatus(entity.id, 'suspended'); toast.success('Suspended') }} className="h-9 gap-1.5 px-3 text-[12.5px]"><Ban className="size-4" /> Suspend</Button>
-              : <Button variant="outline" onClick={() => { setEntityStatus(entity.id, 'active'); toast.success('Reactivated') }} className="h-9 gap-1.5 px-3 text-[12.5px]"><Check className="size-4" /> Reactivate</Button>}
-          </div>
+          {!own && (
+            <div className="flex shrink-0 gap-2">
+              {entity.status !== 'suspended'
+                ? <Button variant="outline" onClick={() => { setEntityStatus(entity.id, 'suspended'); toast.success('Suspended') }} className="h-9 gap-1.5 px-3 text-[12.5px]"><Ban className="size-4" /> Suspend</Button>
+                : <Button variant="outline" onClick={() => { setEntityStatus(entity.id, 'active'); toast.success('Reactivated') }} className="h-9 gap-1.5 px-3 text-[12.5px]"><Check className="size-4" /> Reactivate</Button>}
+            </div>
+          )}
         </div>
 
         {/* Stats */}
@@ -293,15 +311,21 @@ function EntityDetail({ entity, onBack }: { entity: Entity; onBack: () => void }
 
       {/* People */}
       <div className="mt-6">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-[15px] font-semibold text-foreground">People with access</h2>
-          <Button variant="outline" onClick={() => setAddPersonOpen(true)} className="h-8 gap-1.5 px-3 text-[12.5px]"><Plus className="size-3.5" /> Add person</Button>
+          {own && <Button variant="outline" onClick={() => setAddPersonOpen(true)} className="h-8 gap-1.5 px-3 text-[12.5px]"><Plus className="size-3.5" /> Add person</Button>}
         </div>
+        {!own && (
+          <div className="mb-3 flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-[12px] leading-snug text-muted-foreground">
+            <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
+            <span>Members and their permissions are managed by <span className="font-medium text-foreground">{entity.name}</span>. You have view-only access here.</span>
+          </div>
+        )}
         {entity.people.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[13px] text-muted-foreground">No one from {entity.name} has access yet.</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            {entity.people.map(p => <PersonCard key={p.id} person={p} onManage={() => setManaged(p)} />)}
+            {entity.people.map(p => <PersonCard key={p.id} person={p} manageable={own} onManage={() => setManaged(p)} />)}
           </div>
         )}
       </div>
@@ -318,12 +342,14 @@ function EntityDetail({ entity, onBack }: { entity: Entity; onBack: () => void }
               {entity.instruments.map(t => <span key={t} className="rounded-full bg-muted px-2.5 py-0.5 text-[12px] font-medium text-foreground">{t}</span>)}
             </div>
           )}
-          <div className="mt-4 flex items-center justify-between border-t border-separator pt-3">
-            <span className="text-[12.5px] text-muted-foreground">Remove this relationship and everyone's access.</span>
-            <button type="button" onClick={() => { removeEntity(entity.id); toast.success('Relationship removed'); onBack() }} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 px-2.5 py-1.5 text-[12px] font-medium text-destructive transition-colors hover:bg-destructive/5">
-              <Trash2 className="size-3.5" /> Remove relationship
-            </button>
-          </div>
+          {!own && (
+            <div className="mt-4 flex items-center justify-between border-t border-separator pt-3">
+              <span className="text-[12.5px] text-muted-foreground">Remove this relationship and everyone's access.</span>
+              <button type="button" onClick={() => { removeEntity(entity.id); toast.success('Relationship removed'); onBack() }} className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 px-2.5 py-1.5 text-[12px] font-medium text-destructive transition-colors hover:bg-destructive/5">
+                <Trash2 className="size-3.5" /> Remove relationship
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -343,7 +369,7 @@ function Stat({ label, value, Icon }: { label: string; value: string; Icon: type
   )
 }
 
-function PersonCard({ person, onManage }: { person: Person; onManage: () => void }) {
+function PersonCard({ person, manageable, onManage }: { person: Person; manageable: boolean; onManage: () => void }) {
   return (
     <div className="flex flex-col rounded-xl border border-border bg-card p-4">
       <div className="flex items-start gap-3">
@@ -352,7 +378,7 @@ function PersonCard({ person, onManage }: { person: Person; onManage: () => void
           <div className="truncate text-[13.5px] font-semibold text-foreground">{person.name}</div>
           <div className="truncate text-[11.5px] text-subtle-foreground">{person.title}</div>
         </div>
-        <button type="button" onClick={onManage} className="shrink-0 text-[12px] font-medium text-primary hover:underline">Manage</button>
+        {manageable && <button type="button" onClick={onManage} className="shrink-0 text-[12px] font-medium text-primary hover:underline">Manage</button>}
       </div>
       <div className="mt-2.5 flex items-center gap-2">
         <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">{SYSTEM_ROLE_LABEL[person.systemRole]}</span>
@@ -361,11 +387,13 @@ function PersonCard({ person, onManage }: { person: Person; onManage: () => void
         </span>
         <span className="ml-auto text-[11px] text-subtle-foreground">{fmtActive(person.lastActiveAt)}</span>
       </div>
-      <div className="mt-2.5 flex flex-wrap gap-1.5">
-        {person.permissions.length === 0
-          ? <span className="text-[11.5px] text-subtle-foreground">No permissions</span>
-          : person.permissions.map(perm => <PermissionPill key={perm} perm={perm} on />)}
-      </div>
+      <TooltipProvider delayDuration={120}>
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {person.permissions.length === 0
+            ? <span className="text-[11.5px] text-subtle-foreground">No permissions</span>
+            : person.permissions.map(perm => <PermissionPill key={perm} perm={perm} on />)}
+        </div>
+      </TooltipProvider>
     </div>
   )
 }
@@ -503,11 +531,13 @@ function ManagePersonDrawer({ entityId, person, onClose }: { entityId: string; p
 
               <div>
                 <FieldLabel>Permissions</FieldLabel>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {ALL_PERMISSIONS.map(perm => (
-                    <PermissionPill key={perm} perm={perm} on={person.permissions.includes(perm)} onClick={() => togglePersonPermission(entityId, person.id, perm)} />
-                  ))}
-                </div>
+                <TooltipProvider delayDuration={120}>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {ALL_PERMISSIONS.map(perm => (
+                      <PermissionPill key={perm} perm={perm} on={person.permissions.includes(perm)} onClick={() => togglePersonPermission(entityId, person.id, perm)} />
+                    ))}
+                  </div>
+                </TooltipProvider>
                 <p className="mt-1.5 text-[11px] text-faint-foreground">Tap a permission to grant or revoke it for this person.</p>
               </div>
 
