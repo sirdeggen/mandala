@@ -33,6 +33,7 @@ import ReportsPage from './ReportsPage'
 import IntegrationsPage from './IntegrationsPage'
 import AccountSettings from '../settings/AccountSettings'
 import CompanySettings from '../settings/CompanySettings'
+import DemoChecklist from './DemoChecklist'
 import RelationshipsPage from './RelationshipsPage'
 
 type Section = 'home' | 'overview' | 'relationships' | 'compliance' | 'reports' | 'integrations' | 'instrument' | 'settings' | 'company'
@@ -492,6 +493,9 @@ export default function IssuerDashboard() {
         onOpenChange={setIssueOpen}
         onIssued={(id) => { void invalidateAdminAssets(); if (id) openInstrument(id) }}
       />
+
+      {/* Guided hero walkthrough (toggled from the Developer panel) */}
+      <DemoChecklist />
 
       {/* Instrument picker - shown when "Send" is used with more than one instrument */}
       {sendContact != null && (
