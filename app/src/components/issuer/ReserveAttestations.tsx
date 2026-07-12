@@ -1,15 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { ShieldCheck, Plus, Trash2, AlertTriangle, BadgeCheck, Check, Flag, FileCheck2 } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
+import { useWallet } from '../../context/WalletContext'
 import { useAdminSummary } from '../../hooks/useAdminHistory'
 import {
   useReserveBucket, useAttestations, reservesTotalOf,
   addReserveLine, updateReserveLine, removeReserveLine,
   createAttestation, reviewAttestation, type Attestation,
 } from '../../lib/compliance'
+import { signAttestation, verifyAttestationSignature } from '../../lib/attestationSignature'
 import { RESERVE_CLASSES, RESERVE_CLASS_BY_KEY } from '@/content/reserveClasses'
+import { IdentitySigil } from '@/components/ui/identity-sigil'
 import TabHeader from './TabHeader'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -223,13 +226,29 @@ function AttestationRow({ att, isAuditor, auditorName, fmt }: {
   auditorName: string
   fmt: (n: number) => string
 }) {
+  const { wallet, identityKey } = useWallet()
   const [note, setNote] = useState('')
+  const [signing, setSigning] = useState(false)
   const backing = att.circulation > 0 ? (att.reservesTotal / att.circulation) * 100 : (att.reservesTotal > 0 ? 100 : null)
   const status = STATUS_STYLE[att.status]
 
-  function review(kind: 'signed' | 'flagged') {
-    reviewAttestation(att.id, { status: kind, auditorName, note: note.trim() || undefined })
-    toast.success(kind === 'signed' ? 'Attestation signed' : 'Attestation flagged')
+  async function review(kind: 'signed' | 'flagged') {
+    if (kind === 'flagged') {
+      reviewAttestation(att.id, { status: 'flagged', auditorName, note: note.trim() || undefined })
+      toast.success('Attestation flagged')
+      return
+    }
+    if (wallet == null || identityKey == null) { toast.error('Connect a wallet to sign this attestation.'); return }
+    setSigning(true)
+    try {
+      const sig = await signAttestation(wallet, att, identityKey)
+      reviewAttestation(att.id, { status: 'signed', auditorName, note: note.trim() || undefined, auditorKey: sig.auditorKey, signature: sig.signature })
+      toast.success('Attestation cryptographically signed')
+    } catch {
+      toast.error('Could not sign the attestation')
+    } finally {
+      setSigning(false)
+    }
   }
 
   return (
@@ -265,6 +284,9 @@ function AttestationRow({ att, isAuditor, auditorName, fmt }: {
             {att.status === 'signed' ? 'Signed' : 'Flagged'} by {att.auditorName}
           </span>{' '}· {formatDate(att.reviewedAt)}
           {att.auditorNote && <span className="mt-0.5 block text-muted-foreground">“{att.auditorNote}”</span>}
+          {att.status === 'signed' && att.signature != null && att.auditorKey != null && (
+            <SignatureBadge att={att} />
+          )}
         </div>
       )}
 
@@ -277,7 +299,7 @@ function AttestationRow({ att, isAuditor, auditorName, fmt }: {
             className="h-9 text-[12.5px]"
           />
           <div className="mt-2 flex gap-2">
-            <Button onClick={() => review('signed')} className="h-8 gap-1.5 px-3 text-[12.5px]">
+            <Button onClick={() => review('signed')} loading={signing} loadingText="Signing…" className="h-8 gap-1.5 px-3 text-[12.5px]">
               <Check className="size-4" /> Sign attestation
             </Button>
             <button
@@ -290,6 +312,40 @@ function AttestationRow({ att, isAuditor, auditorName, fmt }: {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/** Verifies the auditor's ECDSA signature over the attestation and shows the
+ *  result with the signing Badge ID - proof the sign-off is genuine and the
+ *  attested figures haven't been altered since. */
+function SignatureBadge({ att }: { att: Attestation }) {
+  const { wallet } = useWallet()
+  const [state, setState] = useState<'checking' | 'valid' | 'invalid'>('checking')
+
+  useEffect(() => {
+    let alive = true
+    if (wallet == null) { setState('invalid'); return }
+    verifyAttestationSignature(wallet, att).then(ok => { if (alive) setState(ok ? 'valid' : 'invalid') })
+    return () => { alive = false }
+  }, [wallet, att])
+
+  const key = att.auditorKey ?? ''
+  const short = key.length > 12 ? `${key.slice(0, 5)}…${key.slice(-5)}` : key
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-1.5">
+      {state === 'checking' ? (
+        <span className="inline-flex items-center gap-1.5 text-[11.5px] text-muted-foreground"><ShieldCheck className="size-3.5" /> Verifying signature…</span>
+      ) : state === 'valid' ? (
+        <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-success"><ShieldCheck className="size-3.5" /> Signature verified</span>
+      ) : (
+        <span className="inline-flex items-center gap-1.5 text-[11.5px] font-medium text-destructive"><AlertTriangle className="size-3.5" /> Signature invalid</span>
+      )}
+      <span aria-hidden className="text-faint-foreground">·</span>
+      <span className="inline-flex items-center gap-1.5" title={key}>
+        <IdentitySigil value={key} size={16} className="rounded" />
+        <span className="font-mono text-[11px] text-subtle-foreground">{short}</span>
+      </span>
     </div>
   )
 }

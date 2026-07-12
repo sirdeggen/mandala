@@ -38,6 +38,10 @@ export interface Attestation {
   auditorName?: string
   auditorNote?: string
   reviewedAt?: string     // ISO
+  /** Auditor's identity key (Badge ID) that signed, and the ECDSA signature
+   *  over the attestation digest - present on cryptographically signed ones. */
+  auditorKey?: string
+  signature?: string
 }
 
 /** An issuer's working reserve composition for one instrument. */
@@ -246,16 +250,27 @@ export function createAttestation(assetId: string, currency: string, circulation
   return att
 }
 
-/** Auditor review - sign or flag a submitted attestation. */
+/** Auditor review - sign or flag a submitted attestation. A signed review
+ *  carries the auditor's Badge ID and ECDSA signature over the attestation. */
 export function reviewAttestation(id: string, review: {
   status: 'signed' | 'flagged'
   auditorName: string
   note?: string
+  auditorKey?: string
+  signature?: string
 }): void {
   persist({
     ...current,
     attestations: current.attestations.map(a => a.id === id
-      ? { ...a, status: review.status, auditorName: review.auditorName, auditorNote: review.note, reviewedAt: new Date().toISOString() }
+      ? {
+          ...a,
+          status: review.status,
+          auditorName: review.auditorName,
+          auditorNote: review.note,
+          reviewedAt: new Date().toISOString(),
+          auditorKey: review.auditorKey,
+          signature: review.signature,
+        }
       : a),
   })
 }

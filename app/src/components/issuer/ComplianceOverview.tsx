@@ -10,6 +10,8 @@ import type { AdminSummary } from '@bsv/mandala/adminHistory'
 import { useAdminAssets } from '../../hooks/useAdminAssets'
 import { useAdminSummaries } from '../../hooks/useAdminHistory'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
+import { useWallet } from '../../context/WalletContext'
+import { signAttestation } from '../../lib/attestationSignature'
 import {
   useComplianceSnapshot, reservesTotalOf, useGovernance, setGovernance,
   approveProposal, rejectProposal, proposeGeneric, reviewAttestation,
@@ -237,8 +239,25 @@ function MiniPill({ label, tone }: { label: string; tone: keyof typeof TONE }) {
 function AttestationSignRow({ att, assetLabel, auditorName, onOpen }: {
   att: Attestation; assetLabel: string; auditorName: string; onOpen: () => void
 }) {
+  const { wallet, identityKey } = useWallet()
   const [note, setNote] = useState('')
+  const [signing, setSigning] = useState(false)
   const backing = att.circulation > 0 ? (att.reservesTotal / att.circulation) * 100 : (att.reservesTotal > 0 ? 100 : null)
+
+  const sign = async () => {
+    if (wallet == null || identityKey == null) { toast.error('Connect a wallet to sign this attestation.'); return }
+    setSigning(true)
+    try {
+      const sig = await signAttestation(wallet, att, identityKey)
+      reviewAttestation(att.id, { status: 'signed', auditorName, note: note.trim() || undefined, auditorKey: sig.auditorKey, signature: sig.signature })
+      toast.success('Attestation cryptographically signed')
+    } catch {
+      toast.error('Could not sign the attestation')
+    } finally {
+      setSigning(false)
+    }
+  }
+
   return (
     <div className="rounded-xl border border-border bg-card p-3 shadow-[var(--shadow-card)]">
       <div className="flex items-center justify-between gap-2">
@@ -251,7 +270,7 @@ function AttestationSignRow({ att, assetLabel, auditorName, onOpen }: {
       </div>
       <Input value={note} onChange={e => setNote(e.target.value)} placeholder="Note (optional)" className="mt-2 h-9 text-[12.5px]" />
       <div className="mt-2 flex gap-2">
-        <Button onClick={() => { reviewAttestation(att.id, { status: 'signed', auditorName, note: note.trim() || undefined }); toast.success('Attestation signed') }} className="h-8 gap-1.5 px-3 text-[12.5px]">
+        <Button onClick={sign} loading={signing} loadingText="Signing…" className="h-8 gap-1.5 px-3 text-[12.5px]">
           <Check className="size-4" /> Sign
         </Button>
         <button type="button" onClick={() => { reviewAttestation(att.id, { status: 'flagged', auditorName, note: note.trim() || undefined }); toast.success('Attestation flagged') }} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-destructive/40 px-3 text-[12.5px] font-medium text-destructive hover:bg-destructive/5">
