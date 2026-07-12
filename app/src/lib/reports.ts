@@ -8,7 +8,7 @@ import type { AdminAsset } from '@bsv/mandala/assets'
 import type { AdminSummary } from '@bsv/mandala/adminHistory'
 import type { ActivityEntry } from '@bsv/mandala/overlayActivity'
 import { formatAmount } from '@bsv/mandala/amount'
-import type { ReserveBucket, Attestation, HolderRecord, RedemptionRequest } from './compliance'
+import type { ReserveBucket, Attestation, HolderRecord, RedemptionRequest, ControlAction } from './compliance'
 import { reservesTotalOf } from './compliance'
 import type { ReconLink } from './reconciliation'
 import { RESERVE_CLASS_BY_KEY } from '@/content/reserveClasses'
@@ -43,12 +43,13 @@ export interface ReportCtx {
   holders: HolderRecord[]
   redemptions: RedemptionRequest[]
   links: ReconLink[]
+  controlActions: ControlAction[]
   filter?: DateFilter
 }
 
 export type ReportKey =
   | 'summary' | 'ledger' | 'composition' | 'attestations'
-  | 'redemptions' | 'screening' | 'reconciliation'
+  | 'redemptions' | 'screening' | 'reconciliation' | 'controlActions'
 
 export interface ReportSpec {
   key: ReportKey
@@ -66,6 +67,7 @@ export const REPORT_SPECS: ReportSpec[] = [
   { key: 'redemptions', name: 'Redemption register', description: 'Redemption requests and how they were settled.', timeScoped: true },
   { key: 'screening', name: 'Holder screening & KYC', description: 'Screening, KYC status and risk for every holder.', timeScoped: true },
   { key: 'reconciliation', name: 'Reconciliation', description: 'Ledger statements linked to bank statements and adjustments.', timeScoped: false },
+  { key: 'controlActions', name: 'Control actions', description: 'Sensitive admin operations and their auditor sign-off.', timeScoped: true },
 ]
 
 const fmtDate = (iso?: string): string => {
@@ -96,18 +98,28 @@ export function buildReport(key: ReportKey, ctx: ReportCtx): ReportTable {
       ]),
     }
     case 'attestations': return {
-      columns: ['Period', 'Status', 'Reserves', 'Circulation', 'Backing %', 'Auditor', 'Reviewed'],
+      columns: ['Period', 'Status', 'Reserves', 'Circulation', 'Backing %', 'Evidence', 'Auditor', 'Auditor Badge ID', 'Exceptions', 'Reviewed', 'Anchor'],
       rows: ctx.attestations.filter(a => inFilter(a.createdAt, filter)).map(a => [
         a.period, a.status, a.reservesTotal.toLocaleString('en-US'),
         `${a.circulation.toLocaleString('en-US')} ${a.currency}`,
         a.circulation > 0 ? ((a.reservesTotal / a.circulation) * 100).toFixed(1) : '',
-        a.auditorName ?? '', fmtDate(a.reviewedAt),
+        a.evidence ?? '', a.auditorName ?? '', a.auditorKey ?? '',
+        a.status === 'signed' ? (a.exceptions ? 'Yes' : 'No') : '',
+        fmtDate(a.reviewedAt), a.anchorTxid ?? '',
       ]),
     }
     case 'redemptions': return {
-      columns: ['Requested', 'Holder', 'Badge ID', 'Amount', 'Status', 'Processed', 'Note'],
+      columns: ['Requested', 'Holder', 'Badge ID', 'Amount', 'Status', 'Processed', 'At-par confirmed by', 'Confirmed Badge ID', 'Confirmed at', 'Anchor', 'Note'],
       rows: ctx.redemptions.filter(r => inFilter(r.requestedAt, filter)).map(r => [
-        fmtDate(r.requestedAt), r.holderName, r.holderKey, `${amt(r.amount)} ${r.currency}`, r.status, fmtDate(r.processedAt), r.note ?? '',
+        fmtDate(r.requestedAt), r.holderName, r.holderKey, `${amt(r.amount)} ${r.currency}`, r.status, fmtDate(r.processedAt),
+        r.auditorName ?? '', r.auditorKey ?? '', fmtDate(r.attestedAt), r.anchorTxid ?? '', r.note ?? '',
+      ]),
+    }
+    case 'controlActions': return {
+      columns: ['When', 'Action', 'Detail', 'Reason', 'Actor', 'Actor Badge ID', 'Status', 'Signed off by', 'Auditor Badge ID', 'Reviewed', 'Anchor'],
+      rows: ctx.controlActions.filter(a => inFilter(a.createdAt, filter)).map(a => [
+        fmtDate(a.createdAt), a.kind, a.detail, a.reason, a.actorName ?? '', a.actorKey,
+        a.status, a.auditorName ?? '', a.auditorKey ?? '', fmtDate(a.reviewedAt), a.anchorTxid ?? '',
       ]),
     }
     case 'screening': return {
@@ -144,7 +156,10 @@ export function buildReport(key: ReportKey, ctx: ReportCtx): ReportTable {
           ['Holders screened', String(ctx.holders.length)],
           ['Sanctions hits', String(ctx.holders.filter(h => h.sanctions === 'hit').length)],
           ['Open redemptions', String(ctx.redemptions.filter(r => r.status === 'pending').length)],
+          ['Redemptions confirmed at par', String(ctx.redemptions.filter(r => r.auditorSignature != null).length)],
           ['Reconciliation links', String(ctx.links.length)],
+          ['Control actions', String(ctx.controlActions.length)],
+          ['Actions awaiting sign-off', String(ctx.controlActions.filter(a => a.status === 'pending').length)],
           ['Generated', fmtDate(new Date().toISOString())],
         ],
       }

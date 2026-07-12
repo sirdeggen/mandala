@@ -97,6 +97,8 @@ export interface RedemptionRequest {
   auditorKey?: string
   auditorSignature?: string
   attestedAt?: string     // ISO
+  /** Txid anchoring the at-par confirmation on-chain, if published. */
+  anchorTxid?: string
 }
 
 // ── KYC / sanctions screening ─────────────────────────────────────────────────
@@ -174,6 +176,8 @@ export interface ControlAction {
   signature?: string
   auditorNote?: string
   reviewedAt?: string     // ISO
+  /** Txid anchoring the signed sign-off on-chain, if published. */
+  anchorTxid?: string
 }
 
 interface State {
@@ -402,6 +406,11 @@ export function attestRedemption(id: string, review: { auditorName: string; audi
   })
 }
 
+/** Record the on-chain anchor txid for a redemption's at-par confirmation. */
+export function setRedemptionAnchor(id: string, anchorTxid: string): void {
+  persist({ ...current, requests: current.requests.map(r => r.id === id ? { ...r, anchorTxid } : r) })
+}
+
 export function useRedemptionPolicy(assetId: string): RedemptionPolicy {
   const map = useSyncExternalStore(subscribe, () => current, () => current)
   return map.policies[assetId] ?? DEFAULT_REDEMPTION_POLICY
@@ -582,6 +591,11 @@ export function acknowledgeControlAction(id: string, review: { auditorName: stri
       ? { ...a, status: 'acknowledged' as const, auditorName: review.auditorName, auditorKey: review.auditorKey, signature: review.signature, auditorNote: review.note, reviewedAt: new Date().toISOString() }
       : a),
   })
+}
+
+/** Record the on-chain anchor txid for a control action's sign-off. */
+export function setControlActionAnchor(id: string, anchorTxid: string): void {
+  persist({ ...current, controlActions: current.controlActions.map(a => a.id === id ? { ...a, anchorTxid } : a) })
 }
 
 export function useControlActions(assetId?: string): ControlAction[] {

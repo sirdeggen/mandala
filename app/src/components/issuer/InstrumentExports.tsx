@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
   Eye, Download, Trash2, X,
-  ListOrdered, Layers, BadgeCheck, HandCoins, ShieldAlert, Link2, GaugeCircle,
+  ListOrdered, Layers, BadgeCheck, HandCoins, ShieldAlert, Link2, GaugeCircle, Lock,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { ExportButtonGroup } from './ExportButtonGroup'
@@ -10,7 +10,7 @@ import { ReportCell, isNowrapColumn } from './ReportCell'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useOverlayActivity } from '../../hooks/useOverlayActivity'
 import { useAdminSummary } from '../../hooks/useAdminHistory'
-import { useReserveBucket, useAttestations, useHolders, useRedemptionRequests } from '../../lib/compliance'
+import { useReserveBucket, useAttestations, useHolders, useRedemptionRequests, useControlActions } from '../../lib/compliance'
 import { useReconLinks } from '../../lib/reconciliation'
 import { exportReport, exportBundle, FORMAT_LABEL, type ReportTable, type ExportFormat } from '../../lib/exports'
 import { logExport, removeExport, useExportHistory } from '../../lib/exportHistory'
@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils'
 
 const REPORT_ICON: Record<ReportKey, LucideIcon> = {
   summary: GaugeCircle, ledger: ListOrdered, composition: Layers, attestations: BadgeCheck,
-  redemptions: HandCoins, screening: ShieldAlert, reconciliation: Link2,
+  redemptions: HandCoins, screening: ShieldAlert, reconciliation: Link2, controlActions: Lock,
 }
 
 const fmtDate = (iso?: string): string => {
@@ -48,6 +48,7 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
   const holders = useHolders()
   const redemptions = useRedemptionRequests(assetId)
   const links = useReconLinks(assetId)
+  const controlActions = useControlActions(assetId)
   const history = useExportHistory(assetId)
 
   const [year, setYear] = useState<number | 'all'>('all')
@@ -60,12 +61,12 @@ export default function InstrumentExports({ assetId, asset }: { assetId: string;
   const filter: DateFilter = year === 'all' ? { mode: 'all' } : { mode: 'year', year }
 
   const reports = useMemo<ReportView[]>(() => {
-    const ctx: ReportCtx = { asset, assetId, decimals, currency, entries, summary: summary ?? null, bucket, attestations, holders, redemptions, links, filter }
+    const ctx: ReportCtx = { asset, assetId, decimals, currency, entries, summary: summary ?? null, bucket, attestations, holders, redemptions, links, controlActions, filter }
     return REPORT_SPECS.map(spec => ({
       key: spec.key, name: spec.name, description: spec.description, Icon: REPORT_ICON[spec.key],
       table: buildReport(spec.key, ctx),
     }))
-  }, [asset, assetId, decimals, currency, entries, summary, bucket, attestations, holders, redemptions, links, filter])
+  }, [asset, assetId, decimals, currency, entries, summary, bucket, attestations, holders, redemptions, links, controlActions, filter])
 
   const scopeLabel = `${asset?.label ?? 'instrument'}${year === 'all' ? '' : ` ${year}`}`
 

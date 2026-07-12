@@ -15,10 +15,11 @@ import { signAttestation } from '../../lib/complianceSignature'
 import {
   useComplianceSnapshot, reservesTotalOf, useGovernance, setGovernance,
   approveProposal, rejectProposal, proposeGeneric, reviewAttestation,
-  useControlActions, acknowledgeControlAction,
+  useControlActions, acknowledgeControlAction, setControlActionAnchor,
   type ReserveBucket, type Attestation, type Proposal, type ControlAction,
 } from '../../lib/compliance'
-import { signAction, verifyActionSignature } from '../../lib/complianceSignature'
+import { signAction, verifyActionSignature, actionMessage } from '../../lib/complianceSignature'
+import { anchorOnChain } from '../../lib/onchainAnchor'
 import { InstrumentIcon } from '@/components/ui/instrument-icon'
 import { assetImage } from '@/lib/instrumentCategory'
 import { Button } from '../ui/button'
@@ -305,6 +306,7 @@ function ControlActionRow({ action, assetLabel, isAuditor, auditorName }: {
   const { wallet, identityKey } = useWallet()
   const [note, setNote] = useState('')
   const [signing, setSigning] = useState(false)
+  const [anchoring, setAnchoring] = useState(false)
   const [verify, setVerify] = useState<'checking' | 'valid' | 'invalid'>('checking')
 
   useEffect(() => {
@@ -328,6 +330,22 @@ function ControlActionRow({ action, assetLabel, isAuditor, auditorName }: {
     }
   }
 
+  const anchor = async () => {
+    if (wallet == null || action.signature == null || action.auditorKey == null) return
+    setAnchoring(true)
+    try {
+      const txid = await anchorOnChain(wallet, `action:${action.id}`, {
+        digest: actionMessage(action), signature: action.signature, auditorKey: action.auditorKey, kind: action.kind,
+      }, `control action ${action.kind}`)
+      setControlActionAnchor(action.id, txid)
+      toast.success('Sign-off anchored on-chain')
+    } catch {
+      toast.error('Could not anchor on-chain')
+    } finally {
+      setAnchoring(false)
+    }
+  }
+
   const when = new Date(action.createdAt)
   const whenStr = Number.isNaN(when.getTime()) ? '' : when.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
@@ -341,7 +359,7 @@ function ControlActionRow({ action, assetLabel, isAuditor, auditorName }: {
       <div className="mt-0.5 text-[11px] text-subtle-foreground">By {action.actorName || 'issuer'} · {whenStr}</div>
 
       {action.status === 'acknowledged' && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11.5px]">
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11.5px]">
           {verify === 'valid' ? (
             <span className="inline-flex items-center gap-1 font-medium text-success"><ShieldCheck className="size-3.5" /> Signed off by {action.auditorName}</span>
           ) : verify === 'invalid' ? (
@@ -350,6 +368,15 @@ function ControlActionRow({ action, assetLabel, isAuditor, auditorName }: {
             <span className="text-muted-foreground">Verifying…</span>
           )}
           {action.auditorNote && <span className="text-muted-foreground">· “{action.auditorNote}”</span>}
+          {action.anchorTxid != null ? (
+            <a href={`https://whatsonchain.com/tx/${action.anchorTxid}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+              <ShieldCheck className="size-3.5" /> Anchored · {action.anchorTxid.slice(0, 10)}…
+            </a>
+          ) : isAuditor ? (
+            <button type="button" onClick={anchor} disabled={anchoring} className="inline-flex items-center gap-1 font-medium text-muted-foreground hover:text-foreground disabled:opacity-50">
+              <ShieldCheck className="size-3.5" /> {anchoring ? 'Anchoring…' : 'Anchor on-chain'}
+            </button>
+          ) : null}
         </div>
       )}
 

@@ -1,13 +1,18 @@
 import type { ReactNode } from 'react'
 import { IdentityKeyPopover } from './IdentityKeyPopover'
 
-const ID_COLS = new Set(['From', 'To', 'Badge ID'])
 const looksLikeKey = (v: string) => /^[0-9a-f]{16,}$/i.test(v)
 const trunc = (k: string) => (k.length > 12 ? `${k.slice(0, 5)}…${k.slice(-5)}` : k)
 
+/** Columns that hold an identity key (get a sigil + relationship popover). */
+export function isIdColumn(column: string): boolean {
+  return column === 'From' || column === 'To' || /badge id$/i.test(column)
+}
+const isAnchorColumn = (column: string) => column === 'Anchor'
+
 /** Columns that read better without wrapping (dates, keys, hashes). */
 export function isNowrapColumn(column: string): boolean {
-  if (ID_COLS.has(column)) return true
+  if (isIdColumn(column) || isAnchorColumn(column)) return true
   const c = column.toLowerCase()
   return c.includes('hash') || /\b(when|requested|reviewed|processed|updated|created|generated|date)\b/.test(c)
 }
@@ -37,10 +42,10 @@ export function Highlight({ text, query }: { text: string; query: string }) {
  * stays full for export.
  */
 export function ReportCell({ column, value, query = '' }: { column: string; value: string; query?: string }) {
-  if (ID_COLS.has(column) && looksLikeKey(value)) {
+  if (isIdColumn(column) && looksLikeKey(value)) {
     return <IdentityKeyPopover value={value} />
   }
-  if (column.toLowerCase().includes('hash') && value !== '') {
+  if ((column.toLowerCase().includes('hash') || isAnchorColumn(column)) && value !== '') {
     return <span className="font-mono text-[11px] text-subtle-foreground" title={value}><Highlight text={trunc(value)} query={query} /></span>
   }
   return <Highlight text={value} query={query} />

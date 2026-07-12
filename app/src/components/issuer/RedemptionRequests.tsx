@@ -4,13 +4,14 @@ import { Check, X, Plus, Clock, ShieldCheck, AlertTriangle } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
 import {
   useRedemptionPolicy, useRedemptionRequests, setRedemptionPolicy,
-  createRedemptionRequest, settleRedemption, rejectRedemption, attestRedemption,
+  createRedemptionRequest, settleRedemption, rejectRedemption, attestRedemption, setRedemptionAnchor,
   useGovernance, proposeSettlement,
   SETTLEMENT_WINDOW_LABEL, type RedemptionRequest, type SettlementWindow,
 } from '../../lib/compliance'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
 import { useWallet } from '../../context/WalletContext'
-import { signRedemption, verifyRedemptionSignature } from '../../lib/complianceSignature'
+import { signRedemption, verifyRedemptionSignature, redemptionMessage } from '../../lib/complianceSignature'
+import { anchorOnChain } from '../../lib/onchainAnchor'
 import { IdentitySigil } from '@/components/ui/identity-sigil'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -218,6 +219,7 @@ function RedemptionRow({ req, fmt, readOnly }: { req: RedemptionRequest; fmt: (n
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
   const [confirming, setConfirming] = useState(false)
+  const [anchoring, setAnchoring] = useState(false)
   const dualControl = useGovernance().dualControl
   const status = STATUS_STYLE[req.status]
 
@@ -232,6 +234,22 @@ function RedemptionRow({ req, fmt, readOnly }: { req: RedemptionRequest; fmt: (n
       toast.error('Could not confirm the redemption')
     } finally {
       setConfirming(false)
+    }
+  }
+
+  async function anchor() {
+    if (wallet == null || req.auditorSignature == null || req.auditorKey == null) return
+    setAnchoring(true)
+    try {
+      const txid = await anchorOnChain(wallet, `redemption:${req.id}`, {
+        digest: redemptionMessage(req), signature: req.auditorSignature, auditorKey: req.auditorKey,
+      }, `redemption ${req.id}`)
+      setRedemptionAnchor(req.id, txid)
+      toast.success('At-par confirmation anchored on-chain')
+    } catch {
+      toast.error('Could not anchor on-chain')
+    } finally {
+      setAnchoring(false)
     }
   }
 
@@ -302,7 +320,20 @@ function RedemptionRow({ req, fmt, readOnly }: { req: RedemptionRequest; fmt: (n
       {/* Auditor confirmation that the redemption was honoured at par. */}
       {req.status === 'settled' && (
         req.auditorSignature != null && req.auditorKey != null ? (
-          <RedemptionSignatureBadge req={req} />
+          <>
+            <RedemptionSignatureBadge req={req} />
+            <div className="mt-1.5 text-[11px]">
+              {req.anchorTxid != null ? (
+                <a href={`https://whatsonchain.com/tx/${req.anchorTxid}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+                  <ShieldCheck className="size-3.5" /> Anchored on-chain · {req.anchorTxid.slice(0, 10)}…
+                </a>
+              ) : isAuditor ? (
+                <button type="button" onClick={anchor} disabled={anchoring} className="inline-flex items-center gap-1 font-medium text-muted-foreground hover:text-foreground disabled:opacity-50">
+                  <ShieldCheck className="size-3.5" /> {anchoring ? 'Anchoring…' : 'Anchor on-chain'}
+                </button>
+              ) : null}
+            </div>
+          </>
         ) : isAuditor ? (
           <div className="mt-2">
             <Button onClick={confirmAtPar} loading={confirming} loadingText="Confirming…" variant="ghost" className="h-7 gap-1.5 px-2 text-[11.5px]">

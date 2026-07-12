@@ -69,6 +69,7 @@ export default function ReportsPage() {
   const years = useMemo(() => availableYears([
     ...snap.attestations.map(a => a.createdAt),
     ...snap.requests.map(r => r.requestedAt),
+    ...snap.controlActions.map(a => a.createdAt),
     ...Object.values(snap.holders).map(h => h.updatedAt),
     ...Object.values(ledgerMap).flat().map(e => e.when),
   ]), [snap, ledgerMap])
@@ -86,6 +87,7 @@ export default function ReportsPage() {
       holders: Object.values(snap.holders),
       redemptions: snap.requests.filter(r => r.assetId === id),
       links: allLinks.filter(l => l.assetId === id),
+      controlActions: snap.controlActions.filter(c => c.assetId === id),
       filter,
     }
   }, [ledgerMap, summaries, snap, allLinks, filter])
@@ -341,6 +343,7 @@ const TAB_SHORT: Record<ReportKey, string> = {
   redemptions: 'Redemptions',
   screening: 'Screening',
   reconciliation: 'Reconciliation',
+  controlActions: 'Controls',
 }
 
 const fmtDateTime = (iso: string): string => {
