@@ -71,7 +71,7 @@ export default function OnboardingWizard() {
     complete()
   }
 
-  const entityPlaceholder = role === 'auditor' ? 'Alpine Assurance AG' : 'Helvetia Digital Money AG'
+  const entityPlaceholder = 'Your Organisation'
   const previewIsPlaceholder = legalName.trim() === ''
   const previewName = previewIsPlaceholder ? entityPlaceholder : legalName.trim()
 
@@ -168,7 +168,7 @@ export default function OnboardingWizard() {
                   <Input
                     id="ob-legal"
                     autoComplete="off"
-                    placeholder={role === 'issuer' ? 'Acme Digital Money Ltd' : 'Acme Assurance LLP'}
+                    placeholder="Your Organisation"
                     value={legalName}
                     onChange={e => setLegalName(e.target.value)}
                   />
