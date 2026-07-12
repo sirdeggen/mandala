@@ -7,15 +7,18 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Building2, Lock, ArrowRight, Users, Plus, Camera, Globe, Copy, Check, ExternalLink } from 'lucide-react'
+import { Building2, Lock, ArrowRight, Users, Plus, Camera, Globe, Copy, Check, ExternalLink, ShieldCheck, FileSignature } from 'lucide-react'
 import { useOnboarding, updateProfile, isReviewerRole } from '../../lib/onboarding'
 import { useCompanyLogo, setCompanyLogo } from '../../lib/companyLogo'
 import { useWallet } from '../../context/WalletContext'
+import { signStatement } from '../../lib/complianceSignature'
+import { anchorOnChain } from '../../lib/onchainAnchor'
 import { useEntityTransparency, setEntityPublished, setEntityListed } from '../../lib/orgTransparency'
 import { CompanyAvatar } from '@/components/ui/company-avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
 const COUNTRIES = [
@@ -171,9 +174,12 @@ export default function CompanySettings() {
 // ── Public transparency (entity page + directory listing) ─────────────────────
 
 function EntityTransparencySettings() {
-  const { identityKey } = useWallet()
+  const { wallet, identityKey } = useWallet()
   const { published, listed } = useEntityTransparency(identityKey ?? '')
   const [copied, setCopied] = useState(false)
+  const [signing, setSigning] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const nextPublished = !published
 
   const relPath = `/transparency/${encodeURIComponent(identityKey ?? '')}`
   const url = typeof window !== 'undefined' ? `${window.location.origin}${relPath}` : relPath
@@ -181,6 +187,28 @@ function EntityTransparencySettings() {
   const copy = async () => {
     try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500) }
     catch { toast.error('Could not copy the link.') }
+  }
+
+  // Publishing / unpublishing the entity page is a controlled action: confirm
+  // in the popover, then sign with the wallet and anchor the authorisation.
+  const authorizePublish = async () => {
+    if (signing) return
+    if (wallet == null || identityKey == null) { toast.error('Connect a wallet to authorise this change.'); return }
+    setSigning(true)
+    try {
+      const at = new Date().toISOString()
+      const message = JSON.stringify({ kind: 'entity-transparency-publish', entity: identityKey, published: nextPublished, signerKey: identityKey, at })
+      const signature = await signStatement(wallet, `entity-transparency:${identityKey}:${at}`, message)
+      await anchorOnChain(wallet, `entity-transparency:${identityKey}:${at}`, { message, signature, signerKey: identityKey }, `entity transparency ${nextPublished ? 'publish' : 'unpublish'}`)
+      setEntityPublished(identityKey, nextPublished)
+      if (!nextPublished) setEntityListed(identityKey, false)
+      setConfirmOpen(false)
+      toast.success(nextPublished ? 'Transparency page published and anchored on-chain' : 'Transparency page unpublished and anchored on-chain')
+    } catch {
+      toast.error('Could not authorise the change')
+    } finally {
+      setSigning(false)
+    }
   }
 
   return (
@@ -199,12 +227,49 @@ function EntityTransparencySettings() {
       </div>
 
       <div className="mt-4 space-y-1">
-        <ToggleRow
-          label="Publish transparency page"
-          hint="Your entity page and its published instruments are visible to anyone with the link."
-          checked={published}
-          onChange={() => setEntityPublished(identityKey, !published)}
-        />
+        <div className="flex items-start justify-between gap-4 py-1.5">
+          <div className="min-w-0">
+            <div className="text-[13px] font-medium text-foreground">Publish transparency page</div>
+            <p className="text-[11.5px] leading-snug text-muted-foreground">Signed with your wallet and anchored on-chain. Your entity page and its published instruments become visible to anyone with the link.</p>
+          </div>
+          <Popover open={confirmOpen} onOpenChange={setConfirmOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={published}
+                aria-label="Publish transparency page"
+                className={cn('relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+                  published ? 'bg-primary' : 'bg-muted-foreground/40')}
+              >
+                <span className={cn('inline-block size-5 transform rounded-full bg-white shadow transition-transform', published ? 'translate-x-[22px]' : 'translate-x-[2px]')} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72 p-3">
+              <div className="flex items-start gap-2">
+                <div className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                  <ShieldCheck className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[13px] font-semibold text-foreground">{nextPublished ? 'Publish transparency page' : 'Unpublish transparency page'}</div>
+                  <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">
+                    {nextPublished
+                      ? 'Making your entity page public is a controlled action. Sign with your wallet to authorise it.'
+                      : 'Taking your entity page down is a controlled action. Sign with your wallet to authorise it.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={authorizePublish}
+                disabled={signing}
+                className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                <FileSignature className="size-3.5" /> {signing ? 'Signing…' : nextPublished ? 'Sign & publish' : 'Sign & unpublish'}
+              </button>
+            </PopoverContent>
+          </Popover>
+        </div>
         <ToggleRow
           label="List in public directory"
           hint="Show your organisation in the searchable directory at /transparency."
