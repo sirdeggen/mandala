@@ -272,24 +272,31 @@ function EmptyState({ onConnect, onBrowseAll }: { onConnect: (p: Provider) => vo
   const starters = starterProviders()
   return (
     <div className="rounded-xl border border-border bg-card p-6 shadow-[var(--shadow-card)] sm:p-8">
-      {/* Illustration - a ghost "connections" preview of the end state */}
-      <div className="mx-auto w-full max-w-[300px]">
-        <div className="rounded-xl border border-border bg-sidebar p-3">
-          <div className="flex items-center justify-between px-1 text-[8px] font-bold tracking-wide text-faint-foreground">
-            <span>PROVIDER</span><span>STATUS</span>
+      {/* Illustration - the platform hub wired to real providers (not a card) */}
+      <div className="mx-auto h-40 w-full max-w-[340px]">
+        <div className="relative mx-auto h-40 w-[320px]">
+          {/* soft glow behind the hub */}
+          <div className="absolute left-1/2 top-1/2 size-40 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,color-mix(in_srgb,var(--color-primary)_14%,transparent),transparent_70%)]" />
+          {/* dashed connectors from hub (160,80) to each provider */}
+          <svg viewBox="0 0 320 160" className="absolute inset-0 h-full w-full text-border" fill="none" aria-hidden>
+            <g stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 4">
+              <path d="M160 80 L160 22" />
+              <path d="M160 80 L58 130" />
+              <path d="M160 80 L262 130" />
+            </g>
+          </svg>
+          {/* hub */}
+          <div className="absolute left-1/2 top-1/2 grid size-16 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-[var(--shadow-pop)]">
+            <Plug className="size-7" strokeWidth={2} />
           </div>
-          <div className="my-2 h-px w-full bg-border" />
-          <div className="space-y-2">
-            {starters.map(p => (
-              <div key={p.id} className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-2.5 py-2">
-                <ProviderTile provider={p} size={26} />
-                <div className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground">{p.name}</div>
-                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-success">
-                  <span className="size-1.5 rounded-full bg-success" /> Connected
-                </span>
+          {/* provider logo tiles */}
+          {[{ p: starters[0], x: 160, y: 22 }, { p: starters[1], x: 58, y: 130 }, { p: starters[2], x: 262, y: 130 }].map(({ p, x, y }) =>
+            p != null ? (
+              <div key={p.id} className="absolute -translate-x-1/2 -translate-y-1/2 rounded-xl bg-card p-1 shadow-[var(--shadow-card)]" style={{ left: x, top: y }}>
+                <ProviderTile provider={p} size={40} />
               </div>
-            ))}
-          </div>
+            ) : null
+          )}
         </div>
       </div>
 

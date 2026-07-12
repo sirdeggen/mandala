@@ -105,9 +105,18 @@ const STARTER_IDS = ['complyadvantage', 'fireblocks', 'onfido']
 export const starterProviders = (): Provider[] =>
   STARTER_IDS.map(id => providerById(id)).filter((p): p is Provider => p != null)
 
-/** Real product logo URL for a provider (Clearbit), or null to use the monogram. */
-export const logoUrl = (provider: Provider): string | null =>
-  provider.domain != null ? `https://logo.clearbit.com/${provider.domain}?size=128` : null
+// Real product logos bundled under src/assets/integrations/<provider-id>.png,
+// resolved to hashed asset URLs at build time. Providers without a file fall
+// back to the coloured monogram tile.
+const LOGO_FILES = import.meta.glob('../assets/integrations/*.png', { eager: true, import: 'default' }) as Record<string, string>
+const LOGO_BY_ID: Record<string, string> = {}
+for (const [path, url] of Object.entries(LOGO_FILES)) {
+  const id = (path.split('/').pop() ?? '').replace(/\.png$/, '')
+  if (id !== '') LOGO_BY_ID[id] = url
+}
+
+/** Bundled product-logo URL for a provider, or null to use the monogram. */
+export const logoUrl = (provider: Provider): string | null => LOGO_BY_ID[provider.id] ?? null
 
 // ── Connections (mock, persisted) ─────────────────────────────────────────────
 
