@@ -185,10 +185,12 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
           circulating/issued supply they back. */}
       {recon != null && (
         <div className={cn(
-          'rounded-lg border p-4',
-          fullyBacked ? 'border-success/30 bg-success/[0.06]' : 'border-warning/30 bg-warning/[0.06]'
+          'relative overflow-hidden rounded-lg border p-4',
+          fullyBacked ? 'border-success/30 bg-success/5' : 'border-warning/30 bg-warning/5'
         )}>
-          <div className="flex items-start justify-between gap-3">
+          {/* Subtle diagonal tint - green when backed, red when under-reserved */}
+          <div aria-hidden className={cn('pointer-events-none absolute inset-0 bg-gradient-to-br to-transparent', fullyBacked ? 'from-success/12' : 'from-destructive/12')} />
+          <div className="relative flex items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground">
                 Reserve coverage
