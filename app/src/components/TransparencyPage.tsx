@@ -22,6 +22,7 @@ import { useOrgName } from '../lib/orgDirectory'
 import { flagForTicker, assetImage } from '../lib/instrumentCategory'
 import 'flag-icons/css/flag-icons.min.css'
 import { InstrumentTransparencyView } from './transparency/InstrumentTransparencyView'
+import { ActivityHeatmap } from './transparency/ActivityHeatmap'
 import { BrandMark } from './ui/BrandMark'
 import { InstrumentIcon } from '@/components/ui/instrument-icon'
 import { CompanyAvatar } from '@/components/ui/company-avatar'
@@ -221,6 +222,10 @@ export function TransparencyOrg() {
           </div>
         )}
       </div>
+
+      {entity.published && (group?.instruments.length ?? 0) > 0 && (
+        <ActivityHeatmap assetIds={(group?.instruments ?? []).map(i => i.assetId)} className="mt-4" />
+      )}
     </Chrome>
   )
 }
@@ -290,6 +295,7 @@ export function TransparencyInstrument() {
             </div>
           )}
           <InstrumentTransparencyView assetId={assetId} asset={asset} />
+          <ActivityHeatmap assetIds={[assetId]} />
         </div>
       )}
     </Chrome>
