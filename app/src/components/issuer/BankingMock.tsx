@@ -265,7 +265,7 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
           sandbox feed standing in for a real bank connection, so it starts
           empty rather than pre-seeded with fake history. */}
       <p className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase mb-[10px] mt-[22px]">
-        Simulate a Bank Transfer
+        Add a manual transfer
       </p>
       <div>
         {/* Direction - manila folder tabs */}
