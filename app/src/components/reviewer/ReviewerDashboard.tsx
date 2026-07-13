@@ -300,7 +300,7 @@ function DiscoverRow({ assetId, first, onOpen }: { assetId: string; first: boole
 
   const circulation = summary != null ? (summary.totalIssued - summary.totalRedeemed) / 10 ** decimals : 0
   const reserve = usePublicReserve(assetId, circulation, decimals)
-  const backing = circulation > 0 ? (reserve.total / circulation) * 100 : (reserve.total > 0 ? 100 : null)
+  const backing = circulation > 0 ? (reserve.total / circulation) * 100 : null
   const fullyBacked = backing != null && backing >= 100
   const attested = snap.attestations.some(a => a.assetId === assetId && a.status === 'signed')
 

@@ -11,7 +11,7 @@
  * cross-device viewer sees only what those hold; a production build would read
  * a custodian/reserve API keyed by assetId.
  */
-import { useReserveBucket, reservesTotalOf, type ReserveBucket, type ReserveLine } from './compliance'
+import { useReserveBucket, type ReserveBucket, type ReserveLine } from './compliance'
 import { useMockTransfers } from './mandala/mockBankStore'
 
 export interface PublicReserveLine { label: string; amount: number }
@@ -58,15 +58,23 @@ function fromIssuerLines(lines: ReserveLine[]): PublicReserveLine[] {
 }
 
 /**
- * Pure reserve snapshot. `bankReserve` is the bank-feed balance in display
- * units; pass 0 if unknown. Issuer composition wins, then the bank feed.
+ * Pure reserve snapshot. The reserve TOTAL is the bank-feed balance (display
+ * units) — the reserves actually held, matching the banking reconciliation, so
+ * backing reflects reality. When the issuer has itemised a composition we use
+ * its class breakdown (scaled to the bank total); otherwise a deterministic
+ * cash/govt split. No bank reserves ⇒ unbacked.
  */
-export function computePublicReserve(assetId: string, _circulation: number, bucket?: ReserveBucket, bankReserve = 0): PublicReserve {
+export function computePublicReserve(_assetId: string, _circulation: number, bucket?: ReserveBucket, bankReserve = 0): PublicReserve {
+  if (bankReserve <= 0) return { total: 0, lines: [], source: 'none' }
   if (bucket != null && bucket.composition.length > 0) {
-    return { total: reservesTotalOf(bucket), lines: fromIssuerLines(bucket.composition), source: 'issuer' }
+    const raw = fromIssuerLines(bucket.composition)
+    const rawTotal = raw.reduce((s, l) => s + l.amount, 0)
+    if (rawTotal > 0) {
+      const scale = bankReserve / rawTotal
+      return { total: bankReserve, lines: raw.map(l => ({ label: l.label, amount: l.amount * scale })), source: 'issuer' }
+    }
   }
-  if (bankReserve > 0) return splitTotal(assetId, bankReserve, 'feed')
-  return { total: 0, lines: [], source: 'none' }
+  return splitTotal(_assetId, bankReserve, 'feed')
 }
 
 /** Reactive reserve snapshot for an instrument (reads the compliance
