@@ -6,15 +6,15 @@
  * opens each in a read-only view fed entirely by public data. Signing an
  * attestation still uses the reviewer's own wallet.
  */
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { Compass, Eye, ShieldCheck, BookOpen, Plus, Check, ExternalLink } from 'lucide-react'
+import { Compass, Eye, ShieldCheck, BookOpen, Plus, Check, ExternalLink, Search } from 'lucide-react'
 import type { AdminAsset } from '@bsv/mandala/assets'
 import { useWallet } from '../../context/WalletContext'
 import { useOnboarding } from '../../lib/onboarding'
 import { useUserAvatar } from '../../lib/userAvatar'
 import { useWatchlist, toggleWatch } from '../../lib/watchlist'
-import { useOrgName } from '../../lib/orgDirectory'
+import { useOrgName, orgNameFor } from '../../lib/orgDirectory'
 import { useDiscoverInstruments, type DiscoveredEntity } from '../../hooks/useDiscoverInstruments'
 import { useAssetMetadata } from '../../hooks/usePublicInstrument'
 import { useAdminSummary } from '../../hooks/useAdminHistory'
@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/sidebar'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { CompanyAvatar } from '@/components/ui/company-avatar'
+import { Input } from '@/components/ui/input'
 import { Spinner } from '../ui/spinner'
 import ReserveAttestations from '../issuer/ReserveAttestations'
 import OverlayActivity from '../issuer/OverlayActivity'
@@ -178,6 +179,13 @@ function WatchedNavItem({ assetId, active, onOpen }: { assetId: string; active: 
 
 function DiscoverPanel({ onOpen }: { onOpen: (id: string) => void }) {
   const { data, isLoading, isError } = useDiscoverInstruments()
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+
+  const entities = (data?.entities ?? []).filter(e => {
+    if (q === '') return true
+    return orgNameFor(e.issuerKey).toLowerCase().includes(q) || e.issuerKey.toLowerCase().includes(q)
+  })
 
   return (
     <div className="mx-auto w-full max-w-3xl">
@@ -187,15 +195,27 @@ function DiscoverPanel({ onOpen }: { onOpen: (id: string) => void }) {
         or hold to your watchlist and they stay to hand in the sidebar.
       </p>
 
+      <div className="relative mt-6 max-w-md">
+        <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="Search by institution name or entity ID"
+          className="pl-9"
+        />
+      </div>
+
       {isLoading ? (
         <div className="mt-10 flex items-center gap-2 text-[13px] text-muted-foreground"><Spinner size="sm" tone="brand" /> Loading instruments…</div>
       ) : isError || data == null ? (
         <p className="mt-10 rounded-xl border border-dashed border-border px-4 py-12 text-center text-[13.5px] text-muted-foreground">Couldn’t reach the overlay feed.</p>
       ) : data.entities.length === 0 ? (
         <p className="mt-10 rounded-xl border border-dashed border-border px-4 py-12 text-center text-[13.5px] text-muted-foreground">No instruments found on the overlay yet.</p>
+      ) : entities.length === 0 ? (
+        <p className="mt-8 rounded-xl border border-dashed border-border px-4 py-12 text-center text-[13.5px] text-muted-foreground">No institutions match “{query.trim()}”.</p>
       ) : (
         <div className="mt-8 space-y-8">
-          {data.entities.map(entity => <EntityGroup key={entity.issuerKey} entity={entity} onOpen={onOpen} />)}
+          {entities.map(entity => <EntityGroup key={entity.issuerKey} entity={entity} onOpen={onOpen} />)}
         </div>
       )}
     </div>
