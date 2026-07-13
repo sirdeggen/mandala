@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { toast } from 'sonner'
+import { ExternalLink } from 'lucide-react'
 import { IdentityKeyPopover } from './IdentityKeyPopover'
 
 const looksLikeKey = (v: string) => /^[0-9a-f]{16,}$/i.test(v)
@@ -9,6 +11,8 @@ export function isIdColumn(column: string): boolean {
   return column === 'From' || column === 'To' || /badge id$/i.test(column)
 }
 const isAnchorColumn = (column: string) => column === 'Anchor'
+/** Hash columns that hold an on-chain transaction id (openable on-chain). */
+const isTxColumn = (column: string) => isAnchorColumn(column) || /transaction hash|tx hash|txid/i.test(column)
 
 /** Columns that read better without wrapping (dates, keys, hashes). */
 export function isNowrapColumn(column: string): boolean {
@@ -46,7 +50,32 @@ export function ReportCell({ column, value, query = '' }: { column: string; valu
     return <IdentityKeyPopover value={value} />
   }
   if ((column.toLowerCase().includes('hash') || isAnchorColumn(column)) && value !== '') {
-    return <span className="font-mono text-[11px] text-subtle-foreground" title={value}><Highlight text={trunc(value)} query={query} /></span>
+    const txid = value.includes('.') ? value.slice(0, value.indexOf('.')) : value
+    const copy = () => { navigator.clipboard?.writeText(value).then(() => toast.success('Hash copied')).catch(() => {}) }
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={copy}
+          title={`${value}\n(click to copy)`}
+          className="font-mono text-[11px] text-subtle-foreground transition-colors hover:text-foreground"
+        >
+          <Highlight text={trunc(value)} query={query} />
+        </button>
+        {isTxColumn(column) && (
+          <a
+            href={`https://whatsonchain.com/tx/${txid}`}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open transaction on WhatsOnChain"
+            title="Open on WhatsOnChain"
+            className="text-faint-foreground transition-colors hover:text-primary"
+          >
+            <ExternalLink className="size-3" />
+          </a>
+        )}
+      </span>
+    )
   }
   return <Highlight text={value} query={query} />
 }
