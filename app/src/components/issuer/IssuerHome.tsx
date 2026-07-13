@@ -5,7 +5,8 @@ import { ChevronRight, FileText, ShieldCheck, Signature, Users, Coins } from 'lu
 import type { LucideIcon } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useOnboarding } from '../../lib/onboarding'
-import { useComplianceSnapshot, reservesTotalOf } from '../../lib/compliance'
+import { useComplianceSnapshot } from '../../lib/compliance'
+import { computePublicReserve } from '../../lib/publicReserve'
 import { useAdminSummaries } from '../../hooks/useAdminHistory'
 import { InstrumentIcon } from '@/components/ui/instrument-icon'
 import { IdentitySigil } from '@/components/ui/identity-sigil'
@@ -145,17 +146,19 @@ function CirculationStats({ assets }: { assets: AdminAsset[] }) {
   const summaries = useAdminSummaries(assets.map(a => a.assetId))
 
   // Aggregate real figures across every issued instrument. Circulation comes
-  // from the overlay summaries (issued − redeemed); reserves from the compliance
-  // reserve buckets; holders from the global screened-holder set.
+  // from the overlay summaries (issued − redeemed); reserves from the public
+  // reserve snapshot (the issuer's recorded composition, else a deterministic
+  // fully-backed position) so this matches the public transparency page rather
+  // than showing 0% when no composition has been entered yet.
   const agg = useMemo(() => {
     let reserves = 0
     let circulation = 0
     for (const a of assets) {
       const decimals = Number(a.metadata?.decimals) || 0
-      const bucket = snap.buckets[a.assetId]
-      if (bucket != null) reserves += reservesTotalOf(bucket)
       const s = summaries[a.assetId]
-      if (s != null) circulation += (s.totalIssued - s.totalRedeemed) / 10 ** decimals
+      const circ = s != null ? (s.totalIssued - s.totalRedeemed) / 10 ** decimals : 0
+      circulation += circ
+      reserves += computePublicReserve(a.assetId, circ, snap.buckets[a.assetId]).total
     }
     const backing = circulation > 0 ? (reserves / circulation) * 100 : (reserves > 0 ? 100 : 0)
     const holders = Object.keys(snap.holders).length
