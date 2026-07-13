@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { Compass, Eye, ShieldCheck, BookOpen, Plus, Check, ExternalLink, Search } from 'lucide-react'
+import { Compass, Eye, ShieldCheck, BookOpen, Plus, Check, ExternalLink, Search, TriangleAlert, BadgeCheck } from 'lucide-react'
 import type { AdminAsset } from '@bsv/mandala/assets'
 import { useWallet } from '../../context/WalletContext'
 import { useOnboarding } from '../../lib/onboarding'
@@ -18,6 +18,9 @@ import { useOrgName, orgNameFor } from '../../lib/orgDirectory'
 import { useDiscoverInstruments, type DiscoveredEntity } from '../../hooks/useDiscoverInstruments'
 import { useAssetMetadata } from '../../hooks/usePublicInstrument'
 import { useAdminAssets } from '../../hooks/useAdminAssets'
+import { useAdminSummary } from '../../hooks/useAdminHistory'
+import { useComplianceSnapshot } from '../../lib/compliance'
+import { computePublicReserve } from '../../lib/publicReserve'
 import { assetImage, flagForTicker } from '../../lib/instrumentCategory'
 import 'flag-icons/css/flag-icons.min.css'
 import {
@@ -245,12 +248,21 @@ function EntityGroup({ entity, onOpen }: { entity: DiscoveredEntity; onOpen: (id
 function DiscoverRow({ assetId, first, onOpen }: { assetId: string; first: boolean; onOpen: () => void }) {
   const asset = (useAdminAssets().data ?? []).find(a => a.assetId === assetId) ?? null
   const meta = useAssetMetadata(assetId)
+  const summary = useAdminSummary(assetId).data
+  const snap = useComplianceSnapshot()
   const watchlist = useWatchlist()
   const watched = watchlist.includes(assetId)
 
   const label = asset?.label ?? meta.data?.label ?? 'Instrument'
   const ticker = String(asset?.metadata?.ticker ?? meta.data?.ticker ?? '').toUpperCase()
+  const decimals = Number(asset?.metadata?.decimals ?? meta.data?.decimals ?? 0) || 0
   const flag = flagForTicker(ticker)
+
+  const circulation = summary != null ? (summary.totalIssued - summary.totalRedeemed) / 10 ** decimals : 0
+  const reserve = computePublicReserve(assetId, circulation, snap.buckets[assetId])
+  const backing = circulation > 0 ? (reserve.total / circulation) * 100 : (reserve.total > 0 ? 100 : null)
+  const fullyBacked = backing != null && backing >= 100
+  const attested = snap.attestations.some(a => a.assetId === assetId && a.status === 'signed')
 
   return (
     <div className={cn('flex items-center gap-3 px-4 py-3', !first && 'border-t border-separator')}>
@@ -264,6 +276,22 @@ function DiscoverRow({ assetId, first, onOpen }: { assetId: string; first: boole
           </div>
         </div>
       </button>
+
+      {/* Auditor summary: supply, backing, attestation */}
+      <div className="hidden items-center gap-4 md:flex">
+        <div className="text-right">
+          <div className="tabular text-[13px] font-semibold text-foreground">{compact(circulation)} {ticker}</div>
+          <div className="text-[10.5px] text-subtle-foreground">in circulation</div>
+        </div>
+        <span className={cn('inline-flex w-[92px] items-center justify-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+          backing == null ? 'bg-muted text-muted-foreground' : fullyBacked ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning')}>
+          {backing == null ? 'No supply' : fullyBacked ? <><ShieldCheck className="size-3" /> {backing.toFixed(0)}% backed</> : <><TriangleAlert className="size-3" /> {backing.toFixed(0)}%</>}
+        </span>
+        <span className={cn('inline-flex w-[92px] items-center justify-center gap-1 text-[11px] font-medium', attested ? 'text-success' : 'text-subtle-foreground')}>
+          {attested ? <><BadgeCheck className="size-3.5" /> Attested</> : 'Unattested'}
+        </span>
+      </div>
+
       <button
         type="button"
         onClick={() => toggleWatch(assetId)}
@@ -276,6 +304,8 @@ function DiscoverRow({ assetId, first, onOpen }: { assetId: string; first: boole
     </div>
   )
 }
+
+const compact = (n: number) => Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n)
 
 // ── Read-only instrument view ────────────────────────────────────────────────
 
