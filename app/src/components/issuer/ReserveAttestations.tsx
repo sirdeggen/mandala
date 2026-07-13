@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { ShieldCheck, Plus, Trash2, AlertTriangle, BadgeCheck, Check, Flag, FileCheck2, ChevronDown } from 'lucide-react'
 import { AdminAsset } from '@bsv/mandala/assets'
+import { formatAmount } from '@bsv/mandala/amount'
+import { useMockTransfers } from '../../lib/mandala/mockBankStore'
+import { bankForRef } from '@/content/banks'
 import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
 import { useWallet } from '../../context/WalletContext'
 import { useAdminSummary } from '../../hooks/useAdminHistory'
@@ -44,6 +47,9 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
   const backing = circ != null && circ > 0 ? (reserves / circ) * 100 : (circ === 0 && reserves > 0 ? 100 : null)
   const fullyBacked = backing != null && backing >= 100
   const hasIneligible = bucket.composition.some(l => !isReserveLineEligible(l.assetClass, l.attributes))
+  // Bank mutations already attested against a reserve line (so they don't
+  // reappear in the picker for other lines).
+  const linkedIds = new Set(bucket.composition.map(l => l.transferId).filter((x): x is string => x != null))
 
   const latestSigned = attestations.find(a => a.status === 'signed')
 
@@ -133,7 +139,7 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
         ) : (
           <div className="space-y-2.5">
             {bucket.composition.map(line => (
-              <ReserveLineRow key={line.id} assetId={assetId} line={line} readOnly={isAuditor} currency={currency} />
+              <ReserveLineRow key={line.id} assetId={assetId} line={line} readOnly={isAuditor} currency={currency} decimals={decimals} linkedIds={linkedIds} />
             ))}
           </div>
         )}
@@ -203,17 +209,29 @@ export default function ReserveAttestations({ assetId, asset }: { assetId: strin
 
 // ── Reserve line row (class picker + per-class compliance fields) ─────────────
 
-function ReserveLineRow({ assetId, line, readOnly, currency }: {
+function ReserveLineRow({ assetId, line, readOnly, currency, decimals, linkedIds }: {
   assetId: string
-  line: { id: string; assetClass: string; amount: number; attributes?: Record<string, string> }
+  line: { id: string; assetClass: string; amount: number; attributes?: Record<string, string>; transferId?: string }
   readOnly: boolean
   currency: string
+  decimals: number
+  linkedIds: Set<string>
 }) {
   const [open, setOpen] = useState(false)
+  const [amtOpen, setAmtOpen] = useState(false)
   const cls: ReserveClass | undefined = RESERVE_CLASS_BY_KEY[line.assetClass]
   const eligible = isReserveLineEligible(line.assetClass, line.attributes)
   const setAttr = (key: string, value: string) =>
     updateReserveLine(assetId, line.id, { attributes: { ...line.attributes, [key]: value } })
+
+  // Incoming bank mutations not yet attested against another reserve line
+  // (plus this line's own, so it stays visible/selectable).
+  const transfers = useMockTransfers(assetId)
+  const deposits = transfers.filter(t => t.direction === 'in' && (!linkedIds.has(t.id) || t.id === line.transferId))
+  const pick = (t: { id: string; amount: number }) => {
+    updateReserveLine(assetId, line.id, { amount: t.amount / 10 ** decimals, transferId: t.id })
+    setAmtOpen(false)
+  }
 
   return (
     <div className={cn('rounded-lg border p-3', eligible ? 'border-border' : 'border-warning/50 bg-warning/5')}>
@@ -248,16 +266,42 @@ function ReserveLineRow({ assetId, line, readOnly, currency }: {
           </PopoverContent>
         </Popover>
 
-        <Input
-          type="number"
-          min="0"
-          step="any"
-          disabled={readOnly}
-          value={line.amount !== 0 ? String(line.amount) : ''}
-          placeholder={`0 ${currency}`}
-          onChange={e => updateReserveLine(assetId, line.id, { amount: Number(e.target.value) || 0 })}
-          className="tabular h-10 w-36 text-[13px]"
-        />
+        {/* Amount - picked from an unattested bank mutation */}
+        <Popover open={amtOpen} onOpenChange={setAmtOpen}>
+          <PopoverTrigger
+            disabled={readOnly}
+            className="tabular inline-flex h-10 w-44 shrink-0 items-center justify-between gap-2 rounded-md border border-input-border bg-input px-3 text-left text-[13px] outline-none transition-colors hover:border-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-60"
+          >
+            <span className={cn('truncate', line.amount === 0 && 'font-sans text-subtle-foreground')}>
+              {line.amount !== 0 ? `${line.amount.toLocaleString(undefined, { maximumFractionDigits: decimals })} ${currency}` : 'Pick mutation'}
+            </span>
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-[320px] p-1">
+            <div className="px-2 pb-1 pt-1.5 text-[10.5px] font-medium uppercase tracking-wide text-subtle-foreground">Unattested bank mutations</div>
+            {deposits.length === 0 ? (
+              <p className="px-2 py-3 text-center text-[12px] leading-snug text-muted-foreground">No unattested deposits. Record a reserve deposit under the Reserve feed tab.</p>
+            ) : deposits.map(t => {
+              const bank = bankForRef(t.id)
+              const sel = t.id === line.transferId
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => pick(t)}
+                  className={cn('flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent', sel && 'bg-accent')}
+                >
+                  <Check className={cn('size-3.5 shrink-0', sel ? 'opacity-100' : 'opacity-0')} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12.5px] font-medium text-foreground">{t.originator}</span>
+                    <span className="block truncate text-[11px] text-subtle-foreground">{bank.name} · {new Date(t.timestamp).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                  </span>
+                  <span className="tabular shrink-0 text-[12.5px] font-semibold text-foreground">{formatAmount(t.amount, decimals)}</span>
+                </button>
+              )
+            })}
+          </PopoverContent>
+        </Popover>
         {!readOnly && (
           <button
             type="button"

@@ -24,6 +24,8 @@ export interface ReserveLine {
   amount: number
   /** Per-class compliance attributes (custodian, maturity, jurisdiction …). */
   attributes?: Record<string, string>
+  /** Bank mutation (mockBankStore transfer id) this line is attested against. */
+  transferId?: string
 }
 
 export type AttestationStatus = 'submitted' | 'signed' | 'flagged'
