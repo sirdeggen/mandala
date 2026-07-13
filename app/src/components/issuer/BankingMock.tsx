@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowDownLeft, ArrowUpRight, PlusCircle, Trash2, ShieldCheck, AlertTriangle, ArrowRight, Landmark, Plug, CirclePlus, Signature, X, ExternalLink } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, PlusCircle, Trash2, ShieldCheck, AlertTriangle, ArrowRight, Landmark, Plug, CirclePlus, Signature, X, ExternalLink, ChevronDown, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Select } from '../ui/select'
 import { Input } from '../ui/input'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Spinner } from '../ui/spinner'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useAdminAssets } from '../../hooks/useAdminAssets'
@@ -60,6 +61,8 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
   const [transferAmount, setTransferAmount] = useState('')
   const [direction, setDirection] = useState<TransferDirection>('in')
   const [bankingTab, setBankingTab] = useState<'feed' | 'manual'>('feed')
+  const [feedDirection, setFeedDirection] = useState<TransferDirection>('in')
+  const [feedMenuOpen, setFeedMenuOpen] = useState(false)
 
   // In controlled mode the active asset id comes from the prop
   const activeAssetId = controlledAssetId ?? selectedAssetId
@@ -139,20 +142,37 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
     }
   }, [transferAmount, decimals, direction, activeAssetId])
 
-  // Automated reserve feed: mocks an incoming deposit pushed by a connected
-  // bank/custodian API - a plausible random amount from a random counterparty,
-  // raising the same maker-checker mint request as a manual deposit.
-  const simulateFeedDeposit = useCallback(() => {
+  // Available balance to withdraw (display units): can't withdraw more reserves
+  // than the bank actually holds.
+  const availableDisplay = recon != null ? recon.bankBalance / 10 ** decimals : 0
+
+  // Automated reserve feed: mocks an event pushed by a connected bank/custodian
+  // API - a plausible amount from a random counterparty. Deposits raise the
+  // same maker-checker mint request as a manual deposit; withdrawals are capped
+  // to the reserves currently held.
+  const simulateFeedTransfer = useCallback((dir: TransferDirection) => {
     if (activeAssetId === '') { toast.error('Select an instrument first'); return }
-    const displayAmt = (Math.floor(Math.random() * 491) + 10) * 1000 // 10k–500k
-    const amount = parseAmount(String(displayAmt), decimals)
     const originator = RESERVE_COUNTERPARTIES[Math.floor(Math.random() * RESERVE_COUNTERPARTIES.length)]
-    const t = { ...makeTransfer(amount, 'in', activeAssetId), originator }
+    let displayAmt: number
+    if (dir === 'out') {
+      if (availableDisplay <= 0) { toast.error('No reserves available to withdraw.'); return }
+      // A random 20–90% of the available balance, never more than is held.
+      displayAmt = Math.min(availableDisplay, Math.max(1, Math.round(availableDisplay * (0.2 + Math.random() * 0.7))))
+    } else {
+      displayAmt = (Math.floor(Math.random() * 491) + 10) * 1000 // 10k–500k
+    }
+    const amount = parseAmount(String(displayAmt), decimals)
+    if (dir === 'out' && recon != null && amount > recon.bankBalance) return // safety
+    const t = { ...makeTransfer(amount, dir, activeAssetId), originator }
     addMockTransfer(t)
-    const bank = bankForRef(t.id)
-    createMintRequest({ assetId: activeAssetId, amount, originator, reference: `${bank.name} ${bank.account}` })
-    toast.success(`Incoming deposit from ${originator}: ${formatAmount(amount, decimals)}. Mint request raised, awaiting approval.`)
-  }, [activeAssetId, decimals])
+    if (dir === 'in') {
+      const bank = bankForRef(t.id)
+      createMintRequest({ assetId: activeAssetId, amount, originator, reference: `${bank.name} ${bank.account}` })
+      toast.success(`Incoming deposit from ${originator}: ${formatAmount(amount, decimals)}. Mint request raised, awaiting approval.`)
+    } else {
+      toast.success(`Outgoing withdrawal to ${originator}: ${formatAmount(amount, decimals)}.`)
+    }
+  }, [activeAssetId, decimals, availableDisplay, recon])
 
   // Checker step: approve a pending mint request. This performs the real
   // on-chain issuance and records the txid against the request.
@@ -302,16 +322,43 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="min-w-0 flex-1 text-[12.5px] leading-snug text-muted-foreground">
-                  Deposits arrive automatically from your connected bank or custodian. Simulate an incoming event to see it flow through reconciliation.
+                  Deposits and withdrawals arrive automatically from your connected bank or custodian. Simulate an event to see it flow through reconciliation.
                 </p>
-                <button
-                  type="button"
-                  onClick={simulateFeedDeposit}
-                  disabled={activeAssetId === ''}
-                  className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded bg-primary px-4 py-[11px] text-[13px] font-semibold text-primary-foreground disabled:opacity-50"
-                >
-                  <ArrowDownLeft size={16} /> Simulate incoming deposit
-                </button>
+                {/* Split button: main action + direction chooser */}
+                <div className="inline-flex shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => simulateFeedTransfer(feedDirection)}
+                    disabled={activeAssetId === '' || (feedDirection === 'out' && availableDisplay <= 0)}
+                    title={feedDirection === 'out' && availableDisplay <= 0 ? 'No reserves available to withdraw' : undefined}
+                    className="inline-flex items-center gap-2 whitespace-nowrap rounded-l-md bg-primary px-4 py-[11px] text-[13px] font-semibold text-primary-foreground disabled:opacity-50"
+                  >
+                    {feedDirection === 'in' ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
+                    {feedDirection === 'in' ? 'Simulate incoming deposit' : 'Simulate outgoing withdrawal'}
+                  </button>
+                  <Popover open={feedMenuOpen} onOpenChange={setFeedMenuOpen}>
+                    <PopoverTrigger
+                      aria-label="Choose feed event type"
+                      className="grid place-items-center rounded-r-md border-l border-primary-foreground/25 bg-primary px-2 text-primary-foreground outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring/60"
+                    >
+                      <ChevronDown className="size-4" />
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-60 p-1">
+                      {([['in', 'Simulate incoming deposit', ArrowDownLeft], ['out', 'Simulate outgoing withdrawal', ArrowUpRight]] as const).map(([d, label, Icon]) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => { setFeedDirection(d); setFeedMenuOpen(false) }}
+                          className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-accent"
+                        >
+                          <Icon className="size-4 shrink-0 text-muted-foreground" />
+                          <span className="flex-1">{label}</span>
+                          {feedDirection === d && <Check className="size-4 text-foreground" />}
+                        </button>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
             </div>
           ) : (
