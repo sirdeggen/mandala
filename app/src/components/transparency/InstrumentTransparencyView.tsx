@@ -120,10 +120,20 @@ export function InstrumentTransparencyView({ assetId, asset }: { assetId: string
             <ExternalLink className="size-3.5" /> Verify attestation on-chain
           </a>
         )}
-        <span className="text-muted-foreground">Redeemable at par (1:1)</span>
+        <span className="ml-auto inline-flex items-center gap-1.5">
+          <span className="text-muted-foreground">Redeemable at par (1:1)</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="cursor-help font-medium text-primary underline decoration-dotted underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/60">What is this?</button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-64 text-left">
+              Every token can be redeemed with the issuer for one unit of the underlying currency at any time, at face value, with no fee or haircut.
+            </TooltipContent>
+          </Tooltip>
+        </span>
       </div>
 
-      <p className="mt-4 text-[11.5px] leading-relaxed text-subtle-foreground">
+      <p className="mt-4 text-balance text-[11.5px] leading-relaxed text-subtle-foreground">
         Tokens in circulation are counted directly from the public blockchain, in real time. Reserves shown are
         {reserve.source === 'issuer' ? ' the balances reported by the issuer' : ' an illustrative full-reserve position'}, held to redeem every token one-for-one.
       </p>
