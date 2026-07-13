@@ -17,6 +17,10 @@ import { cn } from '@/lib/utils'
 
 const compact = (n: number) => Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n)
 
+// Harmonious palette for reserve-asset classes; deterministic per index.
+const RESERVE_COLORS = ['#0e7490', '#0d9488', '#1e3a8a', '#e8622c', '#6d5bd0', '#0891b2', '#64748b']
+const reserveColor = (i: number) => RESERVE_COLORS[i % RESERVE_COLORS.length]
+
 /** Last day of the current month, as a monthly attestation cadence stand-in. */
 function nextAttestationDue(): string {
   const now = new Date()
@@ -79,10 +83,30 @@ export function InstrumentTransparencyView({ assetId, asset }: { assetId: string
         <Figure label="Backing" value={backing != null ? `${backing.toFixed(1)}%` : '—'} tone={backing == null ? undefined : fullyBacked ? 'success' : 'warning'} />
       </div>
 
-      {/* Backing bar */}
+      {/* Backing bar - segmented by reserve-asset class */}
       {backing != null && (
-        <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-muted">
-          <div className={cn('h-full rounded-full', fullyBacked ? 'bg-success' : 'bg-warning')} style={{ width: `${Math.min(100, backing)}%` }} />
+        <div className="mt-4 flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+          {reserve.lines.map((l, i) => {
+            const seg = reserve.total > 0 ? (l.amount / reserve.total) * Math.min(100, backing) : 0
+            if (seg <= 0) return null
+            const share = reserve.total > 0 ? (l.amount / reserve.total) * 100 : 0
+            return (
+              <Tooltip key={l.label}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`${l.label}: ${share.toFixed(0)}% of reserves`}
+                    className="h-full outline-none transition-[filter] hover:brightness-110 focus-visible:brightness-110"
+                    style={{ width: `${seg}%`, backgroundColor: reserveColor(i) }}
+                  />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-center">
+                  <span className="block font-medium">{l.label}</span>
+                  <span className="block text-primary-foreground/80">{share.toFixed(0)}% of reserves · {compact(l.amount)} {ticker}</span>
+                </TooltipContent>
+              </Tooltip>
+            )
+          })}
         </div>
       )}
 
@@ -95,6 +119,7 @@ export function InstrumentTransparencyView({ assetId, asset }: { assetId: string
               const share = reserve.total > 0 ? (l.amount / reserve.total) * 100 : 0
               return (
                 <div key={l.label} className={cn('flex items-center gap-3 px-3.5 py-2.5', i > 0 && 'border-t border-separator')}>
+                  <span className="size-2.5 shrink-0 rounded-[3px]" style={{ backgroundColor: reserveColor(i) }} aria-hidden />
                   <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{l.label}</span>
                   <span className="tabular text-[12.5px] text-muted-foreground">{share.toFixed(0)}%</span>
                   <span className="tabular w-24 text-right text-[13px] font-semibold text-foreground">{compact(l.amount)} {ticker}</span>
