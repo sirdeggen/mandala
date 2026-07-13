@@ -74,3 +74,8 @@ export function useMockTransfers(assetId: string): MockTransfer[] {
   const all = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
   return assetId === '' ? EMPTY : all.filter(t => t.assetId === assetId)
 }
+
+/** Reactive read of the whole demo transfer feed (all assets). */
+export function useAllMockTransfers(): MockTransfer[] {
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}

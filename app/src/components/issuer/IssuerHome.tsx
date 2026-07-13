@@ -7,6 +7,7 @@ import { AdminAsset } from '@bsv/mandala/assets'
 import { useOnboarding } from '../../lib/onboarding'
 import { useComplianceSnapshot } from '../../lib/compliance'
 import { computePublicReserve } from '../../lib/publicReserve'
+import { useAllMockTransfers } from '../../lib/mandala/mockBankStore'
 import { useAdminSummaries } from '../../hooks/useAdminHistory'
 import { InstrumentIcon } from '@/components/ui/instrument-icon'
 import { IdentitySigil } from '@/components/ui/identity-sigil'
@@ -143,6 +144,7 @@ function useCountUp(to: number, duration = 1400): number {
 function CirculationStats({ assets }: { assets: AdminAsset[] }) {
   const navigate = useNavigate()
   const snap = useComplianceSnapshot()
+  const allTransfers = useAllMockTransfers()
   const summaries = useAdminSummaries(assets.map(a => a.assetId))
 
   // Aggregate real figures across every issued instrument. Circulation comes
@@ -158,12 +160,13 @@ function CirculationStats({ assets }: { assets: AdminAsset[] }) {
       const s = summaries[a.assetId]
       const circ = s != null ? (s.totalIssued - s.totalRedeemed) / 10 ** decimals : 0
       circulation += circ
-      reserves += computePublicReserve(a.assetId, circ, snap.buckets[a.assetId]).total
+      const bankBase = allTransfers.reduce((sum, t) => t.assetId === a.assetId ? sum + (t.direction === 'in' ? t.amount : -t.amount) : sum, 0)
+      reserves += computePublicReserve(a.assetId, circ, snap.buckets[a.assetId], bankBase / 10 ** decimals).total
     }
     const backing = circulation > 0 ? (reserves / circulation) * 100 : (reserves > 0 ? 100 : 0)
     const holders = Object.keys(snap.holders).length
     return { reserves, circulation, backing, holders }
-  }, [assets, snap, summaries])
+  }, [assets, snap, summaries, allTransfers])
 
   const compact = (n: number) => Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
 

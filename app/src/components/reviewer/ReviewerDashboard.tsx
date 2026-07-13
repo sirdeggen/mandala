@@ -20,8 +20,9 @@ import { useAssetMetadata } from '../../hooks/usePublicInstrument'
 import { useAdminAssets } from '../../hooks/useAdminAssets'
 import { useAdminSummary } from '../../hooks/useAdminHistory'
 import { useComplianceSnapshot } from '../../lib/compliance'
-import { computePublicReserve } from '../../lib/publicReserve'
+import { usePublicReserve } from '../../lib/publicReserve'
 import { assetImage, flagForTicker } from '../../lib/instrumentCategory'
+import { iconColor } from '../../lib/instrumentIcons'
 import 'flag-icons/css/flag-icons.min.css'
 import {
   SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
@@ -168,14 +169,53 @@ export default function ReviewerDashboard() {
 // ── Sidebar watched item ────────────────────────────────────────────────────
 
 function WatchedNavItem({ assetId, active, onOpen }: { assetId: string; active: boolean; onOpen: () => void }) {
+  const asset = (useAdminAssets().data ?? []).find(a => a.assetId === assetId) ?? null
   const meta = useAssetMetadata(assetId)
-  const label = meta.data?.label ?? 'Instrument'
+  const summary = useAdminSummary(assetId).data
+  const label = asset?.label ?? meta.data?.label ?? 'Instrument'
+  const ticker = String(asset?.metadata?.ticker ?? meta.data?.ticker ?? '').toUpperCase()
+  const decimals = Number(asset?.metadata?.decimals ?? meta.data?.decimals ?? 0) || 0
+  const img = asset != null ? assetImage(asset) : undefined
+  const flag = flagForTicker(ticker)
+  const issued = summary?.totalIssued ?? 0
+  const circulation = summary != null ? summary.totalIssued - summary.totalRedeemed : 0
+  const showBadge = summary != null && issued > 0
+
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton isActive={active} tooltip={label} onClick={onOpen}>
-        <CompanyAvatar name={label} size={20} className="rounded" />
-        <span className="truncate">{label}</span>
-      </SidebarMenuButton>
+      {/* Expanded: photo row, matching the issuer sidebar */}
+      <button
+        type="button"
+        onClick={onOpen}
+        className={cn('relative block h-12 w-full overflow-hidden rounded-lg text-left outline-none transition focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:hidden', active && 'ring-2 ring-white/70')}
+      >
+        {img != null
+          ? <img src={img} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          : <div className="absolute inset-0" style={{ backgroundColor: iconColor(assetId) }} />}
+        <div className="absolute inset-0" style={{ backgroundColor: iconColor(assetId), opacity: 0.5 }} />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/15" />
+        <div className="relative flex h-full items-center gap-2 px-2.5">
+          {flag != null && <span className={`fi fi-${flag} h-3.5 w-5 shrink-0 rounded-[2px] shadow-sm ring-1 ring-black/20`} aria-hidden />}
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[12.5px] font-semibold leading-tight text-white">{label}</div>
+            {ticker !== '' && <div className="truncate text-[10.5px] font-medium leading-tight text-white/75">{ticker}</div>}
+          </div>
+          {showBadge && (
+            <span className="tabular shrink-0 rounded-full border border-white/45 px-1.5 py-0.5 text-[10px] font-medium leading-none text-white/90" title={`${circulation.toLocaleString()} in circulation`}>
+              {compact(circulation / 10 ** decimals)}
+            </span>
+          )}
+        </div>
+      </button>
+      {/* Collapsed: icon */}
+      <button
+        type="button"
+        onClick={onOpen}
+        title={label}
+        className="hidden w-full place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:grid"
+      >
+        <InstrumentIcon assetId={assetId} size={28} image={img} className={cn('rounded-md', active && 'ring-2 ring-sidebar-ring ring-offset-2 ring-offset-sidebar')} />
+      </button>
     </SidebarMenuItem>
   )
 }
@@ -259,7 +299,7 @@ function DiscoverRow({ assetId, first, onOpen }: { assetId: string; first: boole
   const flag = flagForTicker(ticker)
 
   const circulation = summary != null ? (summary.totalIssued - summary.totalRedeemed) / 10 ** decimals : 0
-  const reserve = computePublicReserve(assetId, circulation, snap.buckets[assetId])
+  const reserve = usePublicReserve(assetId, circulation, decimals)
   const backing = circulation > 0 ? (reserve.total / circulation) * 100 : (reserve.total > 0 ? 100 : null)
   const fullyBacked = backing != null && backing >= 100
   const attested = snap.attestations.some(a => a.assetId === assetId && a.status === 'signed')
@@ -283,9 +323,9 @@ function DiscoverRow({ assetId, first, onOpen }: { assetId: string; first: boole
           <div className="tabular text-[13px] font-semibold text-foreground">{compact(circulation)} {ticker}</div>
           <div className="text-[10.5px] text-subtle-foreground">in circulation</div>
         </div>
-        <span className={cn('inline-flex w-[92px] items-center justify-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+        <span className={cn('inline-flex w-[116px] items-center justify-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold',
           backing == null ? 'bg-muted text-muted-foreground' : fullyBacked ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning')}>
-          {backing == null ? 'No supply' : fullyBacked ? <><ShieldCheck className="size-3" /> {backing.toFixed(0)}% backed</> : <><TriangleAlert className="size-3" /> {backing.toFixed(0)}%</>}
+          {backing == null ? 'No supply' : fullyBacked ? <><ShieldCheck className="size-3 shrink-0" /> {backing.toFixed(0)}% backed</> : <><TriangleAlert className="size-3 shrink-0" /> {backing.toFixed(0)}% backed</>}
         </span>
         <span className={cn('inline-flex w-[92px] items-center justify-center gap-1 text-[11px] font-medium', attested ? 'text-success' : 'text-subtle-foreground')}>
           {attested ? <><BadgeCheck className="size-3.5" /> Attested</> : 'Unattested'}

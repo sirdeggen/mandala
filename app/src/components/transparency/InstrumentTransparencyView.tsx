@@ -40,7 +40,7 @@ export function InstrumentTransparencyView({ assetId, asset }: { assetId: string
   const decimals = Number(asset?.metadata?.decimals ?? metaQuery.data?.decimals ?? 0) || 0
 
   const circulation = summary != null ? (summary.totalIssued - summary.totalRedeemed) / 10 ** decimals : 0
-  const reserve = usePublicReserve(assetId, circulation)
+  const reserve = usePublicReserve(assetId, circulation, decimals)
   const backing = circulation > 0 ? (reserve.total / circulation) * 100 : (reserve.total > 0 ? 100 : null)
   const fullyBacked = backing != null && backing >= 100
 
@@ -160,7 +160,11 @@ export function InstrumentTransparencyView({ assetId, asset }: { assetId: string
 
       <p className="mt-4 text-balance text-[11.5px] leading-relaxed text-subtle-foreground">
         Tokens in circulation are counted directly from the public blockchain, in real time. Reserves shown are
-        {reserve.source === 'issuer' ? ' the balances reported by the issuer' : ' an illustrative full-reserve position'}, held to redeem every token one-for-one.
+        {reserve.source === 'issuer'
+          ? ' the balances recorded by the issuer'
+          : reserve.source === 'feed'
+            ? ' the reserves held with the connected bank or custodian'
+            : ' not yet recorded for this instrument'}.
       </p>
     </div>
     </TooltipProvider>

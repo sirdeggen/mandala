@@ -241,7 +241,7 @@ function InstrumentRow({ issuer, assetId }: { issuer: string; assetId: string })
   const decimals = Number(asset?.metadata?.decimals ?? meta.data?.decimals ?? 0) || 0
   const flag = flagForTicker(ticker)
   const circulation = summary != null ? (summary.totalIssued - summary.totalRedeemed) / 10 ** decimals : 0
-  const reserve = usePublicReserve(assetId, circulation)
+  const reserve = usePublicReserve(assetId, circulation, decimals)
   const backing = circulation > 0 ? (reserve.total / circulation) * 100 : (reserve.total > 0 ? 100 : null)
   const full = backing != null && backing >= 100
 

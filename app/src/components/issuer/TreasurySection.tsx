@@ -108,10 +108,10 @@ export default function TreasurySection({ assetId, asset }: Props) {
 
   const goTab = (id: string) => setSearchParams(prev => { const n = new URLSearchParams(prev); n.set('tab', id); return n }, { replace: true })
   const firstStep = reserves <= 0
-    ? { label: 'Record reserves', tab: 'banking', hint: 'Start by recording the reserves that will back this instrument.' }
+    ? { label: 'Ingest reserves', tab: 'banking', hint: 'Add reserves to back this instrument.' }
     : circHuman <= 0
       ? { label: 'Issue units', tab: 'operations', hint: 'Issue reserve-backed units into circulation.' }
-      : { label: 'Add reserves', tab: 'banking', hint: 'Top up reserves so they fully cover the units in circulation.' }
+      : { label: 'Add reserves', tab: 'banking', hint: 'Top up reserves to fully cover circulation.' }
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -242,11 +242,9 @@ export default function TreasurySection({ assetId, asset }: Props) {
               <div className="grid size-11 place-items-center rounded-full bg-muted text-muted-foreground">
                 <Lock className="size-5" strokeWidth={2} />
               </div>
-              <div className="max-w-sm space-y-1">
-                <p className="text-[15px] font-medium text-foreground">Treasury transfers unlock once fully-backed units are in circulation</p>
-                <p className="text-balance text-[13px] leading-relaxed text-muted-foreground">
-                  You can only move treasury units when reserves are recorded, units have been issued, and reserves fully cover circulation. {firstStep.hint}
-                </p>
+              <div className="max-w-xs space-y-1">
+                <p className="text-[15px] font-medium text-foreground">Locked until fully-backed units are issued</p>
+                <p className="text-balance text-[13px] leading-relaxed text-muted-foreground">{firstStep.hint}</p>
               </div>
               <Button onClick={() => goTab(firstStep.tab)} className="gap-2">
                 {firstStep.label} <ArrowRight className="size-4" />
