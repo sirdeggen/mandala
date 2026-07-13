@@ -94,6 +94,12 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
     : null
   const fullyBacked = recon != null && recon.bankBalance >= recon.netSupply
 
+  // Free reserve = bank balance not yet backing circulating supply. Minting is
+  // capped to this: an issuer can only mint up to the reserves they hold above
+  // what's already in circulation (recon.drift = bankBalance − netSupply).
+  const freeToMint = recon != null ? Math.max(0, recon.drift) : 0
+  const pendingMintTotal = mintRequests.filter(r => r.status === 'pending').reduce((s, r) => s + r.amount, 0)
+
   // Switch to the instrument's Issuance & redemption tab (id 'operations').
   const [, setSearchParams] = useSearchParams()
   const reservesVia = useActiveIntegration('reserves')
@@ -137,6 +143,14 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const approveMint = useCallback(async (req: MintRequest) => {
     if (asset == null || approvingId != null) return
+    // Maker-checker cap: never mint beyond the free reserve balance (reserves
+    // above what's already in circulation). Protects against approving a mint
+    // whose deposit was since withdrawn/removed, or mints queued beyond reserves.
+    if (recon == null) { toast.error('Reserve balance is still loading. Try again in a moment.'); return }
+    if (req.amount > recon.drift) {
+      toast.error(`This mint exceeds your free reserves (${formatAmount(Math.max(0, recon.drift), decimals)} available). Record reserve deposits first.`)
+      return
+    }
     setApprovingId(req.id)
     try {
       const res = await issue.mutateAsync({ asset, amount: req.amount })
@@ -150,7 +164,7 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
     } finally {
       setApprovingId(null)
     }
-  }, [asset, approvingId, issue, approverName, decimals])
+  }, [asset, approvingId, issue, approverName, decimals, recon])
 
   const handleRemoveTransfer = useCallback((id: string) => {
     removeMockTransfer(id)
@@ -376,14 +390,27 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
         const ticker = asset?.metadata?.ticker != null ? String(asset.metadata.ticker).toUpperCase() : 'units'
         return (
           <>
-            <p className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase mb-[10px] mt-[22px]">
-              Minting queue · maker-checker
-            </p>
+            <div className="mb-[10px] mt-[22px] flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase">
+                Minting queue · maker-checker
+              </p>
+              <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium',
+                pendingMintTotal > freeToMint ? 'bg-warning/10 text-warning' : 'bg-muted text-muted-foreground')}>
+                {pendingMintTotal > freeToMint && <AlertTriangle className="size-3" />}
+                Free reserves to mint: <span className="tabular font-semibold text-foreground">{formatAmount(freeToMint, decimals)} {ticker}</span>
+              </span>
+            </div>
+            {pendingMintTotal > freeToMint && (
+              <div className="mb-[10px] rounded-md bg-warning/[0.08] px-[13px] py-[9px] text-[11.5px] font-medium leading-[1.4] text-warning">
+                Queued mints total {formatAmount(pendingMintTotal, decimals)} {ticker} but only {formatAmount(freeToMint, decimals)} {ticker} of reserves are free. Record more reserve deposits before approving the rest.
+              </div>
+            )}
             <div className="bg-card border border-border rounded-md overflow-hidden">
               {mintRequests.map((r, idx) => {
                 const pending = r.status === 'pending'
                 const settled = r.status === 'settled'
                 const busy = approvingId === r.id
+                const approvable = recon != null && r.amount <= recon.drift
                 return (
                   <div key={r.id} className={cn('flex flex-wrap items-center gap-3 px-[18px] py-[14px]', idx > 0 && 'border-t border-separator')}>
                     <span className={cn('grid size-9 shrink-0 place-items-center rounded-lg', settled ? 'bg-success/10 text-success' : r.status === 'rejected' ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary')}>
@@ -406,10 +433,16 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
                     </div>
                     {pending ? (
                       <div className="flex shrink-0 items-center gap-2">
+                        {!approvable && (
+                          <span className="hidden items-center gap-1 text-[11px] font-medium text-warning sm:inline-flex" title="This mint exceeds your free reserves. Record reserve deposits first.">
+                            <AlertTriangle className="size-3" /> Needs reserves
+                          </span>
+                        )}
                         <button
                           type="button"
                           onClick={() => void approveMint(r)}
-                          disabled={busy || asset == null}
+                          disabled={busy || asset == null || !approvable}
+                          title={!approvable ? 'This mint exceeds your free reserves. Record reserve deposits first.' : undefined}
                           className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12.5px] font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
                         >
                           {busy ? <Spinner size="sm" tone="current" /> : <Signature className="size-3.5" />}
