@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ArrowUpRight, ArrowDownLeft, Coins, Plus, ShieldCheck, AlertTriangle } from 'lucide-react'
+import { ArrowUpRight, ArrowDownLeft, ShieldCheck, AlertTriangle, Lock, ArrowRight } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { formatAmount } from '@bsv/mandala/amount'
@@ -97,16 +97,21 @@ export default function TreasurySection({ assetId, asset }: Props) {
     : null
   const actionCount = summary?.actionCount ?? null
 
-  // ── Reserve backing (full-reserve gate for sending) ──────────────────────────
-  // Free supply = units in public hands (circulation minus treasury); free
-  // reserves must cover it. Sending treasury units increases free supply, so we
-  // only allow sending while reserves >= free supply.
+  // ── Reserve backing (full-reserve gate for treasury transfers) ───────────────
+  // Treasury transfers are only available once reserve-backed units are in
+  // circulation: reserves must be recorded, units issued, and reserves must
+  // fully cover circulation. Until then we surface the first step to take.
   const reserves = reservesTotalOf(useReserveBucket(assetId))
   const circHuman = circulation != null ? circulation / 10 ** decimals : 0
-  const treasuryHuman = balance != null ? balance / 10 ** decimals : 0
-  const freeSupply = Math.max(0, circHuman - treasuryHuman)
   const fullyBacked = circHuman <= 0 ? true : reserves >= circHuman
-  const canSend = reserves >= freeSupply
+  const treasuryReady = circHuman > 0 && fullyBacked
+
+  const goTab = (id: string) => setSearchParams(prev => { const n = new URLSearchParams(prev); n.set('tab', id); return n }, { replace: true })
+  const firstStep = reserves <= 0
+    ? { label: 'Record reserves', tab: 'banking', hint: 'Start by recording the reserves that will back this instrument.' }
+    : circHuman <= 0
+      ? { label: 'Issue units', tab: 'operations', hint: 'Issue reserve-backed units into circulation.' }
+      : { label: 'Add reserves', tab: 'banking', hint: 'Top up reserves so they fully cover the units in circulation.' }
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -195,33 +200,6 @@ export default function TreasurySection({ assetId, asset }: Props) {
         </div>
       </div>
 
-      {/* Empty state */}
-      {!loading && isEmpty && !isAuditor && (
-        <div className="flex flex-col items-center gap-5 rounded-lg border border-separator bg-card py-12 text-center shadow-[var(--shadow-card)]">
-          {/* Ghost balance illustration */}
-          <div className="relative w-[240px] rounded-xl border border-border bg-background p-4 text-left shadow-[var(--shadow-card)]">
-            <div className="text-[8px] font-bold uppercase tracking-wide text-faint-foreground">Treasury balance</div>
-            <div className="mt-2 flex items-center gap-2">
-              <div className="grid size-8 place-items-center rounded-lg bg-muted"><Coins className="size-4 text-faint-foreground" /></div>
-              <div className="h-6 w-24 rounded bg-muted" />
-            </div>
-            <div className="mt-3 h-2 w-32 rounded bg-muted" />
-          </div>
-          <div className="max-w-sm space-y-1 px-4">
-            <p className="text-[16px] font-medium text-foreground">No units in circulation yet</p>
-            <p className="text-balance text-[14px] text-muted-foreground">
-              Issue reserve-backed units of {asset?.label ?? 'this instrument'} to put them into circulation.
-            </p>
-          </div>
-          <Button
-            onClick={() => setSearchParams(prev => { const n = new URLSearchParams(prev); n.set('tab', 'operations'); return n }, { replace: true })}
-            className="gap-2"
-          >
-            <Plus className="size-4" /> Issue units
-          </Button>
-        </div>
-      )}
-
       {/* Send / Receive - manila-folder tabs, issuer-only (auditors are read-only) */}
       {!isAuditor && (
       <div>
@@ -251,26 +229,28 @@ export default function TreasurySection({ assetId, asset }: Props) {
 
         {/* Folder body */}
         <div className="relative overflow-hidden rounded-lg rounded-tl-none border border-border bg-card shadow-[var(--shadow-card)]">
-          {tab === 'send' && (
-            canSend ? (
-              <SendTokens lockedAssetId={assetId} initialRecipient={initialRecipient} bare />
-            ) : (
-              <div className="flex items-start gap-3 px-6 py-6">
-                <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-warning/10 text-warning">
-                  <AlertTriangle className="size-4.5" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[14px] font-medium text-foreground">Sending is paused - free reserves below free supply</p>
-                  <p className="text-balance text-[13px] text-muted-foreground">
-                    Units already in holders' hands ({formatAmount(Math.max(0, (circulation ?? 0) - (balance ?? 0)), decimals)} {ticker ?? ''}) exceed the recorded reserves. Add reserves under Attestations, or redeem units, before sending more from treasury.
-                  </p>
-                </div>
-              </div>
-            )
-          )}
+          {tab === 'send' && <SendTokens lockedAssetId={assetId} initialRecipient={initialRecipient} bare />}
           {tab === 'receive' && (
             <div className="px-[24px] py-[20px]">
               <ReceivePanel />
+            </div>
+          )}
+
+          {/* Gate: treasury transfers only once fully-backed units are issued. */}
+          {!treasuryReady && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-card/85 px-6 py-12 text-center backdrop-blur-sm">
+              <div className="grid size-11 place-items-center rounded-full bg-muted text-muted-foreground">
+                <Lock className="size-5" strokeWidth={2} />
+              </div>
+              <div className="max-w-sm space-y-1">
+                <p className="text-[15px] font-medium text-foreground">Treasury transfers unlock once fully-backed units are in circulation</p>
+                <p className="text-balance text-[13px] leading-relaxed text-muted-foreground">
+                  You can only move treasury units when reserves are recorded, units have been issued, and reserves fully cover circulation. {firstStep.hint}
+                </p>
+              </div>
+              <Button onClick={() => goTab(firstStep.tab)} className="gap-2">
+                {firstStep.label} <ArrowRight className="size-4" />
+              </Button>
             </div>
           )}
         </div>
