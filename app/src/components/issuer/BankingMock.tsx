@@ -59,6 +59,7 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
   const [selectedAssetId, setSelectedAssetId] = useState('')
   const [transferAmount, setTransferAmount] = useState('')
   const [direction, setDirection] = useState<TransferDirection>('in')
+  const [bankingTab, setBankingTab] = useState<'feed' | 'manual'>('feed')
 
   // In controlled mode the active asset id comes from the prop
   const activeAssetId = controlledAssetId ?? selectedAssetId
@@ -137,6 +138,21 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
       toast.success(`Withdrawal recorded: ${originator}, ${formatAmount(amount, decimals)}`)
     }
   }, [transferAmount, decimals, direction, activeAssetId])
+
+  // Automated reserve feed: mocks an incoming deposit pushed by a connected
+  // bank/custodian API - a plausible random amount from a random counterparty,
+  // raising the same maker-checker mint request as a manual deposit.
+  const simulateFeedDeposit = useCallback(() => {
+    if (activeAssetId === '') { toast.error('Select an instrument first'); return }
+    const displayAmt = (Math.floor(Math.random() * 491) + 10) * 1000 // 10k–500k
+    const amount = parseAmount(String(displayAmt), decimals)
+    const originator = RESERVE_COUNTERPARTIES[Math.floor(Math.random() * RESERVE_COUNTERPARTIES.length)]
+    const t = { ...makeTransfer(amount, 'in', activeAssetId), originator }
+    addMockTransfer(t)
+    const bank = bankForRef(t.id)
+    createMintRequest({ assetId: activeAssetId, amount, originator, reference: `${bank.name} ${bank.account}` })
+    toast.success(`Incoming deposit from ${originator}: ${formatAmount(amount, decimals)}. Mint request raised, awaiting approval.`)
+  }, [activeAssetId, decimals])
 
   // Checker step: approve a pending mint request. This performs the real
   // on-chain issuance and records the txid against the request.
@@ -241,76 +257,108 @@ export default function BankingMock({ assetId: controlledAssetId }: BankingMockP
         </div>
       )}
 
-      {/* Reserve-feed provenance: relabelled when a bank/custodian integration
-          is connected, otherwise a prompt to wire one up. */}
-      <div className="mt-[22px] flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
-        {reservesVia != null ? (
-          <span className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <Plug className="size-3.5 text-success" />
-            Reserve balances via <span className="font-medium text-foreground">{reservesVia.providerName}</span>
-            <span className="rounded-full bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success">{reservesVia.environment}</span>
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
-            <Plug className="size-3.5" /> Sandbox reserve feed, no bank or custodian connected
-          </span>
-        )}
-        <button type="button" onClick={() => navigate('/issuer/integrations')} className="text-[11.5px] font-medium text-primary hover:underline">
-          {reservesVia != null ? 'Manage' : 'Connect a bank or custodian'}
-        </button>
-      </div>
-
-      {/* SIMULATE A TRANSFER - the counterparty is always a synthetic "Company
-          {letter}"; only amount + direction are admin-supplied. This is a
-          sandbox feed standing in for a real bank connection, so it starts
-          empty rather than pre-seeded with fake history. */}
-      <p className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase mb-[10px] mt-[22px]">
-        Add a manual transfer
-      </p>
-      <div>
-        {/* Direction - manila folder tabs */}
+      {/* Reserve accounts: a connected bank/custodian feed (automated) and
+          manual mutations, as manila folder tabs. Both write to the same
+          transfers list and reconciliation below. */}
+      <div className="mt-[22px]">
         <div className="flex gap-1">
-          {(['in', 'out'] as const).map(d => {
-            const active = direction === d
-            const Icon = d === 'in' ? ArrowDownLeft : ArrowUpRight
+          {([['feed', 'Reserve feed'], ['manual', 'Manual mutations']] as const).map(([k, label]) => {
+            const active = bankingTab === k
             return (
               <button
-                key={d}
+                key={k}
                 type="button"
-                onClick={() => setDirection(d)}
+                onClick={() => setBankingTab(k)}
                 className={cn(
-                  'relative -mb-px flex items-center gap-2 rounded-t-lg border border-b-0 px-4 py-2.5 text-[13px] font-medium transition-colors',
-                  active
-                    ? 'z-10 border-border bg-card text-foreground'
-                    : 'border-transparent bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground'
+                  'relative -mb-px rounded-t-lg border border-b-0 px-4 py-2.5 text-[13px] font-medium transition-colors',
+                  active ? 'z-10 border-border bg-card text-foreground' : 'border-transparent bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground'
                 )}
               >
-                <Icon className="size-4 shrink-0" strokeWidth={2} />
-                {d === 'in' ? 'Incoming' : 'Outgoing'}
+                {label}
               </button>
             )
           })}
         </div>
-        {/* Folder body */}
-        <div className="flex items-center gap-3 rounded-lg rounded-tl-none border border-border bg-card p-4 shadow-[var(--shadow-card)]">
-          <Input
-            type="number"
-            min="0"
-            step="any"
-            value={transferAmount}
-            onChange={e => setTransferAmount(e.target.value)}
-            placeholder="Amount"
-            className="flex-1"
-            aria-label="Transfer amount"
-          />
-          <button
-            onClick={handleAddTransfer}
-            disabled={transferAmount.trim() === '' || activeAssetId === ''}
-            className="flex items-center gap-2 whitespace-nowrap rounded bg-primary text-primary-foreground px-4 py-[11px] text-[13px] font-semibold disabled:opacity-50"
-          >
-            <PlusCircle size={16} />
-            Add transfer
-          </button>
+
+        <div className="rounded-lg rounded-tl-none border border-border bg-card p-4 shadow-[var(--shadow-card)]">
+          {bankingTab === 'feed' ? (
+            <div className="space-y-3">
+              {/* Provenance: relabelled when a bank/custodian is connected. */}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+                {reservesVia != null ? (
+                  <span className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                    <Plug className="size-3.5 text-success" />
+                    Reserve balances via <span className="font-medium text-foreground">{reservesVia.providerName}</span>
+                    <span className="rounded-full bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success">{reservesVia.environment}</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                    <Plug className="size-3.5" /> Sandbox reserve feed, no bank or custodian connected
+                  </span>
+                )}
+                <button type="button" onClick={() => navigate('/issuer/integrations')} className="text-[11.5px] font-medium text-primary hover:underline">
+                  {reservesVia != null ? 'Manage' : 'Connect a bank or custodian'}
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="min-w-0 flex-1 text-[12.5px] leading-snug text-muted-foreground">
+                  Deposits arrive automatically from your connected bank or custodian. Simulate an incoming event to see it flow through reconciliation.
+                </p>
+                <button
+                  type="button"
+                  onClick={simulateFeedDeposit}
+                  disabled={activeAssetId === ''}
+                  className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded bg-primary px-4 py-[11px] text-[13px] font-semibold text-primary-foreground disabled:opacity-50"
+                >
+                  <ArrowDownLeft size={16} /> Simulate incoming deposit
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-[12.5px] leading-snug text-muted-foreground">
+                Manually record a reserve movement, for example a correction or a transfer that didn’t come through the feed.
+              </p>
+              {/* Direction - segmented control */}
+              <div className="inline-flex rounded-lg border border-border p-0.5">
+                {(['in', 'out'] as const).map(d => {
+                  const active = direction === d
+                  const Icon = d === 'in' ? ArrowDownLeft : ArrowUpRight
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setDirection(d)}
+                      className={cn('inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] font-medium transition-colors',
+                        active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                    >
+                      <Icon className="size-3.5 shrink-0" strokeWidth={2} /> {d === 'in' ? 'Incoming' : 'Outgoing'}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={transferAmount}
+                  onChange={e => setTransferAmount(e.target.value)}
+                  placeholder="Amount"
+                  className="flex-1"
+                  aria-label="Transfer amount"
+                />
+                <button
+                  onClick={handleAddTransfer}
+                  disabled={transferAmount.trim() === '' || activeAssetId === ''}
+                  className="flex items-center gap-2 whitespace-nowrap rounded bg-primary text-primary-foreground px-4 py-[11px] text-[13px] font-semibold disabled:opacity-50"
+                >
+                  <PlusCircle size={16} />
+                  Add transfer
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
