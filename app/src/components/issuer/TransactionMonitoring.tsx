@@ -21,9 +21,11 @@ const KIND_ICON: Record<AlertKind, LucideIcon> = {
   high_risk: TriangleAlert, new_counterparty: UserPlus,
 }
 const SEVERITY_TONE: Record<AlertSeverity, string> = { high: 'text-destructive', medium: 'text-warning', low: 'text-muted-foreground' }
+// Outline pills: colour the text, and a lighter shade of the same colour for
+// the border, with no fill.
 const STATUS_TONE: Record<AlertStatus, string> = {
-  open: 'bg-destructive/10 text-destructive', investigating: 'bg-warning/10 text-warning',
-  cleared: 'bg-success/10 text-success', escalated: 'bg-primary/10 text-primary',
+  open: 'border-destructive/40 text-destructive', investigating: 'border-warning/50 text-warning',
+  cleared: 'border-success/40 text-success', escalated: 'border-primary/40 text-primary',
 }
 
 const fmtWhen = (iso: string) => {
@@ -77,7 +79,7 @@ function AlertRow({ alert }: { alert: Alert }) {
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[13px] font-semibold text-foreground">{alert.title}</span>
             <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold', SEVERITY_TONE[alert.severity], 'bg-muted')}>{SEVERITY_LABEL[alert.severity]}</span>
-            <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-semibold', STATUS_TONE[alert.status])}>{STATUS_LABEL[alert.status]}</span>
+            <span className={cn('rounded-full border px-1.5 py-0.5 text-[10px] font-semibold', STATUS_TONE[alert.status])}>{STATUS_LABEL[alert.status]}</span>
           </div>
           <div className="mt-0.5 truncate text-[11.5px] text-subtle-foreground">
             {KIND_LABEL[alert.kind]} · {alert.subjectName} · {alert.instrument} · {fmtWhen(alert.at)}
