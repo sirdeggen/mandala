@@ -17,7 +17,9 @@ import { useWatchlist, toggleWatch } from '../../lib/watchlist'
 import { useOrgName, orgNameFor } from '../../lib/orgDirectory'
 import { useDiscoverInstruments, type DiscoveredEntity } from '../../hooks/useDiscoverInstruments'
 import { useAssetMetadata } from '../../hooks/usePublicInstrument'
-import { useAdminSummary } from '../../hooks/useAdminHistory'
+import { useAdminAssets } from '../../hooks/useAdminAssets'
+import { assetImage, flagForTicker } from '../../lib/instrumentCategory'
+import 'flag-icons/css/flag-icons.min.css'
 import {
   SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
   SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuItem, SidebarMenuButton,
@@ -25,6 +27,7 @@ import {
 } from '@/components/ui/sidebar'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { CompanyAvatar } from '@/components/ui/company-avatar'
+import { InstrumentIcon } from '@/components/ui/instrument-icon'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '../ui/spinner'
 import ReserveAttestations from '../issuer/ReserveAttestations'
@@ -38,7 +41,6 @@ import { cn } from '@/lib/utils'
 type Section = 'discover' | 'instrument' | 'settings'
 const VALID: Section[] = ['discover', 'instrument', 'settings']
 
-const compact = (n: number) => Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(n)
 
 /** Minimal AdminAsset synthesised from public metadata for read-only reuse. */
 function publicAsset(assetId: string, meta: { label?: string; ticker?: unknown; decimals?: unknown } | null): AdminAsset {
@@ -241,23 +243,25 @@ function EntityGroup({ entity, onOpen }: { entity: DiscoveredEntity; onOpen: (id
 }
 
 function DiscoverRow({ assetId, first, onOpen }: { assetId: string; first: boolean; onOpen: () => void }) {
+  const asset = (useAdminAssets().data ?? []).find(a => a.assetId === assetId) ?? null
   const meta = useAssetMetadata(assetId)
-  const summary = useAdminSummary(assetId).data
   const watchlist = useWatchlist()
   const watched = watchlist.includes(assetId)
 
-  const label = meta.data?.label ?? 'Instrument'
-  const ticker = String(meta.data?.ticker ?? '').toUpperCase()
-  const decimals = Number(meta.data?.decimals ?? 0) || 0
-  const circulation = summary != null ? (summary.totalIssued - summary.totalRedeemed) / 10 ** decimals : 0
+  const label = asset?.label ?? meta.data?.label ?? 'Instrument'
+  const ticker = String(asset?.metadata?.ticker ?? meta.data?.ticker ?? '').toUpperCase()
+  const flag = flagForTicker(ticker)
 
   return (
     <div className={cn('flex items-center gap-3 px-4 py-3', !first && 'border-t border-separator')}>
       <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-        <CompanyAvatar name={label} size={36} className="rounded-lg" />
+        <InstrumentIcon assetId={assetId} size={36} className="rounded-lg" image={asset != null ? assetImage(asset) : undefined} />
         <div className="min-w-0">
           <div className="truncate text-[14px] font-medium text-foreground">{label}</div>
-          <div className="text-[12px] text-muted-foreground">{compact(circulation)} {ticker} in circulation</div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
+            {flag != null && <span className={`fi fi-${flag} shrink-0 rounded-[2px] shadow-sm`} style={{ width: 16, height: 12 }} aria-hidden />}
+            <span>{ticker || '—'}</span>
+          </div>
         </div>
       </button>
       <button
