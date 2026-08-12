@@ -21,7 +21,7 @@ interface AssetRow {
   meta: AssetMeta
 }
 
-// Deterministic per-asset accent (coin glyph only — chrome stays neutral).
+// Deterministic per-asset accent (coin glyph only - chrome stays neutral).
 const COIN_TINTS = [
   'bg-primary/12 text-primary',
   'bg-success/15 text-success',

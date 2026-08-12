@@ -1,11 +1,19 @@
-import { useState } from 'react'
-import { ArrowUpRight, ArrowDownLeft } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { ArrowUpRight, ArrowDownLeft, ShieldCheck, AlertTriangle, Lock, ArrowRight } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset } from '@bsv/mandala/assets'
-import { formatCurrency } from '@bsv/mandala/amount'
+import { formatAmount } from '@bsv/mandala/amount'
 import { useHolderData } from '../../hooks/useHolderData'
+import { useAdminSummary } from '../../hooks/useAdminHistory'
+import { useReserveBucket, reservesTotalOf } from '../../lib/compliance'
+import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
+import { useInstrumentColor, securityPattern } from '../../lib/instrumentIcons'
 import SendTokens from '../SendTokens'
 import ReceivePanel from '../holder/ReceivePanel'
+import { IdentitySigil } from '@/components/ui/identity-sigil'
+import TabHeader from './TabHeader'
+import { Button } from '../ui/button'
 import { cn } from '@/lib/utils'
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -21,12 +29,34 @@ type Tab = 'send' | 'receive'
 
 export default function TreasurySection({ assetId, asset }: Props) {
   const { identityKey } = useWallet()
+  const { name: issuerName, role } = useOnboarding()
+  const isAuditor = isReviewerRole(role)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // A "Send" launched from a contact arrives with ?send=<key>&sendName=<name>.
+  // Capture it once, land on the Send tab, and clear the params so switching
+  // tabs or reloading doesn't keep re-injecting the recipient.
+  const [initialRecipient] = useState(() => {
+    const key = searchParams.get('send') ?? ''
+    return key !== '' ? { identityKey: key, name: searchParams.get('sendName') ?? '' } : undefined
+  })
   const [tab, setTab] = useState<Tab>('send')
+
+  useEffect(() => {
+    if (searchParams.get('send') == null) return
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.delete('send')
+      next.delete('sendName')
+      return next
+    }, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const ticker = asset?.metadata?.ticker != null ? String(asset.metadata.ticker) : undefined
   const decimals = asset?.metadata?.decimals != null ? Number(asset.metadata.decimals) : 0
 
-  // ── Issuer's held balance for this asset — from the shared holder-data cache
+  // ── Issuer's held balance for this asset - from the shared holder-data cache
   //    so navigating here renders instantly with a background refetch. ────────
 
   const { data: holderData } = useHolderData()
@@ -40,99 +70,190 @@ export default function TreasurySection({ assetId, asset }: Props) {
 
   const keyAbbr = identityKey != null
     ? `${identityKey.slice(0, 8)}…${identityKey.slice(-4)}`
-    : '—'
+    : '-'
 
-  const formattedBalance = balance != null
-    ? formatCurrency(balance, decimals, ticker)
-    : '—'
+  const balanceNumber = balance != null ? formatAmount(balance, decimals) : '-'
 
   const isEmpty = balance === 0
+
+  // ── Card theming + auditor context ──────────────────────────────────────────
+  // Themed, textured summary card: a subtle guilloché security texture under a
+  // semi-transparent matte in the instrument's theme colour, white text on top.
+  const themeColor = useInstrumentColor(assetId)
+  const texture = securityPattern(assetId)
+
+  // Whole-history totals let us show what share of circulation sits in treasury -
+  // context an issuer/auditor wants next to the raw balance.
+  const { data: summary } = useAdminSummary(assetId)
+  const circulation = summary != null ? summary.totalIssued - summary.totalRedeemed : null
+  const treasuryShare = circulation != null && circulation > 0 && balance != null
+    ? Math.round((balance / circulation) * 100)
+    : null
+  // Stats that don't already appear in the instrument header (which shows
+  // circulation, total issued, total redeemed): what share sits in treasury vs
+  // out with holders, and how many on-chain actions the instrument has seen.
+  const heldByOthersLabel = circulation != null && balance != null
+    ? formatAmount(Math.max(0, circulation - balance), decimals)
+    : null
+  const actionCount = summary?.actionCount ?? null
+
+  // ── Reserve backing (full-reserve gate for treasury transfers) ───────────────
+  // Treasury transfers are only available once reserve-backed units are in
+  // circulation: reserves must be recorded, units issued, and reserves must
+  // fully cover circulation. Until then we surface the first step to take.
+  const reserves = reservesTotalOf(useReserveBucket(assetId))
+  const circHuman = circulation != null ? circulation / 10 ** decimals : 0
+  const fullyBacked = circHuman <= 0 ? true : reserves >= circHuman
+  const treasuryReady = circHuman > 0 && fullyBacked
+
+  const goTab = (id: string) => setSearchParams(prev => { const n = new URLSearchParams(prev); n.set('tab', id); return n }, { replace: true })
+  const firstStep = reserves <= 0
+    ? { label: 'Ingest reserves', tab: 'banking', hint: 'Add reserves to back this instrument.' }
+    : circHuman <= 0
+      ? { label: 'Issue units', tab: 'operations', hint: 'Issue reserve-backed units into circulation.' }
+      : { label: 'Add reserves', tab: 'banking', hint: 'Top up reserves to fully cover circulation.' }
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col gap-[26px]">
-      {/* Section header */}
-      <div>
-        <div className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground mb-[3px]">
-          Treasury
-        </div>
-        <div className="text-[22px] font-semibold leading-snug">
-          {asset?.label ?? 'Asset'} Holdings
-        </div>
-      </div>
+    <div className="flex max-w-3xl flex-col gap-[26px]">
+      <TabHeader
+        title="Treasury holdings"
+        description="The units this issuer holds in treasury, ready to send or receive."
+        guide="/help/for-issuers/backing-instruments-with-reserves"
+      />
 
-      {/* Balance card */}
-      <div className="rounded-lg border border-separator bg-card px-[24px] py-[20px] shadow-[var(--shadow-card)]">
-        <div className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground mb-[10px]">
-          Treasury balance
-        </div>
-        {loading ? (
-          <div className="animate-pulse h-[44px] w-[180px] rounded-sm bg-muted" />
-        ) : (
-          <div
-            className={cn(
-              'tabular text-[44px] font-semibold leading-none tracking-[-1.5px]',
-              isEmpty ? 'text-muted-foreground' : 'text-foreground'
+      {/* Balance card - themed security-textured surface, white text. */}
+      <div className="relative overflow-hidden rounded-lg border border-black/10 bg-neutral-950 px-6 py-5 shadow-[var(--shadow-card)]">
+        {/* Layers: guilloché texture (kept visible), a lighter theme-colour
+            matte, and a soft vignette for text contrast. */}
+        <img src={texture} alt="" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-40" />
+        <div className="pointer-events-none absolute inset-0" style={{ backgroundColor: themeColor, opacity: 0.34 }} />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-black/40 via-transparent to-black/40" />
+
+        <div className="relative">
+          <div className="mb-2.5 flex items-center justify-between gap-3">
+            <span className="text-[11px] font-medium uppercase tracking-[1.2px] text-white/70">
+              Treasury balance
+            </span>
+            {fullyBacked ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-inset ring-emerald-600/25">
+                <ShieldCheck className="size-3" strokeWidth={2.5} />
+                Reserve-backed
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide text-amber-800 ring-1 ring-inset ring-amber-500/30">
+                <AlertTriangle className="size-3" strokeWidth={2.5} />
+                Under-reserved
+              </span>
             )}
-          >
-            {formattedBalance}
           </div>
-        )}
-        <div className="mt-[10px] text-[12px] text-subtle-foreground">
-          Held by this issuer
-          {identityKey != null && (
-            <> &middot; <span className="tabular font-mono">{keyAbbr}</span></>
+
+          {loading ? (
+            <div className="h-[44px] w-[180px] animate-pulse rounded-sm bg-white/20" />
+          ) : (
+            <div className={cn('tabular text-[44px] font-semibold leading-none tracking-[-1.5px]', isEmpty ? 'text-white/55' : 'text-white')}>
+              {balanceNumber}
+              {ticker != null && <span className="ml-2 align-baseline text-[24px] font-light tracking-tight text-white/70">{ticker}</span>}
+            </div>
+          )}
+
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-[12px] text-white/70">
+            <span>Held by this issuer</span>
+            {identityKey != null && (
+              <>
+                <span aria-hidden>&middot;</span>
+                <IdentitySigil value={identityKey} size={16} className="rounded ring-1 ring-white/30" />
+                {issuerName.trim() !== '' && (
+                  <span className="font-medium text-white">{issuerName.trim()}</span>
+                )}
+                <span className="tabular font-mono text-white/80">{keyAbbr}</span>
+              </>
+            )}
+          </div>
+
+          {/* Auditor context - stats not already in the instrument header. */}
+          {(treasuryShare != null || heldByOthersLabel != null || actionCount != null) && (
+            <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 border-t border-white/15 pt-3">
+              {treasuryShare != null && (
+                <div>
+                  <div className="tabular text-[15px] font-semibold text-white">{treasuryShare}%</div>
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-white/55">Held in treasury</div>
+                </div>
+              )}
+              {heldByOthersLabel != null && (
+                <div>
+                  <div className="tabular text-[15px] font-semibold text-white">
+                    {heldByOthersLabel}{ticker != null && <span className="ml-1 text-[12px] font-medium text-white/70">{ticker}</span>}
+                  </div>
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-white/55">Held by holders</div>
+                </div>
+              )}
+              {actionCount != null && (
+                <div>
+                  <div className="tabular text-[15px] font-semibold text-white">{actionCount.toLocaleString()}</div>
+                  <div className="text-[11px] font-medium uppercase tracking-wide text-white/55">On-chain actions</div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
 
-      {/* Empty state hint */}
-      {!loading && isEmpty && (
-        <div className="rounded-md border border-dashed border-separator bg-muted/50 px-[20px] py-[18px] text-center">
-          <div className="text-[14px] font-medium text-muted-foreground">
-            No units held — issue some in Operations.
-          </div>
-        </div>
-      )}
-
-      {/* Send / Receive toggle — always accessible even with zero balance (issuer might receive) */}
+      {/* Send / Receive - manila-folder tabs, issuer-only (auditors are read-only) */}
+      {!isAuditor && (
       <div>
-        <div className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground mb-[14px]">
-          Actions
-        </div>
-        {/* Tab bar */}
-        <div className="inline-flex rounded border border-separator bg-muted p-[3px] gap-[3px] mb-[22px]">
-          {(['send', 'receive'] as const).map(t => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={cn(
-                'flex items-center gap-[7px] rounded px-[14px] py-[7px] text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                tab === t
-                  ? 'bg-card text-foreground font-semibold shadow-[0_1px_2px_var(--separator)]'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {t === 'send'
-                ? <ArrowUpRight className="h-[15px] w-[15px] shrink-0" strokeWidth={2} />
-                : <ArrowDownLeft className="h-[15px] w-[15px] shrink-0" strokeWidth={2} />}
-              {t === 'send' ? 'Send tokens' : 'Receive'}
-            </button>
-          ))}
+        {/* Folder tabs */}
+        <div className="flex gap-1">
+          {(['send', 'receive'] as const).map(t => {
+            const active = tab === t
+            const Icon = t === 'send' ? ArrowUpRight : ArrowDownLeft
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTab(t)}
+                className={cn(
+                  'relative -mb-px flex items-center gap-2 rounded-t-lg border border-b-0 px-4 py-2.5 text-[13px] font-medium transition-colors',
+                  active
+                    ? 'z-10 border-border bg-card text-foreground'
+                    : 'border-transparent bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+              >
+                <Icon className="size-4 shrink-0" strokeWidth={2} />
+                {t === 'send' ? 'Send tokens' : 'Receive'}
+              </button>
+            )
+          })}
         </div>
 
-        {/* Tab content */}
-        {tab === 'send' && (
-          <SendTokens lockedAssetId={assetId} />
-        )}
-        {tab === 'receive' && (
-          <div className="rounded-lg border border-separator bg-card px-[24px] py-[20px] shadow-[var(--shadow-card)]">
-            <ReceivePanel />
-          </div>
-        )}
+        {/* Folder body */}
+        <div className="relative overflow-hidden rounded-lg rounded-tl-none border border-border bg-card shadow-[var(--shadow-card)]">
+          {tab === 'send' && <SendTokens lockedAssetId={assetId} initialRecipient={initialRecipient} bare />}
+          {tab === 'receive' && (
+            <div className="px-[24px] py-[20px]">
+              <ReceivePanel />
+            </div>
+          )}
+
+          {/* Gate: treasury transfers only once fully-backed units are issued. */}
+          {!treasuryReady && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-card/85 px-6 py-12 text-center backdrop-blur-sm">
+              <div className="grid size-11 place-items-center rounded-full bg-muted text-muted-foreground">
+                <Lock className="size-5" strokeWidth={2} />
+              </div>
+              <div className="max-w-xs space-y-1">
+                <p className="text-[15px] font-medium text-foreground">Locked until fully-backed units are issued</p>
+                <p className="text-balance text-[13px] leading-relaxed text-muted-foreground">{firstStep.hint}</p>
+              </div>
+              <Button onClick={() => goTab(firstStep.tab)} className="gap-2">
+                {firstStep.label} <ArrowRight className="size-4" />
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
+      )}
     </div>
   )
 }

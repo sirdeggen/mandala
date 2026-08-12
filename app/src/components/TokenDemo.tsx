@@ -1,13 +1,18 @@
 import { AlertTriangle } from 'lucide-react'
-import { Routes, Route, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { useWallet } from '../context/WalletContext'
 import { Spinner } from './ui/spinner'
 import IssuerDashboard from './issuer/IssuerDashboard'
+import ReviewerDashboard from './reviewer/ReviewerDashboard'
 import TokenWallet from './TokenWallet'
 import SendTokens from './SendTokens'
 import ReceiveTokens from './ReceiveTokens'
 import ContactsPage from './holder/ContactsPage'
 import type { HolderAction } from './holder/HolderHome'
+import OnboardingWizard from './onboarding/OnboardingWizard'
+import { HelpHome, HelpCollectionView, HelpArticleView } from './help/HelpCenter'
+import { TransparencyDirectory, TransparencyOrg, TransparencyInstrument } from './TransparencyPage'
+import { useOnboarding, isReviewerRole } from '../lib/onboarding'
 
 // ─── Routing model ──────────────────────────────────────────────────────────
 // The full app state lives in the URL so a browser reload restores it:
@@ -16,7 +21,7 @@ import type { HolderAction } from './holder/HolderHome'
 //            /receive       receive
 //            /contacts      contacts manager
 //   Issuer:  /issuer/:section   (?asset=<id> selects the asset)
-// Switching the token dropdown updates ?asset via the History API — no reload.
+// Switching the token dropdown updates ?asset via the History API - no reload.
 
 // ─── Shared bits ──────────────────────────────────────────────────────────────
 
@@ -55,7 +60,7 @@ function DrillHeader({ title, onBack }: { title: string; onBack: () => void }) {
 function HolderShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative mx-auto flex min-h-screen max-w-[430px] flex-col bg-background">
-      {/* No bottom bar — nav lives in the home quick actions; drill-ins carry a back arrow */}
+      {/* No bottom bar - nav lives in the home quick actions; drill-ins carry a back arrow */}
       <div className="flex-1 overflow-y-auto">{children}</div>
     </div>
   )
@@ -104,6 +109,34 @@ function ContactsView() {
 
 export default function TokenDemo() {
   const { isInitialized, error, isIssuer } = useWallet()
+  const onboarding = useOnboarding()
+  const location = useLocation()
+
+  // ── Help centre - static content, reachable from anywhere (even mid-onboarding
+  //    or before the wallet connects), so it short-circuits the gates below. ──
+  if (location.pathname.startsWith('/help')) {
+    return (
+      <Routes>
+        <Route path="/help" element={<HelpHome />} />
+        <Route path="/help/:collectionSlug" element={<HelpCollectionView />} />
+        <Route path="/help/:collectionSlug/:articleSlug" element={<HelpArticleView />} />
+        <Route path="*" element={<Navigate to="/help" replace />} />
+      </Routes>
+    )
+  }
+
+  // ── Public proof-of-reserves page - no wallet required, so it short-circuits
+  //    the wallet/onboarding/role gates below. Anyone can verify backing. ──
+  if (location.pathname.startsWith('/transparency')) {
+    return (
+      <Routes>
+        <Route path="/transparency" element={<TransparencyDirectory />} />
+        <Route path="/transparency/:issuer" element={<TransparencyOrg />} />
+        <Route path="/transparency/:issuer/:assetId" element={<TransparencyInstrument />} />
+        <Route path="*" element={<Navigate to="/transparency" replace />} />
+      </Routes>
+    )
+  }
 
   // ── Loading state ──
   if (!isInitialized) {
@@ -132,12 +165,29 @@ export default function TokenDemo() {
     )
   }
 
+  // ── First run: one-time onboarding (localStorage-gated) ──
+  if (!onboarding.completed) {
+    return <OnboardingWizard />
+  }
+
+  // ── Reviewer (auditor / individual): dedicated console driven by public
+  //    overlay data + a personal watchlist, so it works with any identity key
+  //    (they sign in with a different key than the issuer). ──
+  if (isReviewerRole(onboarding.role)) {
+    return (
+      <Routes>
+        <Route path="/reviewer/:section" element={<ReviewerDashboard />} />
+        <Route path="*" element={<Navigate to="/reviewer/discover" replace />} />
+      </Routes>
+    )
+  }
+
   // ── Issuer: full-viewport console, section in the path ──
   if (isIssuer) {
     return (
       <Routes>
         <Route path="/issuer/:section" element={<IssuerDashboard />} />
-        <Route path="*" element={<Navigate to="/issuer/overview" replace />} />
+        <Route path="*" element={<Navigate to="/issuer/home" replace />} />
       </Routes>
     )
   }

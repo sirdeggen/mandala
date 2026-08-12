@@ -1,11 +1,11 @@
 {
-  "name": "Mandala — Token Wallet",
-  "short_name": "Mandala",
-  "description": "A token wallet on BSV.",
+  "name": "Underwrite — Regulated Stablecoin Platform",
+  "short_name": "Underwrite",
+  "description": "Issue and administer regulated, fully-reserved stablecoins on BSV.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f2f2f7",
-  "theme_color": "#007aff",
+  "background_color": "#fafafa",
+  "theme_color": "#fafafa",
   "icons": [
     { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192" },
     { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512" },

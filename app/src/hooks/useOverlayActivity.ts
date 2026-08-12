@@ -6,7 +6,7 @@ export const overlayActivityKey = (assetId: string) =>
 
 /**
  * Overlay-wide transaction feed (linkage-proven counterparties) for one
- * asset — infinite cursor pagination so thousands of transactions stream in
+ * asset - infinite cursor pagination so thousands of transactions stream in
  * pages instead of one unbounded response.
  */
 export function useOverlayActivity (assetId: string) {

@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Search } from 'lucide-react'
+import { Search, ChevronDown, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { useIdentitySearch } from '@bsv/identity-react'
 import { Input } from '../ui/input'
 import { Select } from '../ui/select'
 import { Spinner } from '../ui/spinner'
+import { Popover, PopoverTrigger, PopoverContent } from '../ui/popover'
+import { Sheet, SheetContent, SheetTitle } from '../ui/sheet'
+import { useIsMobile } from '../../hooks/use-mobile'
+import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
+import { IdentitySigil } from '@/components/ui/identity-sigil'
+import { cn } from '@/lib/utils'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset, submitAdminAction, SubmitAdminActionParams, withReason } from '@bsv/mandala/assets'
 import { AssetAdminStateView } from '@bsv/mandala/adminState'
@@ -15,6 +21,8 @@ import { isAdminAuthInFlight } from '@bsv/mandala/adminAuthGate'
 import { useAssetState, useInvalidateAssetState } from '../../hooks/useAssetState'
 import { useInvalidateAdminHistory } from '../../hooks/useAdminHistory'
 import { useAdvanceAdminAuth } from '../../hooks/useAdminAssets'
+import { logControlAction, type ControlActionKind } from '../../lib/compliance'
+import { InstrumentSanctionLists } from './SanctionLists'
 
 interface Props {
   assets: AdminAsset[]
@@ -27,12 +35,23 @@ interface Props {
 
 type ActionKey = 'pause' | 'accessMode' | 'freeze' | 'unfreeze' | 'blockIdentity' | 'unblockIdentity' | 'allowIdentity' | 'unallowIdentity' | 'reissue'
 
+/** Which admin actions are logged for auditor sign-off, and how they read. */
+const ACTION_META: Partial<Record<ActionKey, { kind: ControlActionKind; label: string }>> = {
+  pause: { kind: 'pause', label: 'Pause / unpause instrument' },
+  accessMode: { kind: 'accessMode', label: 'Change access mode' },
+  freeze: { kind: 'freeze', label: 'Freeze output' },
+  unfreeze: { kind: 'unfreeze', label: 'Unfreeze output' },
+  blockIdentity: { kind: 'blockIdentity', label: 'Ban an Entity ID' },
+  unblockIdentity: { kind: 'unblockIdentity', label: 'Lift an Entity ID ban' },
+  reissue: { kind: 'reissue', label: 'Reissue / recover units' },
+}
+
 export default function RegulatoryControls({ assets, onActionComplete, assetId: controlledAssetId, embedded = false }: Props) {
   const { wallet, messageBoxClient, identityKey } = useWallet()
 
   // Selected asset
   const [selectedAssetId, setSelectedAssetId] = useState('')
-  // Tracks WHICH action is in flight, not just whether one is — so only the
+  // Tracks WHICH action is in flight, not just whether one is - so only the
   // pressed button shows its spinner; every other control is merely disabled.
   // busyRef is the sync half: setState is async, so a double-click before
   // re-render would both see busyAction === null without it.
@@ -42,7 +61,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
 
   // Admin Operations form: which action is selected in the dropdown, and the
   // shared optional reason carried in every action's committed details.
-  const [op, setOp] = useState<ActionKey>('freeze')
+  const [op, setOp] = useState<ActionKey>('blockIdentity')
   const [reason, setReason] = useState('')
 
   // Freeze/unfreeze
@@ -55,6 +74,16 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
 
   // Access mode
   const [newAccessMode, setNewAccessMode] = useState<'denylist' | 'allowlist'>('denylist')
+  // Admin operations start collapsed - they're advanced/dangerous controls.
+  const [opsOpen, setOpsOpen] = useState(false)
+  // When embedded (Restrictions tab), the whole block is a collapsible section
+  // with a state summary in the heading, mirroring the compliance dashboard.
+  const [sectionOpen, setSectionOpen] = useState(false)
+  // Action picker: popover on desktop, bottom sheet on mobile.
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const isMobile = useIsMobile()
+  const onboarding = useOnboarding()
+  const isAuditor = isReviewerRole(onboarding.role)
 
   // Reissue
   const [reissueOutpoint, setReissueOutpoint] = useState('')
@@ -69,7 +98,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   const asset = assets.find(a => a.assetId === activeAssetId) ?? null
   const decimals = Number(asset?.metadata?.decimals) || 0
 
-  // Shared overlay admin-state query — cached across sections, refetched in
+  // Shared overlay admin-state query - cached across sections, refetched in
   // the background so controls stay usable while it refreshes.
   const stateQuery = useAssetState(activeAssetId)
   const state: AssetAdminStateView | null = stateQuery.data ?? null
@@ -139,8 +168,21 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     }
     busyRef.current = true
     setBusyAction(action)
+    const reasonAtStart = reason.trim()
     try {
       await fn()
+      // Log the sensitive action for auditor sign-off (attributable + reasoned).
+      const meta = ACTION_META[action]
+      if (meta != null && identityKey != null) {
+        logControlAction({
+          assetId: asset.assetId,
+          kind: meta.kind,
+          detail: meta.label,
+          reason: reasonAtStart || 'No reason provided',
+          actorKey: identityKey,
+          actorName: onboarding.name.trim() || undefined,
+        })
+      }
       setReason('')
       // Refresh every cache this action can touch instead of a manual reload.
       await invalidateAssetState(activeAssetId)
@@ -156,7 +198,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
       busyRef.current = false
       setBusyAction(null)
     }
-  }, [wallet, identityKey, asset, activeAssetId, invalidateAssetState, invalidateAdminHistory, onActionComplete])
+  }, [wallet, identityKey, asset, activeAssetId, reason, onboarding.name, invalidateAssetState, invalidateAdminHistory, onActionComplete])
 
   // ---------------------------------------------------------------------------
   // Pause / unpause
@@ -216,11 +258,22 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
       asset: asset!,
       details: withReason({ kind, assetId: asset!.assetId, identityKey: key, priorOutpoint: asset!.authOutpoint }, reason)
     })
-    const labels: Record<string, string> = { blockIdentity: 'Blocked', unblockIdentity: 'Unblocked', allowIdentity: 'Allowlisted', unallowIdentity: 'Removed from allowlist' }
+    const labels: Record<string, string> = { blockIdentity: 'Banned', unblockIdentity: 'Ban lifted for', allowIdentity: 'Allowlisted', unallowIdentity: 'Removed from allowlist' }
     toast.success(`${labels[kind]} ${key.slice(0, 12)}…`)
     setResolvedIdentityKey('')
     setPublicKeyInput('')
     identitySearch.handleSelect(null as any, null)
+  })
+
+  // Lift a ban for a specific Entity ID straight from the sanctions list.
+  const liftBan = (key: string) => void run('unblockIdentity', async () => {
+    const fields = guardAdminFields({ identityKey: key, requireIdentity: true })
+    if (!fields.ok) { toast.error(fields.reason); return }
+    await submitAction({
+      asset: asset!,
+      details: withReason({ kind: 'unblockIdentity', assetId: asset!.assetId, identityKey: key, priorOutpoint: asset!.authOutpoint }, reason)
+    })
+    toast.success(`Ban lifted for ${key.slice(0, 12)}…`)
   })
 
   // ---------------------------------------------------------------------------
@@ -286,6 +339,53 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
   const hasFrozen = (state?.frozenOutpoints.length ?? 0) > 0
   const identityKeyEmpty = resolvedIdentityKey === '' && publicKeyInput.trim() === ''
 
+  // Admin actions, each with a plain-language description for the picker.
+  const ACTIONS: { key: ActionKey; title: string; subtitle: string }[] = [
+    { key: 'blockIdentity', title: 'Ban an Entity ID', subtitle: 'Stop a specific holder from sending or receiving this instrument.' },
+    { key: 'unblockIdentity', title: 'Lift a ban', subtitle: 'Restore a previously banned holder’s ability to transact.' },
+    { key: 'allowIdentity', title: 'Add to allowlist', subtitle: 'Let a holder transact when the instrument is allowlist-only.' },
+    { key: 'unallowIdentity', title: 'Remove from allowlist', subtitle: 'Revoke a holder’s permission on an allowlist-only instrument.' },
+    { key: 'accessMode', title: 'Set access mode', subtitle: 'Choose who may transact: everyone except banned holders, or only allowlisted ones.' },
+    { key: 'pause', title: isPaused ? 'Resume transfers' : 'Pause transfers', subtitle: 'Temporarily stop or resume all holder-to-holder transfers.' },
+    { key: 'freeze', title: 'Freeze a holding', subtitle: 'Lock a specific holding so it can’t be moved - e.g. while under investigation.' },
+    { key: 'unfreeze', title: 'Unfreeze a holding', subtitle: 'Release a holding you previously froze.' },
+    { key: 'reissue', title: 'Reissue a frozen holding', subtitle: 'Move value from a frozen holding to a new recipient - e.g. under a court order.' },
+  ]
+  const currentAction = ACTIONS.find(a => a.key === op) ?? ACTIONS[0]!
+
+  // Shared list of actions with title + plain-language subheading, rendered in
+  // either a popover (desktop) or a bottom sheet (mobile).
+  const actionList = (
+    <div className="max-h-[60vh] overflow-y-auto">
+      {ACTIONS.map(a => {
+        const active = a.key === op
+        return (
+          <button
+            key={a.key}
+            type="button"
+            onClick={() => { setOp(a.key); setPickerOpen(false) }}
+            className={cn('flex w-full items-start gap-2 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-accent', active && 'bg-accent')}
+          >
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-medium text-foreground">{a.title}</div>
+              <div className="mt-0.5 text-[12px] leading-snug text-muted-foreground">{a.subtitle}</div>
+            </div>
+            {active && <Check className="mt-0.5 size-4 shrink-0 text-foreground" />}
+          </button>
+        )
+      })}
+    </div>
+  )
+
+  // Trigger button styled like a select field.
+  const triggerCls = 'mt-1 flex w-full items-center justify-between gap-2 rounded-md border border-input-border bg-input px-3 py-2.5 text-left text-[13px] font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60'
+  const triggerInner = (
+    <>
+      <span className="truncate">{currentAction.title}</span>
+      <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+    </>
+  )
+
   // Per-action "is this ready to submit" gate for the shared submit button.
   const opDisabled = (() => {
     switch (op) {
@@ -338,17 +438,35 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
     ? undefined
     : { background: 'var(--color-primary)', color: 'var(--color-primary-foreground)' }
 
+  // Collapsed-heading summary of the current on-chain control state.
+  const sectionSummary = state == null
+    ? 'Loading current state…'
+    : `${isPaused ? 'Paused' : 'Active'} · ${state.accessMode ?? 'denylist'} · ${state.blockedIdentities.length} banned · ${state.frozenOutpoints.length} frozen`
+
+  const bodyVisible = !embedded || sectionOpen
+
   return (
-    <div className="space-y-[14px]">
-      {/* Page heading row — slim section label when embedded in Operations */}
-      <div className="flex items-start justify-between gap-4">
-        {embedded ? (
-          <div className="pt-[6px]">
-            <div className="text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase">
-              Regulatory controls
-            </div>
-          </div>
-        ) : (
+    <div className="max-w-3xl space-y-[14px]">
+      {/* Page heading row - collapsible section header when embedded */}
+      {embedded ? (
+        <button
+          type="button"
+          onClick={() => setSectionOpen(o => !o)}
+          aria-expanded={sectionOpen}
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
+          <span className="min-w-0">
+            <span className="block text-[11px] font-medium tracking-[1.2px] text-subtle-foreground uppercase">
+              Sanctions &amp; access control
+            </span>
+            {!sectionOpen && (
+              <span className="mt-1 block truncate text-[12.5px] text-muted-foreground capitalize">{sectionSummary}</span>
+            )}
+          </span>
+          <ChevronDown className={cn('size-4 shrink-0 text-muted-foreground transition-transform', sectionOpen && 'rotate-180')} />
+        </button>
+      ) : (
+        <div className="flex items-start justify-between gap-4">
           <div>
             <h1 style={{ fontSize: 27, fontWeight: 600, letterSpacing: '-0.5px', lineHeight: '1.2' }}>
               Regulatory controls
@@ -358,22 +476,77 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
               {asset != null ? ` for ${asset.label}` : ''}
             </p>
           </div>
-        )}
-        {/* Asset selector chip — suppressed in controlled mode */}
-        {controlledAssetId == null && (
-          <div className="shrink-0 flex flex-col gap-[4px]">
-            <label className="text-[10.5px] text-subtle-foreground font-medium">Asset</label>
-            <Select
-              value={selectedAssetId}
-              onChange={e => { setSelectedAssetId(e.target.value) }}
-              className="bg-card border border-border rounded px-3 py-[7px] text-[12px] font-medium"
-            >
-              <option value="">Select asset…</option>
-              {assets.map(a => (
-                <option key={a.assetId} value={a.assetId}>{a.label}</option>
-              ))}
-            </Select>
+          {/* Asset selector chip - suppressed in controlled mode */}
+          {controlledAssetId == null && (
+            <div className="shrink-0 flex flex-col gap-[4px]">
+              <label className="text-[10.5px] text-subtle-foreground font-medium">Asset</label>
+              <Select
+                value={selectedAssetId}
+                onChange={e => { setSelectedAssetId(e.target.value) }}
+                className="bg-card border border-border rounded px-3 py-[7px] text-[12px] font-medium"
+              >
+                <option value="">Select asset…</option>
+                {assets.map(a => (
+                  <option key={a.assetId} value={a.assetId}>{a.label}</option>
+                ))}
+              </Select>
+            </div>
+          )}
+        </div>
+      )}
+
+      {bodyVisible && (
+      <>
+      {/* Sanction lists in force for this instrument, with provider updates */}
+      {asset != null && (
+        <InstrumentSanctionLists assetId={activeAssetId} assetLabel={asset.label} />
+      )}
+
+      {/* Sanctioned entities - the list of identities banned from this
+          instrument, with one-click lift. Adding a ban is done via
+          Admin operations → "Ban an Entity ID" below. */}
+      <div className="bg-card border border-border rounded-md p-[16px_18px]">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-[13.5px] font-semibold">Sanctioned entities</div>
+          <span className="text-[11px] font-medium text-subtle-foreground">
+            {(state?.blockedIdentities.length ?? 0)} banned
+          </span>
+        </div>
+        <p className="mt-1 text-[12px] leading-[1.5] text-subtle-foreground">
+          A banned Entity ID cannot send or receive {asset != null ? asset.label : 'this instrument'} - the ban is
+          enforced on-chain by the overlay. Add one below under “Ban an Entity ID”.
+        </p>
+
+        {state == null ? (
+          <div className="mt-3 flex items-center gap-2 text-[12px] text-subtle-foreground">
+            <Spinner size="sm" tone="brand" className="h-3 w-3" /> Loading…
           </div>
+        ) : state.blockedIdentities.length === 0 ? (
+          <div className="mt-3 rounded-md border border-dashed border-border px-3 py-4 text-center text-[12px] text-subtle-foreground">
+            No Entity IDs are currently banned.
+          </div>
+        ) : (
+          <ul className="mt-3 divide-y divide-separator">
+            {state.blockedIdentities.map(key => (
+              <li key={key} className="flex items-center gap-3 py-2.5">
+                <IdentitySigil value={key} size={26} className="rounded" />
+                <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-foreground" title={key}>
+                  {key.length > 16 ? `${key.slice(0, 8)}…${key.slice(-6)}` : key}
+                </code>
+                {!isAuditor && (
+                  <button
+                    type="button"
+                    onClick={() => liftBan(key)}
+                    disabled={busy || asset == null}
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded border border-border px-2.5 py-1 text-[12px] font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                  >
+                    {busyAction === 'unblockIdentity' && <Spinner size="sm" tone="current" className="h-3 w-3" />}
+                    Lift ban
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 
@@ -383,7 +556,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
         <div className="flex-1 min-w-0">
           <div className="text-[10.5px] text-subtle-foreground mb-[7px] font-medium">Status</div>
           {state == null ? (
-            <div className="text-[13px] font-semibold text-foreground">—</div>
+            <div className="text-[13px] font-semibold text-foreground">-</div>
           ) : (
             <div className="flex items-center gap-[6px]">
               <div
@@ -400,7 +573,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
         <div className="flex-1 min-w-0">
           <div className="text-[10.5px] text-subtle-foreground mb-[7px] font-medium">Access mode</div>
           <div className="text-[13px] font-semibold capitalize">
-            {state == null ? '—' : (state.accessMode ?? '—')}
+            {state == null ? '-' : (state.accessMode ?? '-')}
           </div>
         </div>
 
@@ -410,7 +583,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
         <div className="flex-1 min-w-0">
           <div className="text-[10.5px] text-subtle-foreground mb-[7px] font-medium">Frozen outputs</div>
           <div className="text-[13px] font-semibold">
-            {state == null ? '—' : state.frozenOutpoints.length}
+            {state == null ? '-' : state.frozenOutpoints.length}
           </div>
         </div>
 
@@ -420,7 +593,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
         <div className="flex-1 min-w-0">
           <div className="text-[10.5px] text-subtle-foreground mb-[7px] font-medium">Blocked</div>
           <div className="text-[13px] font-semibold">
-            {state == null ? '—' : state.blockedIdentities.length}
+            {state == null ? '-' : state.blockedIdentities.length}
           </div>
         </div>
 
@@ -430,31 +603,53 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
         <div className="flex-1 min-w-0">
           <div className="text-[10.5px] text-subtle-foreground mb-[7px] font-medium">Allowed</div>
           <div className="text-[13px] font-semibold">
-            {state == null ? '—' : state.allowedIdentities.length}
+            {state == null ? '-' : state.allowedIdentities.length}
           </div>
         </div>
       </div>
 
-      {/* Admin Operations form — single action selector + dynamic fields + shared reason */}
-      <div className="bg-card border border-border rounded-md p-[16px_18px]">
-        <div className="text-[13.5px] font-semibold mb-[10px]">Admin operations</div>
-
-        <label className="text-[10.5px] text-subtle-foreground font-medium">Action</label>
-        <Select
-          value={op}
-          onChange={e => setOp(e.target.value as ActionKey)}
-          className="w-full mt-1 text-[13px] font-medium"
+      {/* Admin Operations form - single action selector + dynamic fields + shared
+          reason. Issuer-only; auditors get the read-only status + sanctioned list. */}
+      {!isAuditor && (
+      <div className="bg-card border border-border rounded-md">
+        <button
+          type="button"
+          onClick={() => setOpsOpen(o => !o)}
+          aria-expanded={opsOpen}
+          className="flex w-full items-center justify-between p-[16px_18px] text-left"
         >
-          <option value="pause">{isPaused ? 'Unpause transfers' : 'Pause transfers'}</option>
-          <option value="accessMode">Set access mode</option>
-          <option value="freeze">Freeze output</option>
-          <option value="unfreeze">Unfreeze output</option>
-          <option value="blockIdentity">Block identity</option>
-          <option value="unblockIdentity">Unblock identity</option>
-          <option value="allowIdentity">Allow identity</option>
-          <option value="unallowIdentity">Unallow identity</option>
-          <option value="reissue">Reissue from frozen output</option>
-        </Select>
+          <span className="text-[13.5px] font-semibold">Admin operations</span>
+          <ChevronDown className={`h-4 w-4 text-subtle-foreground transition-transform ${opsOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {opsOpen && (
+        <div className="border-t border-border p-[16px_18px]">
+        <label className="text-[10.5px] text-subtle-foreground font-medium">Action</label>
+        {isMobile ? (
+          <>
+            <button type="button" onClick={() => setPickerOpen(true)} className={triggerCls}>
+              {triggerInner}
+            </button>
+            <Sheet open={pickerOpen} onOpenChange={setPickerOpen}>
+              <SheetContent side="bottom" className="p-0">
+                <SheetTitle className="border-b border-border px-4 py-3 text-[14px]">Choose an action</SheetTitle>
+                <div className="p-2 pb-[max(env(safe-area-inset-bottom),16px)]">
+                  {actionList}
+                </div>
+              </SheetContent>
+            </Sheet>
+          </>
+        ) : (
+          <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+            <PopoverTrigger asChild>
+              <button type="button" className={triggerCls}>{triggerInner}</button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[--radix-popover-trigger-width] min-w-[340px] p-1">
+              {actionList}
+            </PopoverContent>
+          </Popover>
+        )}
+        <p className="mt-1.5 text-[12px] leading-snug text-subtle-foreground">{currentAction.subtitle}</p>
 
         {/* Dynamic fields for the selected action */}
         <div className="mt-3">
@@ -496,7 +691,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
               </div>
               {newAccessMode === 'allowlist' && (state?.allowedIdentities.length ?? 0) === 0 && (
                 <p className="text-[12px] text-subtle-foreground leading-[1.5] mt-[9px]">
-                  Allowlist is empty — transfers stay blocked until you add allowed identities.
+                  Allowlist is empty - transfers stay blocked until you add allowed identities.
                 </p>
               )}
             </>
@@ -522,7 +717,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
                   <option value="">Select frozen output…</option>
                   {state!.frozenOutpoints.map(r => (
                     <option key={r.outpoint} value={r.outpoint}>
-                      {r.outpoint.slice(0, 20)}… — {formatAmount(r.amount, decimals)} — {r.owner.slice(0, 10)}…
+                      {r.outpoint.slice(0, 20)}… - {formatAmount(r.amount, decimals)} - {r.owner.slice(0, 10)}…
                     </option>
                   ))}
                 </Select>
@@ -581,7 +776,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
                   identitySearch.handleSelect(null as any, null)
                 }}
                 disabled={!!identitySearch.selectedIdentity}
-                placeholder="Or paste identity key"
+                placeholder="Or paste Entity ID"
                 className="tabular mt-2"
               />
             </>
@@ -589,7 +784,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
 
           {op === 'reissue' && (
             !hasFrozen ? (
-              <p className="text-[12px] text-subtle-foreground">No frozen outputs available — freeze an output first to reissue from it.</p>
+              <p className="text-[12px] text-subtle-foreground">No frozen outputs available - freeze an output first to reissue from it.</p>
             ) : (
               <>
                 {/* Frozen output select */}
@@ -601,12 +796,12 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
                   <option value="">Select frozen output…</option>
                   {state!.frozenOutpoints.map(r => (
                     <option key={r.outpoint} value={r.outpoint}>
-                      {r.outpoint.slice(0, 20)}… — {formatAmount(r.amount, decimals)} — {r.owner.slice(0, 10)}…
+                      {r.outpoint.slice(0, 20)}… - {formatAmount(r.amount, decimals)} - {r.owner.slice(0, 10)}…
                     </option>
                   ))}
                 </Select>
 
-                {/* Amount — locked to the selected frozen output's value. The
+                {/* Amount - locked to the selected frozen output's value. The
                     overlay's reissue guard rejects any mismatch, so circulation is
                     conserved; keep the field read-only so it can't be understated. */}
                 <input
@@ -619,7 +814,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
                   className="bg-muted border border-border rounded px-[13px] py-[11px] font-mono text-[12px] text-foreground w-full mt-2 outline-none cursor-not-allowed"
                 />
                 <p className="text-[11px] text-subtle-foreground mt-1">
-                  Locked to the frozen output's amount — reissuing a different value is rejected by the overlay, so circulation stays constant.
+                  Locked to the frozen output's amount - reissuing a different value is rejected by the overlay, so circulation stays constant.
                 </p>
 
                 {/* Recipient search */}
@@ -670,7 +865,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
                     reissueIdentitySearch.handleSelect(null as any, null)
                   }}
                   disabled={!!reissueIdentitySearch.selectedIdentity}
-                  placeholder="Or paste recipient identity key"
+                  placeholder="Or paste recipient Entity ID"
                   className="tabular mt-2"
                 />
               </>
@@ -678,7 +873,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
           )}
         </div>
 
-        {/* Shared reason input — carried into the committed action details for every op */}
+        {/* Shared reason input - carried into the committed action details for every op */}
         <div className="mt-3">
           <label className="text-[10.5px] text-subtle-foreground font-medium">Reason (optional)</label>
           <input
@@ -689,7 +884,7 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
           />
         </div>
 
-        {/* Shared submit — busyRef + adminAuthGate block re-entry in the
+        {/* Shared submit - busyRef + adminAuthGate block re-entry in the
             handler before re-render (refs don't re-render, so they stay out
             of `disabled`) */}
         <button
@@ -702,7 +897,12 @@ export default function RegulatoryControls({ assets, onActionComplete, assetId: 
           {busyAction === op && <Spinner size="sm" tone="current" />}
           {submitLabel[op]}
         </button>
+        </div>
+        )}
       </div>
+      )}
+      </>
+      )}
     </div>
   )
 }

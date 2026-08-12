@@ -1,5 +1,5 @@
 /**
- * ContactsPage — Wallet-native contacts management.
+ * ContactsPage - Wallet-native contacts management.
  *
  * Reads/writes contacts via contactsStore (PushDrop wallet outputs).
  * Supports two add-contact paths:
@@ -10,12 +10,14 @@
  */
 
 import { useCallback, useState } from 'react'
-import { Users, UserPlus, Pencil, Trash2, X, Check, Search, ChevronRight } from 'lucide-react'
+import { Building2, UserPlus, Pencil, Trash2, X, Check, Search, ChevronRight, BadgeCheck, Send } from 'lucide-react'
 import { noAutofill } from '../../lib/noAutofill'
 import { IdentityClient } from '@bsv/sdk'
 import { useWallet } from '../../context/WalletContext'
 import { useContactsData, useInvalidateContacts } from '../../hooks/useContactsData'
 import { Spinner } from '../ui/spinner'
+import { IdentitySigil } from '@/components/ui/identity-sigil'
+import { UserAvatar } from '@/components/ui/user-avatar'
 import {
   saveContact,
   removeContact,
@@ -28,8 +30,15 @@ import { cn } from '@/lib/utils'
 // ---------------------------------------------------------------------------
 
 function abbrevKey(key: string): string {
-  if (!key || key.length < 16) return key
-  return `${key.slice(0, 8)}…${key.slice(-6)}`
+  if (!key || key.length <= 12) return key
+  return `${key.slice(0, 5)}…${key.slice(-5)}`
+}
+
+/** Deterministic pastel hue (0–359) from a key, for the card's header wash. */
+function hueForKey(key: string): number {
+  let h = 0
+  for (let i = 0; i < key.length; i += 1) h = (h * 31 + key.charCodeAt(i)) % 360
+  return h
 }
 
 function initials(name: string): string {
@@ -89,91 +98,107 @@ interface ContactRowProps {
   contact: StoredContact
   onEdit: (c: StoredContact) => void
   onRemove: (identityKey: string) => void
+  /** When provided, the card shows a primary "Send" CTA. */
+  onSend?: (c: StoredContact) => void
   removing: boolean
 }
 
-function ContactRow({ contact, onEdit, onRemove, removing }: ContactRowProps) {
+/** A contact rendered as a profile card - gradient header, overlaid avatar,
+ *  verified badge, truncated Entity ID, and a primary Send action. */
+function ContactRow({ contact, onEdit, onRemove, onSend, removing }: ContactRowProps) {
   const [confirmRemove, setConfirmRemove] = useState(false)
-
-  const avatarContent = contact.avatarURL ? (
-    <img
-      src={contact.avatarURL}
-      alt={contact.name}
-      className="h-full w-full rounded-full object-cover"
-    />
-  ) : (
-    <span className="text-[13px] font-semibold text-primary-foreground">
-      {initials(contact.name)}
-    </span>
-  )
+  const hue = hueForKey(contact.identityKey)
 
   return (
-    <div className="flex items-center gap-[12px] border-b border-separator px-[20px] py-[13px] last:border-b-0">
-      {/* Avatar */}
-      <div className="flex h-[40px] w-[40px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary">
-        {avatarContent}
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)]">
+      {/* Gradient header */}
+      <div
+        className="relative h-16"
+        style={{ backgroundImage: `linear-gradient(135deg, hsl(${hue} 58% 82%), hsl(${(hue + 42) % 360} 52% 88%))` }}
+      >
+        {contact.badgeLabel && (
+          <span className="absolute right-3 top-3 rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-semibold text-neutral-900">
+            {contact.badgeLabel}
+          </span>
+        )}
+        {/* Avatar, overlaid on the header edge */}
+        <div className="absolute -bottom-6 left-4 rounded-full bg-card p-[3px]">
+          <UserAvatar seed={contact.identityKey} src={contact.avatarURL} size={48} />
+        </div>
       </div>
 
-      {/* Details */}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-[7px]">
-          <span className="truncate text-[14px] font-semibold leading-[1.2]">{contact.name}</span>
-          {contact.badgeLabel && (
-            <span className="shrink-0 rounded-full bg-accent px-[7px] py-[2px] text-[10px] font-semibold leading-none text-accent-foreground">
-              {contact.badgeLabel}
-            </span>
-          )}
+      {/* Body */}
+      <div className="px-4 pb-4 pt-8">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-[15px] font-semibold leading-tight">{contact.name}</span>
+          <BadgeCheck className="size-4 shrink-0 text-success" strokeWidth={2.2} />
         </div>
-        <div className="mt-[2px] font-mono text-[10.5px] leading-[1.3] text-subtle-foreground">
-          {abbrevKey(contact.identityKey)}
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] text-subtle-foreground">
+          {contact.handle && <span>@{contact.handle}</span>}
+          <code className="font-mono" title={contact.identityKey}>{abbrevKey(contact.identityKey)}</code>
         </div>
         {contact.note && (
-          <div className="mt-[2px] truncate text-[11px] leading-[1.3] text-muted-foreground">
-            {contact.note}
-          </div>
+          <p className="mt-2 line-clamp-2 text-[12px] leading-snug text-muted-foreground">{contact.note}</p>
         )}
-      </div>
 
-      {/* Actions */}
-      <div className="flex shrink-0 items-center gap-[4px]">
+        {/* Actions */}
         {confirmRemove ? (
-          <>
+          <div className="mt-3 flex items-center gap-2">
             <button
               type="button"
               disabled={removing}
               onClick={() => onRemove(contact.identityKey)}
-              className="flex h-7 items-center gap-[5px] rounded-sm bg-destructive px-[9px] text-[11px] font-semibold text-destructive-foreground transition-opacity disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-destructive px-3 py-2 text-[12.5px] font-semibold text-destructive-foreground transition-opacity hover:opacity-90 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {removing && <Spinner size="sm" tone="current" className="h-3 w-3" />}
-              {removing ? 'Removing' : 'Remove'}
+              {removing ? 'Removing…' : 'Remove contact'}
             </button>
             <button
               type="button"
               onClick={() => setConfirmRemove(false)}
-              className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="rounded-md border border-border px-3 py-2 text-[12.5px] font-medium text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <X className="h-[14px] w-[14px]" />
+              Cancel
             </button>
-          </>
+          </div>
         ) : (
-          <>
-            <button
-              type="button"
-              onClick={() => onEdit(contact)}
-              aria-label={`Edit ${contact.name}`}
-              className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Pencil className="h-[14px] w-[14px]" />
-            </button>
+          <div className="mt-3 flex items-center gap-2">
+            {onSend && (
+              <button
+                type="button"
+                onClick={() => onSend(contact)}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-2 text-[13px] font-semibold text-primary-foreground transition-[filter,transform] duration-150 hover:brightness-110 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              >
+                <Send className="size-4" /> Send
+              </button>
+            )}
+            {onSend ? (
+              <button
+                type="button"
+                onClick={() => onEdit(contact)}
+                aria-label={`Edit ${contact.name}`}
+                className="flex size-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Pencil className="size-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onEdit(contact)}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-2 text-[13px] font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Pencil className="size-4" /> Edit
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setConfirmRemove(true)}
               aria-label={`Remove ${contact.name}`}
-              className="flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex size-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Trash2 className="h-[14px] w-[14px]" />
+              <Trash2 className="size-4" />
             </button>
-          </>
+          </div>
         )}
       </div>
     </div>
@@ -259,7 +284,7 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
 
   const handleSave = async () => {
     if (!identityKey.trim() || !name.trim()) {
-      setSaveError('Identity key and name are required.')
+      setSaveError('Entity ID and name are required.')
       return
     }
     setSaving(true)
@@ -416,13 +441,13 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
 
               {!searching && searchResults.length === 0 && searchQuery && !searchError && (
                 <div className="mt-[14px] text-center text-[13px] text-muted-foreground">
-                  No results — try manual entry.
+                  No results - try manual entry.
                 </div>
               )}
             </div>
           )}
 
-          {/* After search pick — show form pre-filled */}
+          {/* After search pick - show form pre-filled */}
           {mode === 'search' && selected && (
             <div className="mb-[14px] flex items-center gap-[10px] rounded-md border border-border bg-card px-[14px] py-[10px]">
               <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary">
@@ -448,13 +473,13 @@ function AddContactDialog({ wallet, onSaved, onCancel }: AddContactDialogProps) 
             </div>
           )}
 
-          {/* Form fields — shown in manual mode or after search pick */}
+          {/* Form fields - shown in manual mode or after search pick */}
           {(mode === 'manual' || selected) && (
             <div className="flex flex-col gap-[10px]">
               {mode === 'manual' && (
                 <div>
                   <label className="mb-[4px] block text-[11px] font-medium uppercase tracking-[0.8px] text-faint-foreground">
-                    Identity Key *
+                    Entity ID *
                   </label>
                   <input
                     type="text"
@@ -629,10 +654,18 @@ function EditContactDialog({ contact, wallet, onSaved, onCancel }: EditContactDi
           {/* Identity key (read-only) */}
           <div>
             <label className="mb-[4px] block text-[11px] font-medium uppercase tracking-[0.8px] text-faint-foreground">
-              Identity Key
+              Entity ID
             </label>
-            <div className="w-full rounded border border-border bg-muted/40 px-[12px] py-[9px] font-mono text-[11px] text-subtle-foreground break-all">
-              {contact.identityKey}
+            <div className="flex w-full items-center gap-2.5 rounded border border-border bg-muted/40 px-[12px] py-[9px]">
+              <IdentitySigil value={contact.identityKey} size={24} className="rounded" />
+              <code
+                className="min-w-0 flex-1 truncate font-mono text-[12px] text-subtle-foreground"
+                title={contact.identityKey}
+              >
+                {contact.identityKey.length > 12
+                  ? `${contact.identityKey.slice(0, 5)}…${contact.identityKey.slice(-5)}`
+                  : contact.identityKey}
+              </code>
             </div>
           </div>
 
@@ -727,12 +760,16 @@ function EditContactDialog({ contact, wallet, onSaved, onCancel }: EditContactDi
 }
 
 // ---------------------------------------------------------------------------
-// ContactsPage — main export
+// ContactsPage - main export
 // ---------------------------------------------------------------------------
 
-export default function ContactsPage({ onBack }: { onBack?: () => void }) {
+export default function ContactsPage({ onBack, onSend }: {
+  onBack?: () => void
+  /** When provided, each contact card shows a primary "Send" action. */
+  onSend?: (c: StoredContact) => void
+}) {
   const { wallet } = useWallet()
-  // Shared cached query — renders instantly on navigation, refetches behind.
+  // Shared cached query - renders instantly on navigation, refetches behind.
   const { data } = useContactsData()
   const invalidateContacts = useInvalidateContacts()
   const contacts = data?.saved ?? []
@@ -789,8 +826,8 @@ export default function ContactsPage({ onBack }: { onBack?: () => void }) {
               </svg>
             </button>
           )}
-          <Users className="h-[20px] w-[20px] text-primary" strokeWidth={1.9} />
-          <h1 className="text-[18px] font-semibold tracking-[-0.01em]">Contacts</h1>
+          <Building2 className="h-[20px] w-[20px] text-primary" strokeWidth={1.9} />
+          <h1 className="text-[18px] font-semibold tracking-[-0.01em]">Relationships</h1>
         </div>
         <button
           type="button"
@@ -826,10 +863,10 @@ export default function ContactsPage({ onBack }: { onBack?: () => void }) {
       {!loading && contacts.length === 0 && (
         <div className="flex flex-col items-center gap-[12px] px-[26px] py-[48px]">
           <div className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-muted">
-            <Users className="h-[26px] w-[26px] text-muted-foreground" />
+            <Building2 className="h-[26px] w-[26px] text-muted-foreground" />
           </div>
           <p className="text-center text-[14px] font-medium text-muted-foreground">
-            No contacts yet — add someone.
+            No contacts yet - add someone.
           </p>
           <button
             type="button"
@@ -846,15 +883,16 @@ export default function ContactsPage({ onBack }: { onBack?: () => void }) {
         </div>
       )}
 
-      {/* Contacts list */}
+      {/* Contacts grid */}
       {!loading && contacts.length > 0 && (
-        <div className="mx-[16px] overflow-hidden rounded-lg border border-border bg-card">
+        <div className="mx-[16px] grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {contacts.map(c => (
             <ContactRow
               key={c.identityKey}
               contact={c}
               onEdit={setEditTarget}
               onRemove={identityKey => void handleRemove(identityKey)}
+              onSend={onSend}
               removing={removingKey === c.identityKey}
             />
           ))}

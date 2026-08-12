@@ -14,7 +14,7 @@ interface ReceivedToken extends ReceivedTransfer {
 }
 
 /**
- * Incoming transfers are ACCEPTED AUTOMATICALLY — there is no manual
+ * Incoming transfers are ACCEPTED AUTOMATICALLY - there is no manual
  * accept/reject step. On load (and on refresh) the @bsv/mandala receive
  * pipeline internalizes every pending message-box transfer into the wallet
  * basket and acknowledges it; we show a read-only confirmation. The
@@ -42,7 +42,7 @@ export default function ReceiveTokens() {
         processed: processedRef.current
       })
       if (accepted.length > 0) {
-        // Balance + history changed — refresh the shared holder cache in the background.
+        // Balance + history changed - refresh the shared holder cache in the background.
         void invalidateHolderData()
         const at = Date.now()
         setReceived(prev => [...accepted.map(t => ({ ...t, at })), ...prev])
@@ -71,11 +71,11 @@ export default function ReceiveTokens() {
   }
 
   return (
-    // No header — the page's top bar already says "Receive"; the QR panel is
+    // No header - the page's top bar already says "Receive"; the QR panel is
     // the action. One quiet footnote covers the "just wait" behaviour.
     <Card>
       <CardContent className="space-y-6 pt-6">
-        {/* QR / identity — how others send to you; sits directly on the card
+        {/* QR / identity - how others send to you; sits directly on the card
             (no nested well) to match the Send screen's single surface. */}
         <ReceivePanel />
 

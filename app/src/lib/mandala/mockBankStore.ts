@@ -1,9 +1,9 @@
 /**
  * Shared store of the demo bank transfer feed (see banking.ts), scoped per
- * asset — switching assets must switch the bank balance, transaction
+ * asset - switching assets must switch the bank balance, transaction
  * history, and reconciliation with it. A module-level store rather than
  * component state so the Banking page (which adds transfers) and the
- * Overview reserve-ratio KPI (which reads them) stay honestly in sync — the
+ * Overview reserve-ratio KPI (which reads them) stay honestly in sync - the
  * KPI must reflect real added transfers, not a second, disconnected copy of
  * mock data. Same useSyncExternalStore idiom as devMode.ts.
  *
@@ -22,14 +22,14 @@ function load(): MockTransfer[] {
   try {
     if (typeof localStorage !== 'undefined') {
       const raw = JSON.parse(localStorage.getItem(KEY) ?? '[]')
-      // Older entries predate the direction/assetId fields — treat them as
+      // Older entries predate the direction/assetId fields - treat them as
       // incoming and unassigned (they won't match any real asset, so they
       // simply drop out of every per-asset view rather than crashing).
       if (Array.isArray(raw)) {
         return (raw as Array<Partial<MockTransfer>>).map(t => ({ direction: 'in', assetId: '', ...t } as MockTransfer))
       }
     }
-  } catch { /* corrupted — start fresh */ }
+  } catch { /* corrupted - start fresh */ }
   return []
 }
 
@@ -40,7 +40,7 @@ function write(next: MockTransfer[]): void {
   transfers = next
   try {
     if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, JSON.stringify(next))
-  } catch { /* quota/unavailable — in-memory copy still holds */ }
+  } catch { /* quota/unavailable - in-memory copy still holds */ }
   listeners.forEach(l => l())
 }
 
@@ -73,4 +73,9 @@ const EMPTY: MockTransfer[] = []
 export function useMockTransfers(assetId: string): MockTransfer[] {
   const all = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
   return assetId === '' ? EMPTY : all.filter(t => t.assetId === assetId)
+}
+
+/** Reactive read of the whole demo transfer feed (all assets). */
+export function useAllMockTransfers(): MockTransfer[] {
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }

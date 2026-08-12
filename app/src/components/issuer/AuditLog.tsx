@@ -13,7 +13,7 @@ interface Props {
   assetId?: string
 }
 
-/** Fixed row height for virtualization — rows clamp their text to one line. */
+/** Fixed row height for virtualization - rows clamp their text to one line. */
 const ROW_HEIGHT = 48
 
 export default function AuditLog({ assets = [], assetId: controlledAssetId }: Props) {
@@ -23,7 +23,7 @@ export default function AuditLog({ assets = [], assetId: controlledAssetId }: Pr
   // In controlled mode the active asset is the prop; otherwise use internal state
   const activeAssetId = controlledAssetId ?? selectedAssetId
 
-  // Paged newest-first history — thousands of actions stream in pages instead
+  // Paged newest-first history - thousands of actions stream in pages instead
   // of one unbounded response; rows render through a virtualized list.
   const {
     rows, data, isFetching, refetch,
@@ -68,7 +68,7 @@ export default function AuditLog({ assets = [], assetId: controlledAssetId }: Pr
 
   return (
     <div>
-      {/* Page heading — only shown in standalone (uncontrolled) mode */}
+      {/* Page heading - only shown in standalone (uncontrolled) mode */}
       {controlledAssetId == null && (
         <div className="mb-[18px]">
           <h1 className="text-[27px] font-semibold tracking-[-0.5px] leading-tight">Audit log</h1>
@@ -78,7 +78,7 @@ export default function AuditLog({ assets = [], assetId: controlledAssetId }: Pr
 
       {/* Controls row */}
       <div className="flex items-center gap-[10px] flex-wrap mb-[18px]">
-        {/* Asset selector — suppressed in controlled mode */}
+        {/* Asset selector - suppressed in controlled mode */}
         {controlledAssetId == null && (
           <Select
             id="al-asset"
@@ -144,7 +144,7 @@ export default function AuditLog({ assets = [], assetId: controlledAssetId }: Pr
                     </span>
                     {/* Block height */}
                     <span className="text-[12px] text-subtle-foreground tabular-nums shrink-0">
-                      {row.height > 0 ? row.height : '—'}
+                      {row.height > 0 ? row.height : '-'}
                     </span>
                     {/* Txid link */}
                     <a

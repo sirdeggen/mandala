@@ -42,7 +42,7 @@ export function useHolderData() {
     enabled: wallet != null,
     queryFn: async (): Promise<HolderData> => {
       const w = wallet as any
-      // Balances and history are independent reads — run them together.
+      // Balances and history are independent reads - run them together.
       const [res, history] = await Promise.all([
         w.listOutputs({ basket: BASKET, include: 'locking scripts', limit: 1000 }),
         loadHistory(w)

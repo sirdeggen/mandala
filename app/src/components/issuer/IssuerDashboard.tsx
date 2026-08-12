@@ -1,114 +1,305 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  LayoutDashboard, ShieldCheck, Banknote, Wallet, Activity, ChevronDown
+  Home, Signature, Building2, ShieldCheck, ChevronsUpDown, BadgeCheck,
+  Settings, Plus, LogOut, BookOpen, FileText, Blocks
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useWallet } from '../../context/WalletContext'
 import { AdminAsset } from '@bsv/mandala/assets'
 import { useAdminAssets, useInvalidateAdminAssets } from '../../hooks/useAdminAssets'
-import { BrandMark } from '../ui/BrandMark'
+import { useAdminSummary } from '../../hooks/useAdminHistory'
+import { useOnboarding, isReviewerRole } from '../../lib/onboarding'
+import { recordOrgName } from '../../lib/orgDirectory'
+import { UserAvatar } from '@/components/ui/user-avatar'
+import { useUserAvatar } from '../../lib/userAvatar'
+import {
+  SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter,
+  SidebarGroup, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarSeparator,
+  SidebarRail, SidebarInset, SidebarTrigger
+} from '@/components/ui/sidebar'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import 'flag-icons/css/flag-icons.min.css'
+import { InstrumentIcon } from '@/components/ui/instrument-icon'
+import { iconColor } from '@/lib/instrumentIcons'
+import { assetImage, stablecoinFlag } from '@/lib/instrumentCategory'
 import { cn } from '@/lib/utils'
-import IssuerPanel from '../IssuerPanel'
-import OverviewSection from './OverviewSection'
-import RegisterAssetStrip from './RegisterAssetStrip'
-import RegulatoryControls from './RegulatoryControls'
-import BankingMock from './BankingMock'
-import OverlayActivity from './OverlayActivity'
-import TreasurySection from './TreasurySection'
+import InstrumentsHome from './InstrumentsHome'
+import InstrumentDetail from './InstrumentDetail'
+import IssuerHome from './IssuerHome'
+import AuditorHome from './AuditorHome'
+import IssueInstrumentDrawer from './IssueInstrumentDrawer'
+import ComplianceOverview from './ComplianceOverview'
+import ReportsPage from './ReportsPage'
+import IntegrationsPage from './IntegrationsPage'
+import AccountSettings from '../settings/AccountSettings'
+import CompanySettings from '../settings/CompanySettings'
+import DemoChecklist from './DemoChecklist'
+import RelationshipsPage from './RelationshipsPage'
 
-type Section = 'overview' | 'treasury' | 'operations' | 'activity' | 'banking'
+type Section = 'home' | 'overview' | 'relationships' | 'compliance' | 'reports' | 'integrations' | 'instrument' | 'settings' | 'company'
 
-const NAV_ITEMS: Array<{
-  id: Section
+type NavItem = {
+  key: string
+  section: Section
   label: string
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
-}> = [
-  { id: 'overview',    label: 'Overview',    icon: LayoutDashboard },
-  { id: 'treasury',    label: 'Treasury',    icon: Wallet },
-  { id: 'operations',  label: 'Operations',  icon: ShieldCheck },
-  { id: 'activity',    label: 'Activity',    icon: Activity },
-  { id: 'banking',     label: 'Banking',     icon: Banknote },
-]
-
-// ── AssetSwitcher ─────────────────────────────────────────────────────────────
-
-interface AssetSwitcherProps {
-  assets: AdminAsset[]
-  currentAssetId: string
-  onChange: (assetId: string) => void
+  issuerOnly?: boolean   // hidden from reviewers (auditor + individual)
 }
 
-function AssetBadge({ asset }: { asset: AdminAsset }) {
-  const ticker = String(asset.metadata?.ticker ?? asset.label.slice(0, 3)).toUpperCase()
-  const symbol = { USD: '$', EUR: '€', GBP: '£', CHF: 'Fr' }[ticker] ?? ticker.slice(0, 2)
+// Top-level navigation. The per-instrument sections (Reserves / Operations /
+// Ledger) now live as tabs inside the instrument view, not the sidebar.
+const TOP_NAV: NavItem[] = [
+  { key: 'home',          section: 'home',          label: 'Home',          icon: Home },
+  { key: 'instruments',   section: 'overview',      label: 'Instruments',   icon: Signature },
+  { key: 'relationships', section: 'relationships', label: 'Relationships', icon: Building2, issuerOnly: true },
+  { key: 'compliance',    section: 'compliance',    label: 'Compliance',    icon: ShieldCheck },
+  { key: 'reports',       section: 'reports',       label: 'Reports',       icon: FileText },
+  { key: 'integrations',  section: 'integrations',  label: 'Integrations',  icon: Blocks, issuerOnly: true },
+]
+
+// ── Instrument switcher (sidebar popover) ─────────────────────────────────────
+
+function tickerOf(asset: AdminAsset): string {
+  return String(asset.metadata?.ticker ?? asset.label.slice(0, 3)).toUpperCase()
+}
+
+/** Compact unit count, e.g. 1_000 -> "1K", 100_000 -> "100K". */
+function compactUnits(amount: number, decimals: number): string {
+  const human = amount / 10 ** decimals
+  return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(human)
+}
+
+/** Circulation/issuance pair for the sidebar badge. When both share the same
+ *  magnitude suffix (K, M…) it is written once, e.g. 10K & 10K -> "10/10K". */
+function compactPair(circulation: number, issued: number, decimals: number): string {
+  const a = compactUnits(circulation, decimals)
+  const b = compactUnits(issued, decimals)
+  const suffix = (s: string) => s.match(/[^\d.,]+$/)?.[0] ?? ''
+  const sa = suffix(a)
+  const sb = suffix(b)
+  const left = sa !== '' && sa === sb ? a.slice(0, a.length - sa.length) : a
+  return `${left}/${b}`
+}
+
+/** One instrument row in the sidebar list. Renders the expanded photo row (with
+ *  a circulation/issuance badge) and the collapsed icon. Fetches this
+ *  instrument's whole-history totals for the badge - cached and shared with the
+ *  detail views. */
+function InstrumentNavItem({ asset: a, active, onOpen }: {
+  asset: AdminAsset
+  active: boolean
+  onOpen: (assetId: string) => void
+}) {
+  const img = assetImage(a)
+  const flag = stablecoinFlag(a)
+  const decimals = Number(a.metadata?.decimals) || 0
+  const { data: summary } = useAdminSummary(a.assetId)
+  const issued = summary?.totalIssued ?? 0
+  const circulation = summary != null ? summary.totalIssued - summary.totalRedeemed : 0
+  const showBadge = summary != null && issued > 0
+
   return (
-    <div className="flex items-center gap-[9px]">
-      <div className="flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-sm bg-accent font-bold text-[12px] text-accent-foreground">
-        {symbol}
+    <SidebarMenuItem>
+      {/* Expanded: full photo row */}
+      <button
+        type="button"
+        onClick={() => onOpen(a.assetId)}
+        className={cn(
+          'relative block h-12 w-full overflow-hidden rounded-lg text-left outline-none transition focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:hidden',
+          active && 'ring-2 ring-white/70'
+        )}
+      >
+        <img src={img} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0" style={{ backgroundColor: iconColor(a.assetId), opacity: 0.5 }} />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/45 to-black/15" />
+        <div className="relative flex h-full items-center gap-2 px-2.5">
+          {flag != null && (
+            <span
+              className={`fi fi-${flag} h-3.5 w-5 shrink-0 rounded-[2px] shadow-sm ring-1 ring-black/20`}
+              aria-hidden="true"
+              title="Reserve currency"
+            />
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[12.5px] font-semibold leading-tight text-white">{a.label}</div>
+            <div className="truncate text-[10.5px] font-medium leading-tight text-white/75">{tickerOf(a)}</div>
+          </div>
+          {showBadge && (
+            <span
+              className="tabular shrink-0 rounded-full border border-white/45 px-1.5 py-0.5 text-[10px] font-medium leading-none text-white/90"
+              title={`${circulation.toLocaleString()} in circulation of ${issued.toLocaleString()} issued`}
+            >
+              {compactPair(circulation, issued, decimals)}
+            </span>
+          )}
+        </div>
+      </button>
+      {/* Collapsed: premium icon */}
+      <button
+        type="button"
+        onClick={() => onOpen(a.assetId)}
+        title={a.label}
+        className="hidden w-full place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:grid"
+      >
+        <InstrumentIcon
+          assetId={a.assetId}
+          size={28}
+          image={img}
+          className={cn('rounded-md', active && 'ring-2 ring-sidebar-ring ring-offset-2 ring-offset-sidebar')}
+        />
+      </button>
+    </SidebarMenuItem>
+  )
+}
+
+/** Vertical, scrollable list of every registered instrument - the sidebar's
+ *  primary instrument navigation. A header row carries a "＋" that opens the
+ *  Issue drawer; each row opens that instrument's detail view. Collapses to
+ *  icon-only rows (with tooltips) in the rail's icon mode. */
+function InstrumentList({ assets, currentAssetId, activeSection, onOpen, onNew }: {
+  assets: AdminAsset[]
+  currentAssetId: string
+  activeSection: string
+  onOpen: (assetId: string) => void
+  onNew: () => void
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* Header: label + new-instrument button */}
+      <div className="flex items-center justify-between px-2 pb-1 group-data-[collapsible=icon]:justify-center">
+        <span className="text-[10px] font-medium uppercase tracking-[0.6px] text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden">
+          Instruments
+        </span>
+        <button
+          type="button"
+          onClick={onNew}
+          title="New instrument"
+          aria-label="New instrument"
+          className="grid size-6 place-items-center rounded-md text-sidebar-foreground/70 outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+        >
+          <Plus className="size-4" strokeWidth={2} />
+        </button>
       </div>
-      <div className="leading-tight">
-        <div className="text-[13px] font-semibold">{asset.label}</div>
-        {ticker && (
-          <div className="text-[10.5px] text-subtle-foreground">{ticker}</div>
+
+      {/* Scroll area - a slim, rounded scrollbar appears only on overflow */}
+      <div className="scrollbar-slim min-h-0 flex-1 overflow-y-auto px-2 pt-1 group-data-[collapsible=icon]:px-0">
+        {assets.length === 0 ? (
+          <p className="px-2 py-3 text-[12px] leading-snug text-sidebar-foreground/50 group-data-[collapsible=icon]:hidden">
+            No instruments yet - add one with ＋.
+          </p>
+        ) : (
+          <SidebarMenu className="gap-1.5">
+            {assets.map(a => (
+              <InstrumentNavItem
+                key={a.assetId}
+                asset={a}
+                active={activeSection === 'instrument' && a.assetId === currentAssetId}
+                onOpen={onOpen}
+              />
+            ))}
+          </SidebarMenu>
         )}
       </div>
     </div>
   )
 }
 
-function AssetSwitcher({ assets, currentAssetId, onChange }: AssetSwitcherProps) {
-  const current = assets.find(a => a.assetId === currentAssetId)
+// ── Account menu (sidebar popover) ────────────────────────────────────────────
 
-  // Single asset: static chip
-  if (assets.length <= 1) {
-    return current != null ? (
-      <div className="inline-flex items-center rounded border border-border bg-card px-[12px] py-[7px]">
-        <AssetBadge asset={current} />
-      </div>
-    ) : (
-      <div className="inline-flex items-center rounded border border-border bg-card px-[12px] py-[7px] text-[13px] text-muted-foreground">
-        No assets
-      </div>
-    )
-  }
-
-  // Multiple assets: dropdown
+function AccountMenuItem({ icon: Icon, label, onClick, danger }: {
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>
+  label: string
+  onClick: () => void
+  danger?: boolean
+}) {
   return (
-    <div className="relative inline-block">
-      <select
-        value={currentAssetId}
-        onChange={e => onChange(e.target.value)}
-        className="appearance-none cursor-pointer inline-flex items-center rounded border border-border bg-card px-[12px] py-[7px] pr-[32px] text-[13px] font-semibold focus:outline-none focus:ring-2 focus:ring-ring"
-        aria-label="Switch asset"
-      >
-        {assets.map(a => (
-          <option key={a.assetId} value={a.assetId}>{a.label}</option>
-        ))}
-      </select>
-      <ChevronDown
-        className="pointer-events-none absolute right-[10px] top-1/2 -translate-y-1/2 h-[14px] w-[14px] text-subtle-foreground"
-        strokeWidth={2}
-      />
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] font-medium transition-colors hover:bg-accent',
+        danger ? 'text-destructive' : 'text-foreground'
+      )}
+    >
+      <Icon className="size-[17px] shrink-0 text-muted-foreground" strokeWidth={2} />
+      {label}
+    </button>
+  )
+}
+
+/** Issuer identity + account actions - the footer button opens a popover menu. */
+function AccountMenu({ seed, displayName, verified, showCompany, onSettings, onCompany }: {
+  seed: string
+  displayName: string
+  verified: boolean
+  showCompany: boolean
+  onSettings: () => void
+  onCompany: () => void
+}) {
+  const avatar = useUserAvatar()
+  return (
+    <Popover>
+      <PopoverTrigger className="flex w-full items-center gap-2.5 rounded-md border border-sidebar-border bg-card px-2.5 py-2 text-left outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0">
+        <UserAvatar seed={seed} src={avatar} size={32} />
+        <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+          <div className="truncate text-[12px] font-semibold leading-tight text-foreground">{displayName}</div>
+          <div className="mt-[2px] flex items-center gap-1 text-[10px] leading-none text-sidebar-foreground/60">
+            {verified && <BadgeCheck className="size-3 text-success" strokeWidth={2.4} />}
+            {verified ? 'Verified issuer' : 'Issuer'}
+          </div>
+        </div>
+        <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground group-data-[collapsible=icon]:hidden" />
+      </PopoverTrigger>
+      <PopoverContent side="top" align="start" className="w-[--radix-popover-trigger-width] min-w-60 p-0">
+        {/* Current account */}
+        <div className="p-1.5">
+          <div className="flex w-full items-center gap-2.5 rounded-xl bg-accent px-2.5 py-2 text-left">
+            <UserAvatar seed={seed} src={avatar} size={36} />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[14px] font-semibold text-foreground">{displayName}</div>
+              <div className="truncate text-[12px] text-muted-foreground">{verified ? 'Verified issuer' : 'Issuer'}</div>
+            </div>
+            {verified && <BadgeCheck className="size-4 shrink-0 text-success" />}
+          </div>
+        </div>
+        {/* Actions */}
+        <div className="border-t border-border p-1.5">
+          {showCompany && <AccountMenuItem icon={Building2} label="Company" onClick={onCompany} />}
+          <AccountMenuItem icon={Settings} label="Account settings" onClick={onSettings} />
+          <AccountMenuItem icon={LogOut} label="Sign out" danger onClick={() => toast.info('Disconnect in your wallet to sign out.')} />
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
 // ── IssuerDashboard ───────────────────────────────────────────────────────────
 
-const SECTION_IDS = NAV_ITEMS.map(n => n.id) as string[]
+// `home` / `overview` are nav-backed; `instrument` is reached by selecting an
+// instrument; `settings` is reached from the account menu.
+const VALID_SECTIONS = ['home', 'overview', 'relationships', 'compliance', 'reports', 'integrations', 'instrument', 'settings', 'company']
 
 export default function IssuerDashboard() {
   const { identityKey } = useWallet()
+  const { name: onboardingName, role: onboardingRole, entity } = useOnboarding()
   const navigate = useNavigate()
+
+  // Keep the org directory current so reviewers / public pages resolve this
+  // issuer's key to their real name (covers profiles onboarded before it existed).
+  useEffect(() => {
+    if (identityKey != null && entity?.legalName) recordOrgName(identityKey, entity.legalName)
+  }, [identityKey, entity?.legalName])
   const params = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: assetsData } = useAdminAssets()
   const invalidateAdminAssets = useInvalidateAdminAssets()
   const assets: AdminAsset[] = assetsData ?? []
+  const [issueOpen, setIssueOpen] = useState(false)
 
-  // Section lives in the path (/issuer/:section); asset lives in ?asset — both
+  // Section lives in the path (/issuer/:section); asset lives in ?asset - both
   // in the URL so a reload restores exactly where the operator was.
-  const section: Section = SECTION_IDS.includes(params.section ?? '')
+  const section: Section = VALID_SECTIONS.includes(params.section ?? '')
     ? (params.section as Section)
     : 'overview'
   const currentAssetId = searchParams.get('asset') ?? ''
@@ -116,6 +307,21 @@ export default function IssuerDashboard() {
   const goSection = (id: Section) => {
     const qs = searchParams.toString()
     navigate(`/issuer/${id}${qs ? `?${qs}` : ''}`)
+  }
+  // Select an instrument and open its detail view (Reserves tab by default) in
+  // one navigation, so the ?asset lands with the section.
+  const openInstrument = (assetId: string, tab?: string) => {
+    const next = new URLSearchParams(searchParams)
+    next.set('asset', assetId)
+    if (tab != null && tab !== '') next.set('tab', tab)
+    else next.delete('tab')
+    navigate(`/issuer/instrument?${next.toString()}`)
+  }
+  // Banking is a per-instrument tab; open it for the selected (or first) instrument.
+  const goBanking = () => {
+    const target = currentAssetId || (assets[0]?.assetId ?? '')
+    if (target === '') { toast.info('Issue an instrument first to connect banking.'); return }
+    openInstrument(target, 'banking')
   }
   const selectAsset = (assetId: string) => {
     setSearchParams(prev => {
@@ -125,12 +331,24 @@ export default function IssuerDashboard() {
     })
   }
 
+  // "Send" from a contact → open the chosen instrument's Reserves tab in Send
+  // state, with the contact pre-selected as recipient (?send=<key>).
+  const [sendContact, setSendContact] = useState<{ identityKey: string; name: string } | null>(null)
+  const sendTo = (assetId: string, contact: { identityKey: string; name: string }) => {
+    const next = new URLSearchParams(searchParams)
+    next.set('asset', assetId)
+    next.set('tab', 'reserves')
+    next.set('send', contact.identityKey)
+    if (contact.name) next.set('sendName', contact.name)
+    setSendContact(null)
+    navigate(`/issuer/instrument?${next.toString()}`)
+  }
   // Normalise an unknown /issuer/:section, keeping ?asset. The old standalone
   // /issuer/regulatory page now lives inside Operations.
   useEffect(() => {
-    if (params.section != null && !SECTION_IDS.includes(params.section)) {
+    if (params.section != null && !VALID_SECTIONS.includes(params.section)) {
       const qs = searchParams.toString()
-      const target = params.section === 'regulatory' ? 'operations' : 'overview'
+      const target = params.section === 'regulatory' ? 'instrument' : 'home'
       navigate(`/issuer/${target}${qs ? `?${qs}` : ''}`, { replace: true })
     }
   }, [params.section, searchParams, navigate])
@@ -149,138 +367,180 @@ export default function IssuerDashboard() {
 
   const currentAsset = assets.find(a => a.assetId === currentAssetId) ?? null
 
-  // Derive issuer initials for the footer chip from identityKey (first 2 hex chars → uppercase)
-  const initials = identityKey != null && identityKey.length >= 4
-    ? identityKey.slice(2, 4).toUpperCase()
-    : 'IS'
+  // Footer identity: prefer the onboarding display name, fall back to a short key.
+  const verified = identityKey != null
+  const displayName = onboardingName.trim() !== ''
+    ? onboardingName.trim()
+    : (identityKey != null ? `${identityKey.slice(0, 10)}…` : 'Issuer')
+  const roleLabel = onboardingRole === 'auditor' ? 'AUDITOR' : onboardingRole === 'individual' ? 'VIEWER' : 'ISSUER'
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background">
-      {/* ── LEFT SIDEBAR NAV ── */}
-      <aside className="flex w-[230px] shrink-0 flex-col border-r border-separator bg-muted px-3.5 py-5">
-        {/* Brand */}
-        <div className="px-2 pb-5">
-          <BrandMark size="md" wordmark sublabel="ISSUER CONSOLE" />
-        </div>
-
-        {/* Nav items */}
-        <nav className="flex flex-col gap-0.5">
-          {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
-            const active = section === id
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => goSection(id)}
-                className={cn(
-                  'relative flex items-center gap-[11px] rounded px-3 py-[10px] text-left text-[13px] font-medium',
-                  'transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  active
-                    ? 'bg-card text-foreground font-semibold'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-                style={active ? { boxShadow: '0 1px 2px var(--separator)' } : undefined}
-              >
-                {/* Brass left accent bar for active item */}
-                {active && (
-                  <span
-                    className="absolute left-0 top-[9px] bottom-[9px] w-[3px] rounded-r-[3px]"
-                    style={{ background: 'var(--brass)' }}
-                  />
-                )}
-                <Icon
-                  className={cn('h-[17px] w-[17px] shrink-0', active ? 'text-primary' : 'text-current')}
-                  strokeWidth={1.9}
-                />
-                {label}
-              </button>
-            )
-          })}
-        </nav>
-
-        {/* Footer issuer chip */}
-        <div
-          className="mt-auto flex items-center gap-[10px] rounded border border-separator bg-background px-[10px] py-3"
-        >
-          <div
-            className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-sm bg-primary font-semibold text-[11px] text-primary-foreground"
-          >
-            {initials}
-          </div>
-          <div className="min-w-0">
-            <div className="truncate text-[12px] font-semibold leading-[1.1]">
-              {identityKey != null ? `${identityKey.slice(0, 12)}…` : 'Issuer'}
+    <SidebarProvider className="h-screen overflow-hidden bg-sidebar">
+      <Sidebar collapsible="icon">
+        <SidebarHeader>
+          <div className="flex items-center gap-2 px-1 py-1.5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+            <img
+              src="/icon-192.png"
+              alt=""
+              aria-hidden="true"
+              className="size-8 shrink-0 rounded-md object-contain group-data-[collapsible=icon]:hidden"
+            />
+            <div className="grid flex-1 group-data-[collapsible=icon]:hidden">
+              <span className="font-handwritten text-[22px] font-bold leading-none tracking-[-0.2px]">Underwrite</span>
+              <span className="mt-[3px] text-[9px] font-medium leading-none tracking-[1px] text-sidebar-foreground/60">
+                {roleLabel}
+              </span>
             </div>
-            <div className="mt-[2px] text-[10px] leading-[1.1] text-subtle-foreground">
-              Verified issuer
-            </div>
+            <SidebarTrigger className="size-8 shrink-0 text-muted-foreground hover:text-foreground" />
           </div>
-        </div>
-      </aside>
+        </SidebarHeader>
 
-      {/* ── MAIN AREA ── */}
-      <main className="flex-1 overflow-y-auto bg-background">
-        {/* Top bar with asset switcher — Register a new asset lives here too,
-            in line with the switcher, only on the Overview page. */}
-        <div className="flex items-center justify-between gap-4 border-b border-separator bg-background px-[30px] py-[14px]">
-          <AssetSwitcher
+        <SidebarContent className="overflow-hidden">
+          {/* Top-level */}
+          <SidebarGroup className="pb-1">
+            <SidebarMenu>
+              {TOP_NAV.filter(item => !(item.issuerOnly && isReviewerRole(onboardingRole))).map(({ key, section: sec, label, icon: Icon }) => (
+                <SidebarMenuItem key={key} data-tour-id={`nav-${sec}`}>
+                  <SidebarMenuButton isActive={section === sec} tooltip={label} onClick={() => goSection(sec)}>
+                    <Icon strokeWidth={1.9} />
+                    <span>{label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+
+          <SidebarSeparator className="my-0.5" />
+
+          {/* Scrollable list of instruments - selecting one opens its detail view,
+              where Reserves / Operations / Ledger live as tabs. */}
+          <InstrumentList
             assets={assets}
             currentAssetId={currentAssetId}
-            onChange={selectAsset}
+            activeSection={section}
+            onOpen={openInstrument}
+            onNew={() => setIssueOpen(true)}
           />
-          {section === 'overview' && (
-            <div className="flex-1">
-              <RegisterAssetStrip />
-            </div>
-          )}
+        </SidebarContent>
+
+        <SidebarFooter>
+          {/* Guides - the help centre lives at /help - sits above the account button */}
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Guides" onClick={() => navigate('/help/getting-started')}>
+                <BookOpen strokeWidth={1.9} />
+                <span>Guides</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+
+          {/* Issuer identity + account menu */}
+          <AccountMenu seed={identityKey ?? 'issuer'} displayName={displayName} verified={verified} showCompany={onboardingRole !== 'individual'} onSettings={() => goSection('settings')} onCompany={() => goSection('company')} />
+        </SidebarFooter>
+
+        <SidebarRail />
+      </Sidebar>
+
+      <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
+        {/* Mobile-only trigger (the sidebar is off-canvas on small screens) */}
+        <div className="sticky top-0 z-20 flex h-12 shrink-0 items-center border-b border-border bg-card px-3 md:hidden">
+          <SidebarTrigger />
         </div>
 
-        <div className="p-[26px_30px]">
-          {section === 'overview' && (
-            <OverviewSection
-              assetId={currentAssetId}
-              asset={currentAsset}
-              onReload={() => void invalidateAdminAssets()}
-            />
-          )}
-          {section === 'treasury' && (
-            <TreasurySection assetId={currentAssetId} asset={currentAsset} />
-          )}
-          {section === 'operations' && (
-            assets.length === 0 ? (
-              // Nothing on this page is actionable without an asset — show only
-              // the pointer to Overview (where registration lives), no dead controls.
-              assetsData != null && (
-                <div className="bg-card border border-border rounded-md p-[24px_20px] text-center">
-                  <p className="text-[13px] text-subtle-foreground">
-                    Register an asset first — you can do that from the Overview page.
-                  </p>
-                </div>
+        {/* Scrollable content */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="p-5 lg:p-8">
+            {section === 'home' && (
+              isReviewerRole(onboardingRole) ? (
+                <AuditorHome assets={assets} onOpenInstrument={openInstrument} />
+              ) : (
+                <IssuerHome assets={assets} onReload={() => void invalidateAdminAssets()} onOpenInstrument={openInstrument} />
               )
-            ) : (
-              <div className="space-y-[26px]">
-                <IssuerPanel assetId={currentAssetId} />
-                <RegulatoryControls
-                  embedded
-                  assets={assets}
-                  assetId={currentAssetId}
-                  onActionComplete={() => void invalidateAdminAssets()}
-                />
-              </div>
-            )
-          )}
-          {section === 'activity' && (
-            <OverlayActivity
-              assetId={currentAssetId}
-              decimals={Number(currentAsset?.metadata?.decimals) || 0}
-              standalone
-            />
-          )}
-          {section === 'banking' && (
-            <BankingMock assetId={currentAssetId} />
-          )}
+            )}
+            {section === 'overview' && (
+              <InstrumentsHome
+                assets={assets}
+                onReload={() => void invalidateAdminAssets()}
+                onSelectAsset={selectAsset}
+                onOpenInstrument={openInstrument}
+                onManageBanking={goBanking}
+              />
+            )}
+            {section === 'relationships' && (
+              <RelationshipsPage />
+            )}
+            {section === 'compliance' && (
+              <ComplianceOverview onOpenInstrument={openInstrument} />
+            )}
+            {section === 'reports' && (
+              <ReportsPage />
+            )}
+            {section === 'integrations' && (
+              <IntegrationsPage />
+            )}
+            {section === 'instrument' && (
+              <InstrumentDetail
+                assetId={currentAssetId}
+                asset={currentAsset}
+                assets={assets}
+                onReload={() => void invalidateAdminAssets()}
+              />
+            )}
+            {section === 'settings' && (
+              <AccountSettings />
+            )}
+            {section === 'company' && (
+              <CompanySettings />
+            )}
+          </div>
         </div>
-      </main>
-    </div>
+      </SidebarInset>
+
+      {/* Issue drawer - opened by the sidebar's "＋ New instrument" */}
+      <IssueInstrumentDrawer
+        open={issueOpen}
+        onOpenChange={setIssueOpen}
+        onIssued={(id) => { void invalidateAdminAssets(); if (id) openInstrument(id) }}
+      />
+
+      {/* Guided hero walkthrough (toggled from the Developer panel) */}
+      <DemoChecklist />
+
+      {/* Instrument picker - shown when "Send" is used with more than one instrument */}
+      {sendContact != null && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-foreground/40 p-4 animate-in"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setSendContact(null)}
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-pop)]" onClick={e => e.stopPropagation()}>
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-[15px] font-semibold text-foreground">Send to {sendContact.name || 'contact'}</h2>
+              <button type="button" onClick={() => setSendContact(null)} aria-label="Close" className="rounded-md px-1.5 text-[15px] text-muted-foreground hover:bg-muted hover:text-foreground">
+                ✕
+              </button>
+            </div>
+            <p className="mb-3 text-[13px] text-muted-foreground">Choose which instrument to send.</p>
+            <div className="max-h-80 space-y-1 overflow-y-auto">
+              {assets.map(a => (
+                <button
+                  key={a.assetId}
+                  type="button"
+                  onClick={() => sendTo(a.assetId, sendContact)}
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-accent"
+                >
+                  <InstrumentIcon assetId={a.assetId} size={30} className="rounded-md" image={assetImage(a)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[14px] font-medium text-foreground">{a.label}</div>
+                    <div className="truncate text-[11.5px] text-subtle-foreground">{tickerOf(a)}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </SidebarProvider>
   )
 }

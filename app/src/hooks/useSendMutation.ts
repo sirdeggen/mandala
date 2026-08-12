@@ -19,7 +19,7 @@ export interface SendVars {
 /**
  * Optimistic send. On mutate the balance drops and a pending history row
  * appears instantly; the pipeline (build → sign → overlay submit) runs behind
- * it. The overlay is the commit point — a rejection aborts the wallet action
+ * it. The overlay is the commit point - a rejection aborts the wallet action
  * (inputs released, see submitAndBroadcast) and rolls the cache back. The
  * network broadcast continues in the background under journal protection.
  *
@@ -54,7 +54,7 @@ export function useSendMutation() {
     },
 
     onMutate: async vars => {
-      // Sync latch before any await — second click in the same tick no-ops.
+      // Sync latch before any await - second click in the same tick no-ops.
       if (!sendFlight.tryAcquire()) {
         throw new BusyError('Send already in progress')
       }
@@ -90,16 +90,16 @@ export function useSendMutation() {
 
     onError: (e, _vars, ctx) => {
       // Busy re-entry never wrote optimistically (onMutate threw before setQueryData
-      // only when acquire failed — in that case ctx is undefined).
+      // only when acquire failed - in that case ctx is undefined).
       if (e instanceof BusyError) return
-      // Overlay rejected (or build failed) — the wallet action was aborted and
+      // Overlay rejected (or build failed) - the wallet action was aborted and
       // inputs released; restore the pre-send snapshot.
       if (ctx?.prev != null) qc.setQueryData(key, ctx.prev)
     },
 
     onSuccess: res => {
       if (!res.notified) {
-        toast.warning('Sent, but the recipient could not be notified — they may need to refresh.')
+        toast.warning('Sent, but the recipient could not be notified - they may need to refresh.')
       }
     },
 

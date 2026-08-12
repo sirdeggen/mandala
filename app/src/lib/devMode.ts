@@ -1,11 +1,11 @@
 /**
- * Developer mode — a global, persisted flag used to exercise flows the UI
+ * Developer mode - a global, persisted flag used to exercise flows the UI
  * normally guards against, so we can verify the OVERLAY (not just the frontend)
  * enforces a rule.
  *
  * Primary use: the send flow guards against transferring a paused asset. With
  * dev mode on, that frontend guard is bypassed so the transfer actually reaches
- * the overlay — which rejects it server-side (MandalaTopicManager Gate 2 admits
+ * the overlay - which rejects it server-side (MandalaTopicManager Gate 2 admits
  * zero outputs → submitToOverlay throws). That proves the pause is enforced by
  * the overlay, not merely hidden by the client.
  *
@@ -28,7 +28,7 @@ function read(): boolean {
         return true
       }
     }
-  } catch { /* localStorage/window unavailable — treat as off */ }
+  } catch { /* localStorage/window unavailable - treat as off */ }
   return false
 }
 

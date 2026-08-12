@@ -10,7 +10,7 @@ interface Props {
 }
 
 /**
- * Camera QR scanner — captures an identity key from another wallet's Receive
+ * Camera QR scanner - captures an identity key from another wallet's Receive
  * screen. getUserMedia preview + jsQR over canvas frames (works everywhere,
  * no BarcodeDetector dependency). The stream is torn down on close/unmount.
  */
@@ -53,7 +53,7 @@ export default function QrScanModal ({ open, onClose, onResult }: Props) {
         raf = requestAnimationFrame(tick)
       })
       .catch(() => {
-        if (!cancelled) setError('Camera unavailable — check permissions, or paste the key into the search field instead.')
+        if (!cancelled) setError('Camera unavailable - check permissions, or paste the key into the search field instead.')
       })
 
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -78,10 +78,10 @@ export default function QrScanModal ({ open, onClose, onResult }: Props) {
         className="mx-4 w-full max-w-[380px] rounded-lg bg-card shadow-[var(--shadow-pop)] overflow-hidden animate-pop"
         onClick={e => e.stopPropagation()}
         role="dialog"
-        aria-label="Scan an identity key QR code"
+        aria-label="Scan an Entity ID QR code"
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-separator">
-          <span className="text-[14px] font-semibold">Scan identity key</span>
+          <span className="text-[14px] font-semibold">Scan Entity ID</span>
           <button
             type="button"
             onClick={onClose}

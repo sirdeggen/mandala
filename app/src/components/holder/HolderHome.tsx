@@ -1,17 +1,17 @@
 /**
- * HolderHome — Meridian single-account neobank layout.
+ * HolderHome - Meridian single-account neobank layout.
  *
  * Sections (top → bottom):
- *   1. Brand row  — BrandMark + currency switcher chip (corner) + notification bell + avatar chip
- *   2. Hero       — labelled balance for CURRENT account
- *   3. Quick actions — Send | Contacts | Receive (wired to real tabs via onAction)
- *   4. RECENT activity — last 4 history rows for CURRENT account
+ *   1. Brand row  - BrandMark + currency switcher chip (corner) + notification bell + avatar chip
+ *   2. Hero       - labelled balance for CURRENT account
+ *   3. Quick actions - Send | Contacts | Receive (wired to real tabs via onAction)
+ *   4. RECENT activity - last 4 history rows for CURRENT account
  *
  * Currency switcher: a compact "$ USD ▾" chip in the top-right area; when >1 currency
  * it is a dropdown to change which account is shown; when 1, a static chip.
  * The accounts list is replaced by the switcher.
  *
- * Trend pill: omitted (no reliable wall-clock timestamps — honest).
+ * Trend pill: omitted (no reliable wall-clock timestamps - honest).
  *
  * All data is real wallet data (no mocks).
  */
@@ -28,28 +28,16 @@ import { BrandMark } from '../ui/BrandMark'
 import { cn } from '@/lib/utils'
 
 // ---------------------------------------------------------------------------
-// Currency badge colour map (matches comp: USD=brass, EUR=navy-tint, GBP=lavender,
-// CHF=sage; all others use a neutral brass chip)
+// Currency badge - a neutral grey chip; the currency symbol is the only
+// distinguisher (the neutral theme reserves colour for semantic states).
 // ---------------------------------------------------------------------------
 
-const CURRENCY_BADGE: Record<string, { bg: string; text: string; symbol: string }> = {
-  USD:  { bg: 'bg-accent',      text: 'text-accent-foreground', symbol: '$'   },
-  EUR:  { bg: 'bg-navy-tint',   text: 'text-primary',           symbol: '€'   },
-  GBP:  { bg: 'bg-[#E3DCEA]',   text: 'text-[#5B4B7A]',         symbol: '£'   },
-  CHF:  { bg: 'bg-[#E1E7DE]',   text: 'text-[#4B6B4E]',         symbol: 'Fr'  },
-}
+const CURRENCY_SYMBOL: Record<string, string> = { USD: '$', EUR: '€', GBP: '£', CHF: 'Fr' }
 
 function badgeFor(ticker?: string): { bg: string; text: string; symbol: string } {
-  if (ticker) {
-    const upper = ticker.toUpperCase()
-    if (CURRENCY_BADGE[upper]) return CURRENCY_BADGE[upper]
-  }
-  // Fallback: neutral brass chip with first letter of ticker or '?'
-  return {
-    bg: 'bg-accent',
-    text: 'text-accent-foreground',
-    symbol: ticker ? ticker.slice(0, 2).toUpperCase() : '?',
-  }
+  const upper = ticker?.toUpperCase()
+  const symbol = (upper && CURRENCY_SYMBOL[upper]) || (ticker ? ticker.slice(0, 2).toUpperCase() : '?')
+  return { bg: 'bg-muted', text: 'text-foreground', symbol }
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +67,7 @@ function directionLabel(direction: HistoryRow['direction']): string {
   switch (direction) {
     case 'issued': return 'Issued'
     case 'redeemed': return 'Redeemed'
-    default: return '—'
+    default: return '-'
   }
 }
 
@@ -130,7 +118,7 @@ function RecentRow({ row, decimals, ticker }: { row: HistoryRow; decimals: numbe
 
   return (
     <div className={cn('flex items-center gap-[12px] border-t border-separator py-[9px]', isPending && 'opacity-60')}>
-      {/* Direction icon — inbound (positive) points down-left, outbound
+      {/* Direction icon - inbound (positive) points down-left, outbound
           (negative) points up-right (app-wide convention). */}
       <div
         className={cn(
@@ -144,7 +132,7 @@ function RecentRow({ row, decimals, ticker }: { row: HistoryRow; decimals: numbe
           : <ArrowUpRight size={15} strokeWidth={2} />}
       </div>
 
-      {/* Name + timestamp — resolved identity where known, truncated key otherwise */}
+      {/* Name + timestamp - resolved identity where known, truncated key otherwise */}
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-semibold leading-[1.2]">
           {row.counterparty !== ''
@@ -182,7 +170,7 @@ interface Props {
 }
 
 export default function HolderHome({ onSelect: _onSelect, onAction, identityKey }: Props) {
-  // Shared cached query — renders instantly on navigation, refetches behind.
+  // Shared cached query - renders instantly on navigation, refetches behind.
   const { data, isFetching, refetch } = useHolderData()
   const assets = data?.assets ?? []
   const history = data?.history ?? []
@@ -206,7 +194,7 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
   const initials = identityKey ? identityKey.slice(2, 4).toUpperCase() : '?'
 
   // Auto-select a default account (first non-zero) into ?asset when the URL has
-  // no valid selection — writes with replace so it doesn't add a history entry.
+  // no valid selection - writes with replace so it doesn't add a history entry.
   useEffect(() => {
     if (assets.length === 0) return
     const valid = currentAssetId !== '' && assets.some(a => a.assetId === currentAssetId)
@@ -242,11 +230,11 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
 
   // ── Currency switcher chip label ──────────────────────────────────────────
   const switcherLabel = (() => {
-    if (!currentAsset) return '—'
+    if (!currentAsset) return '-'
     const t = currentAsset.meta.ticker?.toUpperCase()
     if (!t) return currentAsset.meta.label.slice(0, 6)
     const sym = currencySymbol(t).trim()
-    // Only prefix a real symbol ($, €…) — the fallback echoes the ticker,
+    // Only prefix a real symbol ($, €…) - the fallback echoes the ticker,
     // which would render "FUN FUN".
     return sym !== '' && sym !== t ? `${sym} ${t}` : t
   })()
@@ -262,7 +250,7 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
         <BrandMark wordmark size="sm" />
 
         <div className="flex items-center gap-[9px]">
-          {/* Currency switcher chip — only rendered when there is actually
+          {/* Currency switcher chip - only rendered when there is actually
               something to switch between; the balance header already names
               the single asset. */}
           {assets.length > 1 && (
@@ -411,13 +399,13 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
           })()
         ) : (
           <div className="mt-[7px] flex items-baseline">
-            <span className="text-[44px] font-semibold leading-none tracking-[-1.5px] text-subtle-foreground">—</span>
+            <span className="text-[44px] font-semibold leading-none tracking-[-1.5px] text-subtle-foreground">-</span>
           </div>
         )}
 
-        {/* Refresh affordance — replaces the old "across N accounts" text */}
+        {/* Refresh affordance - replaces the old "across N accounts" text */}
         <div className="mt-[12px] flex items-center gap-[9px]">
-          {/* Background refetch — never disabled, never blocks the view */}
+          {/* Background refetch - never disabled, never blocks the view */}
           <button
             type="button"
             onClick={() => void refetch()}
@@ -460,7 +448,7 @@ export default function HolderHome({ onSelect: _onSelect, onAction, identityKey 
       {!firstLoad && assets.length === 0 && (
         <div className="px-[26px] pt-[24px]">
           <div className="border-t border-separator py-8 text-center text-[14px] text-muted-foreground">
-            No tokens yet — tokens you receive will appear here.
+            No tokens yet - tokens you receive will appear here.
           </div>
         </div>
       )}

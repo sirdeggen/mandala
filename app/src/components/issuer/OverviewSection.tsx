@@ -73,7 +73,7 @@ function StatusPill({ state }: { state: AssetAdminStateView | null }) {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function OverviewSection({ assetId, asset, onReload }: Props) {
-  // Shared with the Banking page's demo transfer feed (mockBankStore) — the
+  // Shared with the Banking page's demo transfer feed (mockBankStore) - the
   // ratio must reflect real added transfers, scoped to this asset, never a
   // separate fabricated number.
   const transfers = useMockTransfers(assetId)
@@ -81,7 +81,7 @@ export default function OverviewSection({ assetId, asset, onReload }: Props) {
   const decimals = Number(asset?.metadata?.decimals) || 0
 
   const stateQuery = useAssetState(assetId)
-  // Whole-history issue/redeem totals come pre-aggregated from the overlay —
+  // Whole-history issue/redeem totals come pre-aggregated from the overlay -
   // the client never sums (or downloads) thousands of history rows for KPIs.
   const summaryQuery = useAdminSummary(assetId)
   const invalidateAssetState = useInvalidateAssetState()
@@ -89,7 +89,7 @@ export default function OverviewSection({ assetId, asset, onReload }: Props) {
 
   const state: AssetAdminStateView | null = stateQuery.data ?? null
   const summary = summaryQuery.data
-  // Skeleton only while the queries have no data yet — background refetches
+  // Skeleton only while the queries have no data yet - background refetches
   // keep showing cached values.
   const loading = assetId !== '' && (stateQuery.data === undefined || summary === undefined)
   const refetching = stateQuery.isFetching || summaryQuery.isFetching
@@ -123,7 +123,7 @@ export default function OverviewSection({ assetId, asset, onReload }: Props) {
   // Reserve ratio display
   const reserveValue =
     reserveRatioPct == null
-      ? '—'
+      ? '-'
       : `${reserveRatioPct.toFixed(1)}%`
   const reserveColor = reserveRatioPct != null && reserveRatioPct < 100 ? 'text-warning' : undefined
 
@@ -161,7 +161,7 @@ export default function OverviewSection({ assetId, asset, onReload }: Props) {
       <div className="flex gap-[14px]">
         <StatTile
           label="In circulation"
-          value={loading ? '…' : assetId === '' ? '—' : formatAmount(inCirculation, decimals)}
+          value={loading ? '…' : assetId === '' ? '-' : formatAmount(inCirculation, decimals)}
           sub={ticker ? ticker : 'issued − redeemed'}
         />
         <StatTile
@@ -170,7 +170,7 @@ export default function OverviewSection({ assetId, asset, onReload }: Props) {
             loading
               ? '…'
               : assetId === ''
-              ? '—'
+              ? '-'
               : (netIssued >= 0 ? '+' : '') + formatAmount(netIssued, decimals)
           }
           sub="all history"
@@ -184,7 +184,7 @@ export default function OverviewSection({ assetId, asset, onReload }: Props) {
         />
         <StatTile
           label="Restrictions"
-          value={loading ? '…' : assetId === '' ? '—' : `${identityCount} · ${frozenCount}`}
+          value={loading ? '…' : assetId === '' ? '-' : `${identityCount} · ${frozenCount}`}
           sub={isAllowlist ? 'allowed · frozen' : 'blocked · frozen'}
           valueColor={restrictionsWarn ? 'text-warning' : undefined}
         />

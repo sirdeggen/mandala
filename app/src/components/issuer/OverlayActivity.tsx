@@ -6,6 +6,9 @@ import { useOverlayActivity } from '../../hooks/useOverlayActivity'
 import { ActivityEntry, ActivityKind } from '@bsv/mandala/overlayActivity'
 import { formatAmount } from '@bsv/mandala/amount'
 import { CounterpartyDisplay } from '../CounterpartyDisplay'
+import { useOnboarding } from '../../lib/onboarding'
+import { LedgerReconcileButton } from './ReconcileLink'
+import TabHeader from './TabHeader'
 import { Spinner } from '../ui/spinner'
 import { cn } from '@/lib/utils'
 
@@ -23,10 +26,10 @@ const KIND_LABEL: Record<ActivityKind, string> = {
   redeem: 'Redeemed'
 }
 
-/** Fixed row height — required for smooth virtualization of thousands of rows. */
+/** Fixed row height - required for smooth virtualization of thousands of rows. */
 const ROW_HEIGHT = 60
 /** Grid template shared by the header and every row. */
-const COLS = 'grid grid-cols-[1.1fr_1fr_1fr_110px_110px] items-center'
+const COLS = 'grid grid-cols-[1.1fr_1fr_1fr_100px_100px_110px] items-center'
 
 function KindChip ({ kind }: { kind: ActivityKind }) {
   return (
@@ -59,7 +62,7 @@ function AmountCell ({ e, decimals }: { e: ActivityEntry, decimals: number }) {
 }
 
 /**
- * Overlay-wide transaction feed — every admitted transaction, with sender and
+ * Overlay-wide transaction feed - every admitted transaction, with sender and
  * recipient identities proven by revealSpecificKeyLinkage. This page exists
  * to show what the overlay operator has oversight of: not just its own
  * wallet's history, but every party to every movement of the asset.
@@ -70,6 +73,9 @@ function AmountCell ({ e, decimals }: { e: ActivityEntry, decimals: number }) {
  */
 export default function OverlayActivity ({ assetId, decimals, standalone = false }: Props) {
   const { wallet } = useWallet()
+  // Individuals (members of the public) see the ledger but not its private
+  // details - counterparties and the transaction hash are masked.
+  const masked = useOnboarding().role === 'individual'
   const {
     entries, data, isFetching, isError, refetch,
     hasNextPage, isFetchingNextPage, fetchNextPage
@@ -94,21 +100,15 @@ export default function OverlayActivity ({ assetId, decimals, standalone = false
   }, [lastIndex, entries.length, hasNextPage, isFetchingNextPage, fetchNextPage])
 
   return (
-    <div>
+    <div className="max-w-3xl">
       {standalone && (
-        <div className="mb-[18px]">
-          <h1 className="text-[27px] font-semibold tracking-[-0.5px] leading-tight">Activity</h1>
-          <p className="text-[13px] text-muted-foreground mt-[3px]">
-            Overlay-wide transaction feed — operator oversight
-          </p>
-        </div>
+        <TabHeader
+          title="Transaction ledger"
+          description="A complete, time-ordered record of every transfer of this instrument - who issued, sent, received, or redeemed it, and when. Use it to reconcile circulation against reserves and evidence compliance."
+          guide="/help/for-auditors/reading-reconciliation-reports"
+        />
       )}
-      <div className="flex items-start justify-between gap-3 mb-[14px]">
-        <p className="text-[13px] text-muted-foreground max-w-[560px]">
-          Every transaction admitted by the overlay for this asset. Counterparty
-          identities are proven by key linkage revealed to the operator at
-          submission — sender and recipient, not just your own transfers.
-        </p>
+      <div className="mb-[14px] flex items-center justify-end">
         <button
           className="grid place-items-center w-9 h-9 shrink-0 rounded bg-card border border-border text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => void refetch()}
@@ -133,7 +133,7 @@ export default function OverlayActivity ({ assetId, decimals, standalone = false
 
       {!loading && !isError && entries.length === 0 && (
         <div className="rounded-md border border-separator bg-card px-[18px] py-[26px] text-center text-[13px] text-muted-foreground">
-          No transactions admitted yet — issue or transfer some units to see them here.
+          No transactions admitted yet - issue or transfer some units to see them here.
         </div>
       )}
 
@@ -146,6 +146,7 @@ export default function OverlayActivity ({ assetId, decimals, standalone = false
             <div className="px-3 py-2 text-[11px] font-medium uppercase tracking-[0.8px] text-subtle-foreground">To</div>
             <div className="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[0.8px] text-subtle-foreground">Units</div>
             <div className="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[0.8px] text-subtle-foreground">Proof</div>
+            <div className="px-3 py-2 text-right text-[11px] font-medium uppercase tracking-[0.8px] text-subtle-foreground">Reconcile</div>
           </div>
 
           {/* Virtualized rows */}
@@ -162,28 +163,36 @@ export default function OverlayActivity ({ assetId, decimals, standalone = false
                     <div className="px-3 min-w-0">
                       <div className="flex flex-col gap-1">
                         <span><KindChip kind={e.kind} /></span>
-                        <a
-                          href={`https://whatsonchain.com/tx/${e.txid}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-mono text-[11px] text-subtle-foreground truncate hover:text-primary hover:underline"
-                          title={e.txid}
-                        >
-                          {e.txid.slice(0, 10)}…
-                        </a>
+                        {masked
+                          ? <span className="font-mono text-[11px] text-subtle-foreground">**********</span>
+                          : (
+                            <a
+                              href={`https://whatsonchain.com/tx/${e.txid}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-mono text-[11px] text-subtle-foreground truncate hover:text-primary hover:underline"
+                              title={e.txid}
+                            >
+                              {e.txid.slice(0, 10)}…
+                            </a>
+                          )}
                       </div>
                     </div>
                     <div className="px-3 text-[12px] min-w-0 truncate">
-                      {e.from != null
-                        ? <CounterpartyDisplay identityKey={e.from} wallet={wallet} />
-                        : <span className="text-subtle-foreground">Minted</span>}
+                      {e.from == null
+                        ? <span className="text-subtle-foreground">Minted</span>
+                        : masked
+                          ? <span className="font-mono text-subtle-foreground">******</span>
+                          : <CounterpartyDisplay identityKey={e.from} wallet={wallet} />}
                     </div>
                     <div className="px-3 text-[12px] min-w-0 truncate">
                       {e.kind === 'self'
                         ? <span className="text-subtle-foreground">Self</span>
-                        : e.to != null
-                          ? <CounterpartyDisplay identityKey={e.to} wallet={wallet} />
-                          : <span className="text-subtle-foreground">Burned</span>}
+                        : e.to == null
+                          ? <span className="text-subtle-foreground">Burned</span>
+                          : masked
+                            ? <span className="font-mono text-subtle-foreground">******</span>
+                            : <CounterpartyDisplay identityKey={e.to} wallet={wallet} />}
                     </div>
                     <div className="px-3 text-right">
                       <AmountCell e={e} decimals={decimals} />
@@ -196,6 +205,11 @@ export default function OverlayActivity ({ assetId, decimals, standalone = false
                         <ShieldCheck size={13} />
                         {e.proofs.length} linkage
                       </span>
+                    </div>
+                    <div className="flex justify-end px-3">
+                      {!masked && (
+                        <LedgerReconcileButton assetId={assetId} ledgerTxid={e.txid} amount={e.amount} decimals={decimals} />
+                      )}
                     </div>
                   </div>
                 )

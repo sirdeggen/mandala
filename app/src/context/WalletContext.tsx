@@ -58,7 +58,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             toast.info(`Recovered ${recovered} pending transaction${recovered === 1 ? '' : 's'}`)
           }
         }).catch(e => console.warn('[mandala] reconcile failed:', e))
-        // Deliver recipient notifications a crashed/failed send left pending —
+        // Deliver recipient notifications a crashed/failed send left pending -
         // without this the recipient never learns about their on-chain funds.
         void reconcileNotifications(messageBoxClient).then(d => {
           if (d.length > 0) console.info('[mandala] delivered pending transfer notifications:', d)

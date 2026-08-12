@@ -4,6 +4,7 @@ import { useWallet } from '../../context/WalletContext'
 import { toQrDataUrl } from '../../lib/mandala/qr'
 import { Button } from '../ui/button'
 import { Spinner } from '../ui/spinner'
+import { IdentitySigil } from '@/components/ui/identity-sigil'
 
 export default function ReceivePanel() {
   const { identityKey } = useWallet()
@@ -34,14 +35,14 @@ export default function ReceivePanel() {
   }
 
   return (
-    // No heading — this panel always renders under a "Receive" label, and the
+    // No heading - this panel always renders under a "Receive" label, and the
     // QR + key + copy affordances speak for themselves.
     <div className="flex flex-col items-center gap-6 py-4">
       {qrDataUrl ? (
         <div className="rounded-lg border border-separator bg-white p-3 shadow-[var(--shadow-card)]">
           <img
             src={qrDataUrl}
-            alt="QR code for your identity key"
+            alt="QR code for your Entity ID"
             className="h-[220px] w-[220px]"
           />
         </div>
@@ -52,15 +53,21 @@ export default function ReceivePanel() {
       )}
 
       <div className="w-full max-w-sm space-y-2">
-        <p className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground">Identity key</p>
-        <div className="flex items-center gap-2 rounded border border-input-border bg-input px-3.5 py-2.5">
-          <p className="tabular flex-1 truncate text-[12px] text-foreground">{identityKey}</p>
+        <p className="text-[11px] font-medium uppercase tracking-[1.2px] text-subtle-foreground">Entity ID</p>
+        <div className="flex items-center gap-2.5 rounded border border-input-border bg-input px-3 py-2">
+          <IdentitySigil value={identityKey} size={24} className="rounded" />
+          <code
+            className="min-w-0 flex-1 truncate font-mono text-[12px] text-foreground"
+            title={identityKey}
+          >
+            {identityKey.length > 12 ? `${identityKey.slice(0, 5)}…${identityKey.slice(-5)}` : identityKey}
+          </code>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => void handleCopy()}
             className="h-8 shrink-0 px-2"
-            title="Copy identity key"
+            title="Copy Entity ID"
           >
             {copied
               ? <Check className="h-4 w-4 text-success" />
