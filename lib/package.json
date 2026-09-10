@@ -7,11 +7,19 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
     "./package.json": "./package.json",
-    "./*": { "types": "./dist/*.d.ts", "import": "./dist/*.js" }
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js"
+    }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -21,7 +29,7 @@
   },
   "dependencies": {
     "@bsv/message-box-client": "^2.2.0",
-    "@bsv/sdk": "^2.1.6",
+    "@bsv/sdk": "^2.5.0",
     "@bsv/templates": "^1.9.0"
   },
   "devDependencies": {
