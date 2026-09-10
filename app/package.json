@@ -12,7 +12,7 @@
     "@bsv/mandala": "file:../lib",
     "@bsv/identity-react": "^1.1.14",
     "@bsv/message-box-client": "^2.2.0",
-    "@bsv/sdk": "^2.1.6",
+    "@bsv/sdk": "^2.5.0",
     "@bsv/templates": "^1.9.0",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
